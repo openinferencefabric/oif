@@ -1,0 +1,33 @@
+# T-108: sudo ./oif install on the installed lab cluster (branch feat/T-108-gpu-fractions at ebe5615), 2026-10-31 19:01 UTC
+2026-10-31 19:01:12 == oif 0.1.0-dev install (state in /var/lib/oif)
+2026-10-31 19:01:12 == stage: nodes (32ab32db7c74 -> fa4f55adbbfc)
+2026-10-31 19:01:14 == node 192.168.120.12 (192.168.120.12, control)
+  [ok] 192.168.120.12: node stages done
+2026-10-31 19:01:15 == node 192.168.120.13 (192.168.120.13, control)
+  [ok] 192.168.120.13: node stages done
+2026-10-31 19:01:16 == node 192.168.120.21 (192.168.120.21, worker)
+  [ok] 192.168.120.21: node stages done
+2026-10-31 19:01:17 == node 192.168.120.22 (192.168.120.22, worker)
+  [192.168.120.22] 2026-10-31 19:01:18 == stage: nvidia-driver
+  [192.168.120.22] 2026-10-31 19:01:18 == upgrading the NVIDIA driver 595.91.07 to the 615-server branch (one reboot)
+  [192.168.120.22]   [ok] older NVIDIA driver branch removed
+  [192.168.120.22]   [ok] NVIDIA 615-server driver installed; it loads after the reboot
+  [192.168.120.22] 2026-10-31 19:02:02 == stage: reboot
+  [192.168.120.22]   [!] a reboot is needed to load the NVIDIA 615-server driver instead of 595.91.07
+2026-10-31 19:02:02 == 192.168.120.22: rebooting it for its GPU driver
+  [ok] 192.168.120.22 back after the reboot
+  [192.168.120.22] 2026-10-31 19:04:05 == stage: reboot
+  [192.168.120.22]   [ok] no reboot needed
+  [192.168.120.22] 2026-10-31 19:04:05 == stage: host-verify
+  [192.168.120.22]   [ok] NVIDIA driver 615.71.09: NVIDIA RTX A6000
+  [192.168.120.22]   [ok] swap off
+  [192.168.120.22]   [ok] containerd running
+  [ok] 192.168.120.22: node stages done
+2026-10-31 19:04:05 == stage: runai-fractions (3.0.20 -> 3.0.20 615-server)
+gpufractioningconfig.gpu-fractioning.kai.scheduler "default" deleted
+gpufractioningconfig.gpu-fractioning.kai.scheduler/default created
+  [ok] GPU fractions available (driver 615.71.09)
+2026-10-31 19:04:10 == install finished
+
+# The first attempt (b8a8098) stopped on gpu-nvidia after installing the 615 packages: the leftover-package loop ended
+# on a package apt had already removed, its last `dpkg -s` returned 1 and errexit stopped the stage. Fixed in ebe5615.

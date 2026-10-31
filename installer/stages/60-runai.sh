@@ -191,7 +191,8 @@ ok = all(o["status"].get("readyReplicas", 0) == o["spec"]["replicas"] for o in i
 ok = ok and all(o["spec"]["replicas"] >= 2 for o in items if o["metadata"]["name"] not in single)
 sys.exit(0 if ok and len(items) > len(single) else 1)' && [ "$(kc -n runai get pods -l app=runai-scheduler-default -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}' | sort -u | wc -l)" -ge 2 ]; }
 
-register_stage runai-fractions RUNAI_VERSION
+runai_fractions_rev() { echo "$RUNAI_VERSION $NVIDIA_DRIVER_BRANCH"; }   # a new driver branch can turn fractions on (ADR-032)
+register_stage runai-fractions runai_fractions_rev
 stage_runai_fractions() {   # the fractioning daemons (fractiond, mpsd) only where the driver supports them
   local v; v=$(nvidia_driver_oldest)   # on the NVIDIA nodes, wherever they are (multi-node: not this host)
   if [ -n "$v" ] && [ "${v%%.*}" -lt $RUNAI_FRACTIONS_MIN_DRIVER ]; then

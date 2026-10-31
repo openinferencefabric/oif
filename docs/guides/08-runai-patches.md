@@ -137,7 +137,7 @@ Nothing outside oif's state folder and the cluster:
 | `<component> build finished: not reached`, Job log ends in `curl: (18)` or `(92)` | The internet link dropped during a download. Re-run `sudo ./oif install`: the source is downloaded on the host and kept, the caches keep what was fetched. |
 | `Run:ai <component> build failed` | `kubectl -n oif-build logs job/runai-patch-<component>`: a patch that no longer applies, a `gofmt` difference or a failed unit test. |
 | `go-operator did not roll out the patched image`, pod in `ImagePullBackOff` | The deployment still pulls `Always`; fixed in oif (the stage sets `IfNotPresent`). Re-run the install. |
-| Clusters page: **Missing prerequisites**, banner "Prerequisites are missing from cluster oif" | Expected while GPU fractions are off (T-108: they need NVIDIA driver r615 or later). Run:ai's tooltip says "GPU fractions are not deployed on any node ... As a result, GPU fractions are not supported." Whole-GPU workloads are not affected. |
+| Clusters page: **Missing prerequisites**, banner "Prerequisites are missing from cluster oif" | Expected while GPU fractions are off (they need NVIDIA driver r615 or later; oif installs 615 since T-108, guide 11). Run:ai's tooltip says "GPU fractions are not deployed on any node ... As a result, GPU fractions are not supported." Whole-GPU workloads are not affected. |
 
 ![Clusters: Missing prerequisites while GPU fractions are off](img/08-clusters.png)
 
