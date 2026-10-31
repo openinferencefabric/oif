@@ -256,6 +256,6 @@ Each node keeps its own change record in `/var/lib/oif`, the same kinds as a sin
 
 ## Known limits
 
-- GPU fractions stay off while the NVIDIA driver is older than r615 (T-108); the cluster shows Run:ai's "Missing prerequisites" for that.
+- GPU fractions run on NVIDIA nodes with driver r615 or later (T-108, guide 11); a node below that keeps them off and the cluster shows Run:ai's "Missing prerequisites".
 - A node with GPUs of both vendors cannot be split into two pools; it stays in the default pool (ADR-015 applies there).
 - The vendor-agnostic job surface and accelerator domains are P1.4 (ADR-019).
