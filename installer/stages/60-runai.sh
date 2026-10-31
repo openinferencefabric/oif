@@ -468,3 +468,21 @@ stage_runai_pools() {
   runai_api pools | sed 's/^/    /' | tee -a "$TLOG"
 }
 stage_after runai-pools runai-verify   # before any project or quota test is created
+
+# T-125 (ADR-032): one job, one vendor. Departments list the GPU pools first, so a workload submitted without a pool
+# (the Run:ai UI's default) lands where its GPU type exists; Run:ai's own default is pool "default", which has no GPU
+# on several nodes. KAI keeps all pods of a workload in one pool; a pod asking for both vendors is refused at creation.
+one_vendor_rev() { cat "$OIF_HOME/platform/kubernetes/one-gpu-vendor.yaml" | sha256sum | cut -c1-12; }
+gpu_pool_order() { local v o=(); for v in nvidia amd; do [ "$(gpu_count "$v")" -gt 0 ] && o+=("$v"); done; echo "${o[*]} default"; }
+register_stage one-vendor one_vendor_rev
+stage_one_vendor() {
+  multi_node || { ok "single node: one node pool, nothing to order"; return 0; }
+  local order; order=$(gpu_pool_order)
+  # shellcheck disable=SC2086   # the pool names are separate arguments
+  runai_api pool-order $order | sed 's/^/    /' | tee -a "$TLOG"
+  [ "${PIPESTATUS[0]}" = 0 ] || die "the departments' default node pools could not be set"
+  ok "workloads without node pools try: ${order// /, }"
+  kc apply -f "$OIF_HOME/platform/kubernetes/one-gpu-vendor.yaml" >> "$LOG" || die "policy oif-one-gpu-vendor rejected"
+  ok "a pod asking for NVIDIA and AMD GPUs at once is refused (ValidatingAdmissionPolicy oif-one-gpu-vendor)"
+}
+stage_after one-vendor runai-pools

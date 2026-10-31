@@ -1,0 +1,17 @@
+# T-125: a pod asking for an NVIDIA and an AMD GPU; policy oif-one-gpu-vendor must refuse it (applied as a dry run).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: t125-both-vendors
+  namespace: ${NS}
+spec:
+  schedulerName: runai-scheduler
+  restartPolicy: Never
+  containers:
+    - name: gpu
+      image: ${BUSYBOX_IMAGE}
+      command: ["sleep", "60"]
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+          amd.com/gpu: 1

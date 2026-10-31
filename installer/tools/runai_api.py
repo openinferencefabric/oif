@@ -10,6 +10,9 @@ never printed. Commands:
   project-pools NAME POOL=GPUS...        create the project if missing with a GPU quota per node pool, print its namespace
   node-pool NAME LABEL_KEY LABEL_VALUE   create the node pool if missing (nodes with that label) and wait until it is Ready
   pools                                  print each node pool: name, phase, nodes and GPU count
+  departments                            print each department's default node pool order
+  pool-order POOL...                     make POOL... the departments' default node pool order (projects without an
+                                         order of their own inherit it), print each department's order
   admin EMAIL                            make EMAIL a System administrator with the password in RUNAI_NEW_PASSWORD
   template FILE                          create or update the workload template in FILE (JSON)
   submit KIND NAME PROJECT TEMPLATE [COMMAND [ARGS]]  submit a training or workspace (KIND trainings, workspaces) from a template
@@ -248,6 +251,35 @@ def submit(token: str, kind: str, name: str, project_name: str, template_name: s
     print(f"{kind[:-1]} {name} submitted in project {project_name} from template {template_name}")
 
 
+# read-only fields of a department as GET returns it; PUT takes the rest back unchanged
+DEPT_READ_ONLY = {"id", "name", "clusterId", "createdAt", "createdBy", "updatedAt", "updatedBy", "effective", "parent",
+                  "parentId", "status", "totalResources", "overtimeData", "children"}
+
+
+def pool_order(token: str, order: list) -> None:
+    """Set the default node pool order on every department (T-125): a workload submitted without node pools tries them
+    in this order, so it lands where its GPU type exists instead of in a pool without GPUs."""
+    status, out = call("GET", "/api/v1/org-unit/departments", token=token)
+    if status != 200:
+        sys.exit(f"GET departments: HTTP {status} {out}")
+    for d in out.get("departments", []):
+        if d.get("defaultNodePools") != order:
+            body = {k: v for k, v in d.items() if k not in DEPT_READ_ONLY}
+            body["defaultNodePools"] = order
+            status, res = call("PUT", f"/api/v1/org-unit/departments/{d['id']}", body, token)
+            if status not in (200, 202):
+                sys.exit(f"department {d.get('name')}: HTTP {status} {res}")
+        print(f"department {d.get('name')} default node pools {','.join(order)}")
+
+
+def departments(token: str) -> None:
+    status, out = call("GET", "/api/v1/org-unit/departments", token=token)
+    if status != 200:
+        sys.exit(f"GET departments: HTTP {status} {out}")
+    for d in out.get("departments", []):
+        print(f"{d.get('name')} {','.join(d.get('defaultNodePools') or ['-'])}")
+
+
 def nodes(token: str) -> None:
     """Print each node as Run:ai sees it: name, GPU type, GPU count (the count last, for scripts)."""
     status, out = call("GET", "/api/v1/nodes", token=token)
@@ -279,6 +311,10 @@ def main() -> None:
         create_node_pool(token, *sys.argv[2:])
     elif cmd == "pools":
         pools(token)
+    elif cmd == "departments":
+        departments(token)
+    elif cmd == "pool-order" and len(sys.argv) >= 3:
+        pool_order(token, sys.argv[2:])
     elif cmd == "admin" and len(sys.argv) == 3:
         admin(token, sys.argv[2])
     elif cmd == "template" and len(sys.argv) == 3:

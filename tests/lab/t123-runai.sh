@@ -65,6 +65,28 @@ check "an NVIDIA GPU asked for in pool amd is never placed" bash -c "[ '$(phase 
 echo "        waiting reason: $(kc -n "$NS" get events --field-selector involvedObject.name=gpu-quota-test-2 -o jsonpath='{range .items[*]}{.message}{"\n"}{end}' | tail -1 | cut -c1-140)"
 kc -n "$NS" delete pod gpu-quota-test gpu-quota-test-2 amd-quota-test wrong-pool --wait=false >/dev/null 2>&1
 
+# T-125 (ADR-032): one job, one vendor
+echo "T-125 one job, one vendor"
+ORDER=$(gpu_pool_order | tr ' ' ',')
+DEPTS=$(runai_api departments); sed 's/^/        /' <<< "$DEPTS"
+check "every department's default node pools are $ORDER" bash -c "[ -n '$DEPTS' ] && ! grep -v ' $ORDER\$' <<< '$DEPTS' | grep -q ."
+kc -n "$NS" delete job t125-two-pods --ignore-not-found --wait=true >/dev/null 2>&1
+render "$OIF_HOME/tests/lab/t125-job.yaml" | kc apply -f - >/dev/null
+JOBSEL="-n $NS get pods -l app.kubernetes.io/part-of=oif-t125"
+wait_for "two pods of one Job running" 300 5 bash -c "[ \"\$(kubectl --kubeconfig $KCFG $JOBSEL --field-selector status.phase=Running -o name | wc -l)\" = 2 ]" >/dev/null 2>&1
+# shellcheck disable=SC2086   # JOBSEL holds several arguments
+JOBNODES=$(kc $JOBSEL --field-selector status.phase=Running -o jsonpath='{range .items[*]}{.spec.nodeName}{" "}{end}')
+echo "        job pods running on: ${JOBNODES:-none}"
+check "a 2-pod Job without a node pool runs both pods on the NVIDIA node (${HOST_nvidia:-?})" \
+  [ "$JOBNODES" = "${HOST_nvidia:-} ${HOST_nvidia:-} " ]
+PGPOOL=$(kc -n "$NS" get podgroups -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.labels.runai/node-pool}{" "}{end}' \
+  | tr ' ' '\n' | awk -F= '/^pg-t125-two-pods/ {print $2}')
+check "the Job is one PodGroup in pool ${PGPOOL:-?}" [ "$PGPOOL" = nvidia ]
+REFUSED=$(NS=$NS BUSYBOX_IMAGE=$BUSYBOX_IMAGE render "$OIF_HOME/tests/lab/t125-both-vendors.yaml" | kc apply --dry-run=server -f - 2>&1 || true)
+echo "        both vendors: $(cut -c1-150 <<< "$REFUSED")"
+check "a pod asking for NVIDIA and AMD GPUs is refused" grep -q 'oif: a pod uses one GPU vendor' <<< "$REFUSED"
+kc -n "$NS" delete job t125-two-pods --wait=false >/dev/null 2>&1
+
 echo
 if [ $FAILS = 0 ]; then echo "T-123: PASS ($N checks)"; else echo "T-123: FAIL ($FAILS of $N checks failed)"; fi
 [ $FAILS = 0 ]
