@@ -34,12 +34,12 @@ stage_nvidia_driver() {
   fi
   apt_install "nvidia-headless-no-dkms-$br-open" "$mods" "nvidia-utils-$br" "nvidia-compute-utils-$br"
   if [ -n "$old" ]; then   # apt replaced most of them; the rest would load the old branch's modules or firmware
-    old=$(for p in $old; do dpkg -s "$p" >/dev/null 2>&1 && echo "$p"; done | paste -sd' ')
+    old=$(for p in $old; do if dpkg -s "$p" >/dev/null 2>&1; then echo "$p"; fi; done | paste -sd' ')   # a false test last must not fail the loop
     # shellcheck disable=SC2086   # a list of package names
     [ -z "$old" ] || DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq $old >> "$LOG" 2>&1 || die "cannot remove the older NVIDIA driver: $old (see $LOG)"
     ok "older NVIDIA driver branch removed"
-    rm -f "$DONE/reboot-asked"   # the reboot for the new branch is a new reason, not a second try
   fi
+  rm -f "$DONE/reboot-asked"   # the reboot for this driver is a new reason, not a second try of an earlier one
   # written once: on an upgrade the file is already oif's, and a backup of it would be "restored" by uninstall
   recorded "FILE $f" || put_file "$f" $'# oif: the NVIDIA driver replaces nouveau\nblacklist nouveau\noptions nouveau modeset=0\n'
   rec "INITRAMFS"; update-initramfs -u -k "$(uname -r)" >/dev/null
