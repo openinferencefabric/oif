@@ -19,7 +19,7 @@ safe_purge() {   # purge recorded packages, but never one whose removal would al
   local set=" ${want[*]} " k; k=$(uname -r)
   for p in "${want[@]}"; do
     # never the kernel this host runs: without its modules nothing can be loaded until a reboot
-    case $p in linux-image-$k|linux-image-unsigned-$k|linux-modules-$k|linux-modules-extra-$k)
+    case $p in "linux-image-$k"|"linux-image-unsigned-$k"|"linux-modules-$k"|"linux-modules-extra-$k")
       keep+=("$p: the running kernel (boot the OS kernel, then run oif uninstall again)"); continue ;; esac
     extra=$({ apt-get -s --allow-change-held-packages purge "$p" 2>/dev/null || true; } | awk '/^Purg /{print $2}' \
       | while read -r x; do [[ $set == *" $x "* ]] || echo "$x"; done | head -3) || true   # head stops reading early: not a failure

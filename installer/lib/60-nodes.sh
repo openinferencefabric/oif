@@ -288,7 +288,7 @@ on_gpu_node() {   # address command: run where that GPU is (this host or another
   if [ -n "$(host_prefix "$1")" ]; then bash -c "$2"; else node_ssh "$1" "$2"; fi; }
 gpu_resource_is() { [ "$(allocatable_sum "$1")" = "$2" ]; }   # resource count: the cluster offers exactly that many
 nodes_rev() {   # the node stages' list and code: a change reaches every node on the next install
-  { echo "${NODE_STAGES[*]}"; cat "$OIF_HOME"/installer/stages/[0-3]0-*.sh "$OIF_HOME"/platform/kubernetes/conntrack-reaper.sh; } | sha256sum | cut -c1-12; }
+  { echo "${NODE_STAGES[*]} $NVIDIA_DRIVER_BRANCH"; cat "$OIF_HOME"/installer/stages/[0-3]0-*.sh "$OIF_HOME"/platform/kubernetes/conntrack-reaper.sh; } | sha256sum | cut -c1-12; }
 nvidia_driver_oldest() {   # the oldest NVIDIA driver version on any node with an NVIDIA GPU (empty: none)
   local name addr kind _r v out=""
   while read -r name addr kind _r; do
