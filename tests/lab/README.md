@@ -8,6 +8,7 @@ One script per task that needs real machines. Each prints `PASS` or `FAIL` per c
 | `t121-cluster.sh [--failover]` | T-121 highly available Kubernetes across the nodes | the first node, with sudo | `sudo ./oif install --until k8s-verify` (or later) |
 | `t122-gpus.sh` | T-122 GPUs on their nodes, both operators | the first node, with sudo | `sudo ./oif install --until amd-gpu-verify` (or later) |
 | `t123-runai.sh` | T-123 Run:ai node pools per vendor, per-pool quotas, patched images on every node | the first node, with sudo | a full `sudo ./oif install` |
+| `t128-hardening.sh [OPTION]` (`--image-copy`, `--expect-off` or `--redis-restart`) | T-128 hardening: AMD sharing guard, plugin, soft memory, whole and half GPU, image copy, fractions off | the first node, with sudo | a full `sudo ./oif install` (`--expect-off`: after `AMD_FRACTIONS=none` in `.env` and `sudo ./oif install --reconfigure`) |
 
 What each checks:
 
@@ -18,5 +19,7 @@ What each checks:
 - **t122-gpus.sh**: the cluster's GPU inventory (at least one per vendor); per GPU: its driver, `nvidia-smi` or `/dev/kfd`, and the node offering it; the cluster offers exactly as many `nvidia.com/gpu` and `amd.com/gpu` as there are GPUs and nodes without GPUs offer none; both operators ready; one test pod per vendor lands on that vendor's node and gets only its GPU; both exporters report.
 
 - **t123-runai.sh**: GPU nodes labelled `oif.ai/gpu-vendor` and no other node; Run:ai pools `nvidia` and `amd` Ready with each vendor's GPUs; the three patched images on every node and in use; with project team-c (quota 1 per pool): a pod per pool runs on that vendor's node, a second NVIDIA pod waits on quota, an NVIDIA GPU asked for in pool `amd` is never placed.
+
+- **t128-hardening.sh**: the plugin lists its AMD GPU at start; the half-GPU templates are offered; soft memory isolation measured (a half-GPU pod holding 20 GiB next to one that lifts PyTorch's cap); only KAI's binder may add, change or remove `oif.ai/amd-gpu*` annotations; a whole AMD GPU and a half never share the one GPU. `--image-copy`: another image under the patched UI's tag on a node is replaced and the UI restarted by install, and a second install restarts nothing. `--expect-off`: KAI's stock images, no plugin, no policy, no half-GPU templates. `--redis-restart`: restarts cluster-redis for the workspace-login check.
 
 Unit tests that need no machines are in `tests/unit` (`tests/run.sh`); the read-only clean-host check after an uninstall is `tests/host/verify-clean.sh`.

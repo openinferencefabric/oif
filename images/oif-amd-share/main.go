@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/containerd/nri/pkg/api"
@@ -56,6 +57,11 @@ func main() {
 		log.Fatalf("NRI stub: %v", err)
 	}
 	log.Printf("oif-amd-share: registered with containerd (NRI index %s)", *idx)
+	if gpus := amdGPUs(p.host.sysRoot); len(gpus) > 0 {
+		log.Printf("oif-amd-share: AMD GPUs on this node: %s", strings.Join(gpus, " "))
+	} else {
+		log.Printf("oif-amd-share: WARNING: no AMD GPU with a DRM device under %s/bus/pci/devices: a pod given a shared GPU here is refused", p.host.sysRoot)
+	}
 	if err := s.Run(context.Background()); err != nil {
 		log.Fatalf("NRI plugin stopped: %v", err)
 	}

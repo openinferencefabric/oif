@@ -15,6 +15,8 @@ never printed. Commands:
                                          order of their own inherit it), print each department's order
   admin EMAIL                            make EMAIL a System administrator with the password in RUNAI_NEW_PASSWORD
   template FILE                          create or update the workload template in FILE (JSON)
+  templates                              list the workload templates (name, kind)
+  template-delete NAME                   delete the workload template NAME, if there is one
   submit KIND NAME PROJECT TEMPLATE [COMMAND [ARGS]]  submit a training or workspace (KIND trainings, workspaces) from a template
 """
 import json
@@ -230,6 +232,27 @@ def template(token: str, path: str) -> None:
     print(f"template {name} {verb}")
 
 
+def templates(token: str) -> list:
+    """The workload templates: [(name, kind, id)], kind as in the URL (trainings, workspaces)."""
+    status, out = call("GET", "/api/v1/workload-templates", token=token)
+    if status != 200:
+        sys.exit(f"GET templates: HTTP {status} {out}")
+    kinds = {"Training": "trainings", "Workspace": "workspaces"}
+    return [(e["meta"]["name"], kinds.get(e["meta"].get("workloadType", ""), ""), e["meta"]["id"]) for e in out.get("entries", [])]
+
+
+def template_delete(token: str, name: str) -> None:
+    """Delete the workload template of that name, if there is one (T-128: half-GPU AMD templates when fractions are off)."""
+    for n, kind, tid in templates(token):
+        if n == name:
+            status, out = call("DELETE", f"/api/v1/workload-templates/{kind}/{tid}", token=token)
+            if status not in (200, 202, 204):
+                sys.exit(f"delete template {name}: HTTP {status} {out}")
+            print(f"template {name} deleted")
+            return
+    print(f"template {name} not present")
+
+
 def submit(token: str, kind: str, name: str, project_name: str, template_name: str, command: str = "", args: str = "") -> None:
     """Submit a workload (kind: trainings or workspaces) from a template, optionally with another command."""
     status, out = call("GET", "/api/v1/org-unit/projects", token=token)
@@ -327,6 +350,11 @@ def main() -> None:
         admin(token, sys.argv[2])
     elif cmd == "template" and len(sys.argv) == 3:
         template(token, sys.argv[2])
+    elif cmd == "templates" and len(sys.argv) == 2:
+        for name, kind, _ in templates(token):
+            print(name, kind)
+    elif cmd == "template-delete" and len(sys.argv) == 3:
+        template_delete(token, sys.argv[2])
     elif cmd == "submit" and 6 <= len(sys.argv) <= 8:
         submit(token, *sys.argv[2:])
     else:

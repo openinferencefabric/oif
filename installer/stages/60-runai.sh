@@ -372,6 +372,8 @@ runai_patch_spread() {   # component image: load the patched image on every othe
     node_ssh "$addr" "$has" || die "$2 missing on $name after loading it"
     n=$((n + 1))
   done 3< <(other_nodes)
+  # a node that had another image under this tag still runs it: runai_patch_use restarts the component (T-128)
+  [ "$n" -gt 0 ] && RUNAI_PATCH_FRESH="${RUNAI_PATCH_FRESH:-} $1"
   ok "patched image $2 on every node ($n loaded now)"
 }
 runai_patch_use() {   # component stock|patched: point Run:ai at the image and wait for the rollout

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/containerd/nri/pkg/api"
 )
 
 const gpu = "0000:07:00.0"
@@ -113,5 +115,114 @@ func TestRefused(t *testing.T) {
 		if _, err := fakeHost(t).adjust(ann, "main", nil, nil); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+// addPCI adds a PCI device with that vendor and those DRM entries to a fake sysfs tree.
+func addPCI(t *testing.T, sys, bdf, vendor string, drm ...string) {
+	t.Helper()
+	dir := filepath.Join(sys, "bus/pci/devices", bdf)
+	for _, n := range drm {
+		if err := os.MkdirAll(filepath.Join(dir, "drm", n), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "vendor"), []byte(vendor+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func devicePaths(a *api.ContainerAdjustment) string {
+	var got []string
+	for _, d := range a.GetLinux().GetDevices() {
+		got = append(got, d.Path)
+	}
+	return strings.Join(got, " ")
+}
+
+// Every way the GPU can be missing on the node refuses the container: it never starts without its GPU (T-128).
+func TestMissingDevicesRefused(t *testing.T) {
+	noKfd := fakeHost(t)
+	stat := noKfd.stat
+	noKfd.stat = func(p string) (devNode, error) {
+		if p == kfd {
+			return devNode{}, errors.New("no such device")
+		}
+		return stat(p)
+	}
+	if _, err := noKfd.adjust(map[string]string{gpuKey: gpu}, "main", nil, nil); err == nil {
+		t.Error("no /dev/kfd: accepted")
+	}
+
+	// sysfs lists a render node that /dev does not have
+	staleSysfs := fakeHost(t)
+	addPCI(t, staleSysfs.sysRoot, gpu, "0x1002", "renderD129")
+	if _, err := staleSysfs.adjust(map[string]string{gpuKey: gpu}, "main", nil, nil); err == nil {
+		t.Error("render node missing in /dev: accepted")
+	}
+
+	// the GPU is there but has no card or render node (amdgpu not bound)
+	noDRM := fakeHost(t)
+	addPCI(t, noDRM.sysRoot, "0000:09:00.0", "0x1002")
+	if err := os.MkdirAll(filepath.Join(noDRM.sysRoot, "bus/pci/devices/0000:09:00.0/drm"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := noDRM.adjust(map[string]string{gpuKey: "0000:09:00.0"}, "main", nil, nil); err == nil {
+		t.Error("GPU without a DRM device: accepted")
+	}
+}
+
+// Only card and render nodes are given; other DRM entries (connectors, the legacy control node) are not.
+func TestOtherDRMEntriesIgnored(t *testing.T) {
+	h := fakeHost(t)
+	addPCI(t, h.sysRoot, gpu, "0x1002", "card0-DP-1", "controlD64", "version")
+	a, err := h.adjust(map[string]string{gpuKey: gpu}, "main", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := devicePaths(a); got != "/dev/kfd /dev/dri/card0 /dev/dri/renderD128" {
+		t.Errorf("devices: %s", got)
+	}
+}
+
+// On a node with two GPUs the pod gets the one the binder named, and only that one.
+func TestTwoGPUs(t *testing.T) {
+	h := fakeHost(t)
+	addPCI(t, h.sysRoot, "0000:08:00.0", "0x1002", "card1", "renderD129")
+	stat := h.stat
+	h.stat = func(p string) (devNode, error) {
+		switch p {
+		case "/dev/dri/card1":
+			return devNode{226, 1, 0o660, 44}, nil
+		case "/dev/dri/renderD129":
+			return devNode{226, 129, 0o660, 990}, nil
+		}
+		return stat(p)
+	}
+	a, err := h.adjust(map[string]string{gpuKey: "0000:08:00.0"}, "main", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := devicePaths(a); got != "/dev/kfd /dev/dri/card1 /dev/dri/renderD129" {
+		t.Errorf("devices: %s", got)
+	}
+}
+
+// The start log lists AMD GPUs with a DRM device: not a GPU's audio function, not another vendor's GPU.
+func TestAMDGPUsOnNode(t *testing.T) {
+	sys := t.TempDir()
+	addPCI(t, sys, "0000:03:00.0", "0x1002", "card0", "renderD128")
+	// the GPU's HDMI audio function, and an NVIDIA GPU
+	addPCI(t, sys, "0000:03:00.1", "0x1002")
+	addPCI(t, sys, "0000:04:00.0", "0x10de", "card1", "renderD129")
+	addPCI(t, sys, "0000:05:00.0", "0x1002", "card2", "renderD130")
+	if got := strings.Join(amdGPUs(sys), " "); got != "0000:03:00.0 0000:05:00.0" {
+		t.Errorf("AMD GPUs: %q", got)
+	}
+	if got := amdGPUs(t.TempDir()); len(got) != 0 {
+		t.Errorf("empty sysfs: %v", got)
 	}
 }

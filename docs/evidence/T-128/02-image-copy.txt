@@ -1,0 +1,13 @@
+T-128 lab run, 2026-11-01, on the first node (cp1)
+$ sudo tests/lab/t128-hardening.sh --image-copy
+
+T-128 a node with another image under the patched UI's tag
+  PASS  192.168.120.12 holds another image under oif.local/runai-oss/frontend:3.0.20-oif1 (test set-up)
+  PASS  install with the runai-patches stage again succeeds
+  PASS  192.168.120.12 has the patched UI image again
+  PASS  the UI was restarted (its pods on 192.168.120.12 drop what they ran)
+  PASS  every UI pod runs and is ready
+  PASS  a second install succeeds
+  PASS  and restarts nothing (UI restart time unchanged)
+        install logs: /tmp/t128-install-1.log, /tmp/t128-install-2.log
+T-128: 7/7 checks passed

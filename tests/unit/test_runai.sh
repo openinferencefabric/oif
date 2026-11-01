@@ -63,4 +63,18 @@ grep -q PRIVATE "$UHOME/oif-ca.crt" && fail "no private key in the user's copy"
 before=$(openssl x509 -in "$PKI/ca.crt" -noout -fingerprint)
 stage_pki >/dev/null
 eq "$(openssl x509 -in "$PKI/ca.crt" -noout -fingerprint)" "$before" "the CA survives a re-run (browsers keep trusting it):"
+
+# patched images on the other nodes (T-127, T-128): compared by content, not name; a node that gets the image loaded
+# marks the component for a restart, since its pods there may run what was under the same tag before
+OIF_NODES=x; STATE=$SANDBOX/state; mkdir -p "$STATE/build/runai"; echo image > "$STATE/build/runai/frontend.tar"
+ctr() { printf 'REF TYPE DIGEST\nimg:1 application/vnd.oci.image.index.v1+json sha256:new\n'; }
+declare -A NODE_DIGEST=([192.0.2.12]=sha256:new [192.0.2.13]=sha256:old)
+other_nodes() { printf 'cp2 192.0.2.12 control\ncp3 192.0.2.13 control\n'; }
+node_ssh() { local a=$1; shift
+  case "$*" in *import*) cat >/dev/null; NODE_DIGEST[$a]=sha256:new ;; *) [ "${NODE_DIGEST[$a]}" = sha256:new ] ;; esac; }
+RUNAI_PATCH_FRESH=""; runai_patch_spread frontend img:1 >/dev/null
+eq "${NODE_DIGEST[192.0.2.13]}" sha256:new "the node with another image under the tag gets this one:"
+eq "$RUNAI_PATCH_FRESH" " frontend" "and the component is restarted:"
+RUNAI_PATCH_FRESH=""; runai_patch_spread frontend img:1 >/dev/null
+eq "$RUNAI_PATCH_FRESH" "" "every node already has it: nothing loaded, nothing restarted:"
 finish

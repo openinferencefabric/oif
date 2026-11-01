@@ -12,6 +12,7 @@ Step T-126 (ADR-032, spike S-7). Tested on the lab cluster (guide 10) on 2026-11
 
 - **PyTorch is capped automatically.** The plugin sets PyTorch's allocator to the pod's share (`PYTORCH_ALLOC_CONF=per_process_memory_fraction:0.5`, also the HIP and CUDA names, added to the image's own allocator settings). PyTorch, and what runs on it such as vLLM, refuses to allocate past the share. vLLM's default `--gpu-memory-utilization 0.9` then fails on half a GPU instead of taking the neighbour's memory: set it below the share (for example `0.45`).
 - **Everything else gets the share** in `OIF_GPU_MEMORY_FRACTION` (for example `0.5`) and must keep to it. A process outside PyTorch that ignores it can take the memory its neighbour needs (S-7: a pod without a cap took 40.5 GiB and the second one failed with out-of-memory).
+- **A pod can lift the cap itself.** In T-128 a half-GPU pod that called `torch.cuda.set_per_process_memory_fraction(1.0)` took 23 GiB next to a neighbour holding 20 GiB: more than its 22.5 GiB share, limited only by the free memory. Share an AMD GPU only between workloads you trust to keep to their share.
 
 NVIDIA fractions are hard limits, enforced by the driver.
 
@@ -133,13 +134,19 @@ kubectl -n runai-<project> get pod -l workloadName=<name> -o jsonpath='{.items[0
 
 The lab test `tests/lab/t126-amd-fractions.yaml` runs two halves and a third on pool `amd` and two halves on `nvidia` without the UI. Full output: `docs/evidence/T-126/`.
 
+`sudo tests/lab/t128-hardening.sh` (T-128) checks the rest: the plugin names its GPUs at start, only the binder may set the `oif.ai/amd-gpu*` annotations, a whole AMD GPU and a half never run on the one GPU together (the second waits on quota), the soft memory limit above; options for a replaced image on a node, `AMD_FRACTIONS=none` and a `cluster-redis` restart with a workspace open (it stays logged in). Output: `docs/evidence/T-128/`. The plugin's log on each AMD GPU node starts with:
+
+```text
+oif-amd-share: AMD GPUs on this node: 0000:03:00.0
+```
+
 ## What changed on the host
 
 | Change | Reversed by uninstall |
 | --- | --- |
 | On AMD-only GPU nodes: `/etc/containerd/conf.d/90-oif-amd-fractions.toml` (runtime `nvidia` = runc), containerd restarted once | the file (and the folder, if oif created it) is removed |
 | Four images in containerd on every node: `oif.local/kai-scheduler/{scheduler,binder,resourcereservation}`, `oif.local/oif/oif-amd-share` | go with containerd's data |
-| Cluster: RunaiConfig points KAI at the patched images; namespace `oif-system` (plugin DaemonSet); policy `oif-amd-share-annotations` | go with Run:ai and the cluster; `AMD_FRACTIONS=none` in `.env` (`sudo ./oif install --reconfigure`) puts KAI's stock images back and removes the plugin |
+| Cluster: RunaiConfig points KAI at the patched images; namespace `oif-system` (plugin DaemonSet); policy `oif-amd-share-annotations` | go with Run:ai and the cluster; `AMD_FRACTIONS=none` in `.env` (`sudo ./oif install --reconfigure`) puts KAI's stock images back and removes the plugin; `AMD_FRACTIONS=all` (an empty value keeps the saved `none`) turns them on again |
 
 ## Troubleshooting
 
@@ -151,4 +158,9 @@ The lab test `tests/lab/t126-amd-fractions.yaml` runs two halves and a third on 
 | `forbidden: ValidatingAdmissionPolicy 'oif-amd-share-annotations'` | Expected for anyone but KAI's binder: ask for a fraction (`gpu-fraction`) instead of setting `oif.ai/amd-gpu`. |
 | A pod fails with out-of-memory although the GPU is half free | Its neighbour does not keep to its share: set the framework's memory limit from `OIF_GPU_MEMORY_FRACTION` in both. |
 | A fraction asks for GPU memory in GiB instead of % of the device | Not tested on AMD: use % of the device. |
-| A workspace URL (Jupyter) stays blank; its proxy logs `session does not exist` | Before T-127, the HA platform ran two unreplicated copies of `cluster-redis`, where workspace logins are kept: `sudo ./oif install` (runai-ha keeps one copy), then open the link in a new private window. |
+| The plugin log says `WARNING: no AMD GPU with a DRM device under /sys/bus/pci/devices` | amdgpu is not bound to the GPU on that node (or it is isolated with vfio): check guide 06; half-GPU pods there would be refused. |
+| A pod on gpu-amd fails with `GPU <bdf> not on this node` or `has no DRM device` | The plugin refuses a container whose named GPU it cannot find instead of starting it without a GPU: check the node's GPU (as above) and delete the pod. |
+| A whole AMD GPU workload stays pending: `NonPreemptibleOverQuota ... while 0.5 GPUs are already allocated` | A half is running on the GPU: whole and half never share it. It starts when the half ends (or give the project more AMD quota with more AMD GPUs). |
+| The templates **jupyter-lab-rocm-half-gpu** and **pytorch-rocm-half-gpu** are missing | `AMD_FRACTIONS=none`, or no node has AMD GPUs only: the install removes them. Set `AMD_FRACTIONS=all` and run `sudo ./oif install --reconfigure`. |
+| `AMD_FRACTIONS=` (empty) in `.env` does not switch fractions on again | An empty value keeps the saved one: use `AMD_FRACTIONS=all`. |
+| A workspace URL (Jupyter) stays blank; its proxy logs `session does not exist` | Before T-127, the HA platform ran two unreplicated copies of `cluster-redis`, where workspace logins are kept: `sudo ./oif install` (runai-ha keeps one copy), then open the link in a new private window. Restarting `cluster-redis` with a workspace open keeps the login (T-128). |

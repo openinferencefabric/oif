@@ -1,0 +1,14 @@
+T-128 lab run, 2026-11-01: cluster-redis restart with a Jupyter workspace open
+
+Set-up: Run:ai UI > New workload > Workspace, project team-c, template jupyter-lab-rocm-half-gpu, name test-lab;
+Running, opened with CONNECT (JupyterLab with a notebook).
+
+$ sudo tests/lab/t128-hardening.sh --redis-restart
+T-128 cluster-redis restart: keep a Jupyter workspace open in the browser, then reload it when this finishes
+  [ok] cluster-redis back
+  PASS  cluster-redis running again
+        Now reload the workspace tab: note whether it opens directly or asks you to log in again.
+T-128: 1/1 checks passed
+
+Result (owner, in the browser): the reloaded JupyterLab tab opened directly, with no new login. The workspace log shows
+the kernel reconnecting (ServerApp "Connecting to kernel ...") and no session errors.
