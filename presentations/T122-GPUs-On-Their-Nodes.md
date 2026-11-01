@@ -1,7 +1,7 @@
 # T-122 — GPUs on Their Nodes
 
 **Status:** Done (2026-10-26)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-017 · `installer/stages/30-gpu-host.sh` · `installer/lib/60-nodes.sh` · `tests/lab/t122-gpus.sh`
 
 ---

@@ -25,7 +25,7 @@ index 0e9f2ac..779eebf 100644
 +          </p>
 +          <p>
 +            How oif builds the cluster, node by node:
-+            <a href="https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/14-build-the-cluster.md"
++            <a href="https://github.com/openinferencefabric/oif/blob/main/docs/guides/14-build-the-cluster.md"
 +              target="_blank" rel="noopener">guide 14</a>.
 +          </p>
 +        </div>

@@ -1,6 +1,13 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/oif-logo-dark-1200x400.png">
+    <img src="brand/oif-logo-light-1200x400.png" alt="Open Inference Fabric" width="480">
+  </picture>
+</p>
+
 # Open Inference Fabric
 
-[![ci](https://github.com/manmohanbrahma/open-inference-fabric/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/manmohanbrahma/open-inference-fabric/actions/workflows/ci.yml)
+[![ci](https://github.com/openinferencefabric/oif/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/openinferencefabric/oif/actions/workflows/ci.yml)
 
 **One open-source platform to schedule, serve, benchmark and observe LLMs on NVIDIA and AMD GPUs.**
 
@@ -54,6 +61,12 @@ sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GP
 ## Reference hardware
 
 Developed and tested on one server: AMD EPYC 9684X, 751 GiB RAM, NVIDIA RTX A6000 and AMD Radeon PRO W7900, Ubuntu 26.04. Multi-node work uses the [hybrid-gpu-lab](https://github.com/manmohanbrahma/hybrid-gpu-lab).
+
+## Contributing
+
+Testers with NVIDIA, AMD or mixed GPU servers, reviewers for the upstream Run:ai and KAI work
+([docs/UPSTREAM.md](docs/UPSTREAM.md)), and contributors are all welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and
+the [Code of Conduct](CODE_OF_CONDUCT.md). Report security problems privately ([docs/SECURITY.md](docs/SECURITY.md)).
 
 ## Licence
 

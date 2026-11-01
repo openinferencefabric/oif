@@ -1,7 +1,7 @@
 # T-120 — Node List, Cluster SSH Key and Per-Node Runner
 
 **Status:** Done (2026-10-26)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-017 · `installer/lib/60-nodes.sh` · `tests/lab/t120-nodes.sh` · `tests/unit/test_nodes.sh`
 
 ---

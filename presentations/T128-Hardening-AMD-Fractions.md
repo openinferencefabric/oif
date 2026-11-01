@@ -1,7 +1,7 @@
 # T-128 — Hardening after the External Review (AMD GPU Fractions)
 
 **Status:** Done (tested 2026-11-01 on the lab)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-032 · T-126 · T-127 · S-7 · `images/oif-amd-share/` · Guide 13 · `tests/lab/t128-hardening.sh` · `docs/evidence/T-128/`
 
 ---

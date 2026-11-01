@@ -444,7 +444,7 @@
    "id": 7,
    "type": "timeseries",
    "title": "GPU utilisation",
-   "description": "Busy share of the GPU: DCGM GPU_UTIL on NVIDIA, gfx activity on AMD. No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "Busy share of the GPU: DCGM GPU_UTIL on NVIDIA, gfx activity on AMD. No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -534,7 +534,7 @@
    "id": 8,
    "type": "timeseries",
    "title": "GPU memory used",
-   "description": "Used memory, and the total as a dashed line. No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "Used memory, and the total as a dashed line. No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -654,7 +654,7 @@
    "id": 9,
    "type": "timeseries",
    "title": "Power",
-   "description": "Board power (NVIDIA) and package power (AMD). No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "Board power (NVIDIA) and package power (AMD). No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -743,7 +743,7 @@
    "id": 10,
    "type": "timeseries",
    "title": "Temperature",
-   "description": "GPU temperature (NVIDIA) and edge temperature (AMD); AMD junction temperature dashed. No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "GPU temperature (NVIDIA) and edge temperature (AMD); AMD junction temperature dashed. No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -862,7 +862,7 @@
    "id": 11,
    "type": "timeseries",
    "title": "Shader clock",
-   "description": "SM clock (NVIDIA) and graphics clock (AMD); it drops when the GPU is idle or throttles. No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "SM clock (NVIDIA) and graphics clock (AMD); it drops when the GPU is idle or throttles. No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -951,7 +951,7 @@
    "id": 12,
    "type": "timeseries",
    "title": "Node CPU and memory",
-   "description": "Host CPU and memory use from node-exporter. No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "Host CPU and memory use from node-exporter. No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"

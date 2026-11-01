@@ -1,7 +1,7 @@
 # T-127 — AMD GPU Fractions, Usable from the UI (ADR-032)
 
 **Status:** Done (tested 2026-11-01 on the lab)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-032 · T-126 · S-7 · `images/oif-amd-share/` · `patches/runai/3.0.20/0004-frontend-new-cluster-points-to-oif.patch` · Guide 13 · Guide 14 · `docs/evidence/T-127/`
 
 ---

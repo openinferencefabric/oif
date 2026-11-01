@@ -4,7 +4,7 @@ Current state of the project. Update after every task.
 
 ## Status (2026-10-28)
 
-- Phase 0: research and project documents written (T-001). Repository public at github.com/manmohanbrahma/open-inference-fabric (T-002).
+- Phase 0: research and project documents written (T-001). Repository public (T-002); moved to github.com/openinferencefabric/oif on 2026-11-02.
 - **P1.1** (single-node NVIDIA stack) done through T-107: host prep, kubeadm, NVIDIA GPU Operator, Run:ai 3.0.20, observability, uninstall/reinstall verified on the reference host.
 - **P1.2** (AMD on the same node) done through T-115: AMD GPU Operator v1.5.1, dual-vendor recording rules and dashboards, per-vendor ResourceQuota (ADR-015), Run:ai patches so AMD GPUs appear in inventory and UI (ADR-016).
 - **P1.3** multi-node hybrid cluster on [hybrid-gpu-lab](https://github.com/manmohanbrahma/hybrid-gpu-lab) (cp1–3, gpu-amd W7900, gpu-nvidia A6000):

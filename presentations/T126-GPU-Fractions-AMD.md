@@ -1,7 +1,7 @@
 # T-126 — GPU Fractions on AMD (ADR-032)
 
 **Status:** Done (tested 2026-11-01 on the lab)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-032 · S-7 · `installer/stages/75-amd-fractions.sh` · `images/oif-amd-share/` · `platform/gpu-amd/amd-share.yaml` · Guide 13 · `docs/evidence/T-126/`
 
 ---

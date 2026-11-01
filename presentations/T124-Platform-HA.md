@@ -1,7 +1,7 @@
 # T-124 — Platform High Availability Across Control-Plane Nodes
 
 **Status:** Done (2026-10-31)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-021 · ADR-022 (amends ADR-021) · `tests/lab/t124-ha.sh` · `tests/lab/t124-probe.py` · Guide 10 (HA section) · T-121 (HA Kubernetes)
 
 ---

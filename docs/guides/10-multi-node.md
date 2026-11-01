@@ -29,7 +29,7 @@
 
    ```bash
    ssh -A oif@192.168.120.11
-   git clone https://github.com/manmohanbrahma/open-inference-fabric.git && cd open-inference-fabric
+   git clone https://github.com/openinferencefabric/oif.git open-inference-fabric && cd open-inference-fabric
    cp .env.example .env
    ```
 
