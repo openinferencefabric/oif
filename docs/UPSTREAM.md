@@ -57,6 +57,8 @@ Opened by Manmohan Brahma; PR commits signed off (DCO). Run:ai merges a PR only 
 
 Held: R8 (until KAI answers #2556); A1 (not reproduced on the current lab: the W7900 shows no UMC errors; report again with fresh evidence).
 
+Follow-ups (2026-11-01): CodeRabbit's findings on #3950 (family count when the product count is unusable) and #3949 (malformed daemon conditions reported unavailable) fixed in e619499f and 6ddd263e, checked on Run:ai main 1fee5ece; T-128 evidence added to [run-ai#3943](https://github.com/dsx-ai-factory/run-ai/issues/3943#issuecomment-6560336091) (one cluster-redis copy survives a restart with a workspace logged in) and [KAI#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556#issuecomment-6560342620) (soft memory isolation measured: 23 GiB taken from a 22.5 GiB share).
+
 PRs were checked on the upstream `main` they target (Run:ai cfd9d8ac, KAI 4e6fcbd): build, vet, the service's tests, and lint with the project's own config and version. R1 for upstream parses the AMD count with `strconv.ParseInt(..., 32)` (gosec G109); oif's patch 0001 still uses `Atoi`.
 
 ## Run:ai
