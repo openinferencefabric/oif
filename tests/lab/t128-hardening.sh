@@ -5,7 +5,8 @@
 #   sudo tests/lab/t128-hardening.sh                 policy, plugin start log, soft memory, whole and half GPU
 #   sudo tests/lab/t128-hardening.sh --image-copy    + another image under the UI's tag on a node: install fixes it
 #                                                     and restarts the UI; a second install restarts nothing (slow)
-#   sudo tests/lab/t128-hardening.sh --expect-off    after an install with AMD_FRACTIONS=none: stock KAI, no plugin
+#   sudo tests/lab/t128-hardening.sh --expect-off    after AMD_FRACTIONS=none in .env and  sudo ./oif install
+#                                                     --reconfigure: stock KAI, no plugin
 #   sudo tests/lab/t128-hardening.sh --redis-restart restart cluster-redis (with a workspace open in a browser)
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); OIF_HOME=$ROOT; SELF=$ROOT/oif
@@ -172,7 +173,7 @@ sleep 25
 info "$(logs t128-greedy | grep 'GREEDY HOLDS')"
 info "the first pod now: $(logs t128-polite | tail -1)"
 check "soft limit shown: a pod that lifts PyTorch's cap takes more than its share" \
-  bash -c "[ \$(kubectl --kubeconfig $KCFG -n $NS logs t128-greedy | sed -n 's/GREEDY HOLDS \([0-9]*\) GiB.*/\1/p') -gt 23 ]"
+  bash -c "kubectl --kubeconfig $KCFG -n $NS logs t128-greedy | awk '/GREEDY HOLDS/ { f = \$3 > \$6 * \$8 } END { exit !f }'"
 echo "        (expected with soft isolation: the greedy pod takes the free memory; the first may be refused inside its share)"
 
 # 3. the annotation guard: only KAI's binder names a GPU for a pod

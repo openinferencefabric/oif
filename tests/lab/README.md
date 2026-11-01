@@ -8,7 +8,7 @@ One script per task that needs real machines. Each prints `PASS` or `FAIL` per c
 | `t121-cluster.sh [--failover]` | T-121 highly available Kubernetes across the nodes | the first node, with sudo | `sudo ./oif install --until k8s-verify` (or later) |
 | `t122-gpus.sh` | T-122 GPUs on their nodes, both operators | the first node, with sudo | `sudo ./oif install --until amd-gpu-verify` (or later) |
 | `t123-runai.sh` | T-123 Run:ai node pools per vendor, per-pool quotas, patched images on every node | the first node, with sudo | a full `sudo ./oif install` |
-| `t128-hardening.sh [OPTION]` (`--image-copy`, `--expect-off` or `--redis-restart`) | T-128 hardening: AMD sharing guard, plugin, soft memory, whole and half GPU, image copy, fractions off | the first node, with sudo | a full `sudo ./oif install` (`--expect-off`: after one with `AMD_FRACTIONS=none`) |
+| `t128-hardening.sh [OPTION]` (`--image-copy`, `--expect-off` or `--redis-restart`) | T-128 hardening: AMD sharing guard, plugin, soft memory, whole and half GPU, image copy, fractions off | the first node, with sudo | a full `sudo ./oif install` (`--expect-off`: after `AMD_FRACTIONS=none` in `.env` and `sudo ./oif install --reconfigure`) |
 
 What each checks:
 
