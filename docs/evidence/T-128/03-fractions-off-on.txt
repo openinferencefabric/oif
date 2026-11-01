@@ -1,0 +1,68 @@
+T-128 lab run, 2026-11-01, on the first node (cp1): AMD GPU fractions off, then on again
+(the --reconfigure questions are left out; Enter was pressed at each)
+
+$ sed -i 's/^AMD_FRACTIONS=.*/AMD_FRACTIONS=none/' .env
+$ sudo ./oif install --reconfigure && sudo tests/lab/t128-hardening.sh --expect-off
+2026-11-01 15:31:11 == oif 0.1.0-dev install (state in /var/lib/oif)
+2026-11-01 15:31:12 == stage: runai-amd-templates (2367f83d1046 -> f573d10a6b91)
+  [ok] template jupyter-lab-rocm-1-gpu updated
+  [ok] template jupyter-lab-rocm-half-gpu deleted
+  [ok] template pytorch-rocm-1-gpu updated
+  [ok] template pytorch-rocm-half-gpu deleted
+2026-11-01 15:31:16 == stage: amd-fractions (15ba7619ac82 -> 55d0a3ced3d3)
+runaiconfig.run.ai/runai patched
+runaiconfig.run.ai/runai patched
+runaiconfig.run.ai/runai patched
+validatingadmissionpolicybinding.admissionregistration.k8s.io "oif-amd-share-annotations" deleted
+validatingadmissionpolicy.admissionregistration.k8s.io "oif-amd-share-annotations" deleted
+namespace "oif-system" deleted
+  [ok] GPU fractions on AMD GPUs off (AMD_FRACTIONS=none)
+2026-11-01 15:31:28 == install finished
+T-128 AMD GPU fractions off (AMD_FRACTIONS=none)
+  PASS  RunaiConfig names no patched KAI image
+  PASS  binder runs KAI's stock image
+  PASS  runai-scheduler-amd runs KAI's stock image
+  PASS  runai-scheduler-default runs KAI's stock image
+  PASS  runai-scheduler-nvidia runs KAI's stock image
+  PASS  no oif-amd-share plugin (namespace oif-system gone)
+  PASS  no annotation policy
+  INFO  templates: jupyter-lab-rocm-1-gpu workspaces pytorch-rocm-1-gpu trainings pytorch-one-gpu trainings jupyter-lab-1-gpu workspaces nemo-four-gpus trainings bio-nemo-4-gpus trainings pytorch-1-gpu trainings bio-nem
+  PASS  no half-GPU AMD templates offered (removed when fractions went off)
+  PASS  the whole-GPU AMD templates stay
+T-128: 9/9 checks passed
+
+$ sed -i 's/^AMD_FRACTIONS=.*/AMD_FRACTIONS=all/' .env && sudo ./oif install --reconfigure
+2026-11-01 15:34:11 == oif 0.1.0-dev install (state in /var/lib/oif)
+2026-11-01 15:34:12 == stage: runai-amd-templates (f573d10a6b91 -> 2367f83d1046)
+  [ok] template jupyter-lab-rocm-1-gpu updated
+  [ok] template jupyter-lab-rocm-half-gpu created
+  [ok] template pytorch-rocm-1-gpu updated
+  [ok] template pytorch-rocm-half-gpu created
+2026-11-01 15:34:16 == stage: amd-fractions (55d0a3ced3d3 -> 15ba7619ac82)
+  [ok] patched KAI and oif-amd-share images already built (v0.18.3-oif-44f721d7190f)
+  [ok] patched image oif.local/kai-scheduler/scheduler:v0.18.3-oif-44f721d7190f on every node (0 loaded now)
+  [ok] patched image oif.local/kai-scheduler/binder:v0.18.3-oif-44f721d7190f on every node (0 loaded now)
+  [ok] patched image oif.local/kai-scheduler/resourcereservation:v0.18.3-oif-44f721d7190f on every node (0 loaded now)
+  [ok] patched image oif.local/oif/oif-amd-share:v0.18.3-oif-44f721d7190f on every node (0 loaded now)
+runaiconfig.run.ai/runai patched
+  [ok] binder runs the patched KAI image
+  [ok] runai-scheduler-amd runs the patched KAI image
+  [ok] runai-scheduler-default runs the patched KAI image
+  [ok] runai-scheduler-nvidia runs the patched KAI image
+  [ok] KAI scheduler and binder patched for AMD GPU fractions (v0.18.3-oif-44f721d7190f)
+namespace/oif-system created
+daemonset.apps/oif-amd-share created
+validatingadmissionpolicy.admissionregistration.k8s.io/oif-amd-share-annotations created
+validatingadmissionpolicybinding.admissionregistration.k8s.io/oif-amd-share-annotations created
+Waiting for daemon set "oif-amd-share" rollout to finish: 0 of 1 updated pods are available...
+daemon set "oif-amd-share" successfully rolled out
+  [ok] AMD GPUs on gpu-amd can be shared: Run:ai GPU fractions in pool amd; memory isolation is soft
+2026-11-01 15:34:44 == install finished
+
+The default run after switching on again passed 17/17 (01-sharing.txt).
+
+Notes
+- The first off run (before commit 4efe9e2) failed "namespace oif-system gone": the stage deleted the namespace without
+  waiting. It now waits (12 s here) so "off" holds when the stage ends and switching on again finds no namespace
+  still terminating.
+- An empty AMD_FRACTIONS in .env keeps the saved value: AMD_FRACTIONS=all switches fractions on again.
