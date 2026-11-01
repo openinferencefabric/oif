@@ -55,7 +55,7 @@ AMD GPUs are not shared yet: upstream has no fractions for the Radeon PRO W7900.
 
    ![The training form: one GPU device with GPU fractioning on at 50 % of the device, 0.50 GPUs in total, node pools nvidia, amd, default.](img/11-form.png)
 
-   The pools listed are the project's default order. A project without its own order inherits `default` only, which has no GPU, and the workload waits ("No node in the default node-pool has GPU resources"); T-125 makes oif set `nvidia`, `amd`, `default` on its projects. Until then set it on a project with the API (`PUT /api/v1/org-unit/projects/<id>` with `"defaultNodePools": ["nvidia", "amd", "default"]` and the project's `resources`).
+   The pools listed are the project's default order: on a multi-node cluster oif sets `nvidia`, `amd`, `default` for every department and projects inherit it (T-125, [guide 12](12-one-job-one-vendor.md)).
 
 4. Submit a second one the same way, and a third.
 
@@ -103,7 +103,7 @@ Both running pods are bound to the same GPU (the same UUID in `NVIDIA_VISIBLE_DE
 
 | Symptom | Cause and fix |
 | --- | --- |
-| A fractional workload stays pending with `No node in the default node-pool has GPU resources` | The project's default node pools are `default` only: put `nvidia` (and `amd`) first in the form's Nodes section, or set the project's order (T-125). |
+| A fractional workload stays pending with `No node in the default node-pool has GPU resources` | The project's default node pools are `default` only: put `nvidia` (and `amd`) first in the form's Nodes section, or see [guide 12](12-one-job-one-vendor.md) (T-125). |
 | `gpu-fractioning` pods not on an NVIDIA node, cluster still Missing prerequisites | The node runs a driver older than 615: `nvidia-smi` on it; run `sudo ./oif install` again. The `GpuFractioningConfig` condition names the reason (`GPUDriverVersionUnsupported`). |
 | `node is not ready for fractional GPU scheduling` in the events, for pool `amd` | Expected: AMD GPUs have no fractions (S-7). |
 | The Overview shows Allocated GPU devices 0 while fractional workloads run | Seen on the lab with whole-GPU workloads too; the Workloads and Projects pages show the allocations (team-c: 1.00). |

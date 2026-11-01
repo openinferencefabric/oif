@@ -1,0 +1,40 @@
+# T-125 (ADR-032): one job, one vendor. A pod that asks for NVIDIA and AMD GPUs at once can never be placed on a
+# cluster whose GPU servers each have one vendor; it is refused when it is created instead of waiting forever.
+# Built into Kubernetes (CEL): no webhook service, no image.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: oif-one-gpu-vendor
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+  variables:
+    - name: containers
+      expression: "object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])"
+    - name: nvidia
+      expression: >-
+        variables.containers.exists(c, has(c.resources) &&
+          ((has(c.resources.limits) && 'nvidia.com/gpu' in c.resources.limits) ||
+           (has(c.resources.requests) && 'nvidia.com/gpu' in c.resources.requests)))
+    - name: amd
+      expression: >-
+        variables.containers.exists(c, has(c.resources) &&
+          ((has(c.resources.limits) && 'amd.com/gpu' in c.resources.limits) ||
+           (has(c.resources.requests) && 'amd.com/gpu' in c.resources.requests)))
+  validations:
+    - expression: "!(variables.nvidia && variables.amd)"
+      message: "oif: a pod uses one GPU vendor; it asks for nvidia.com/gpu and amd.com/gpu, which are on different nodes (ADR-032)"
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: oif-one-gpu-vendor
+spec:
+  policyName: oif-one-gpu-vendor
+  validationActions: [Deny]
