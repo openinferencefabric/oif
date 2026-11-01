@@ -1,0 +1,41 @@
+# S-4: an aggregated Dynamo 1.6.1 deployment (frontend + one vLLM worker, Qwen3-0.6B) for Run:ai project team-c.
+# Based on Dynamo 1.6.1's examples/backends/vllm/deploy/agg.yaml; Qwen3-0.6B is not gated, so no Hugging Face token.
+# Submit in the Run:ai UI: Workload manager > Workloads > + NEW WORKLOAD > Via YAML, cluster oif, project team-c.
+apiVersion: nvidia.com/v1beta1
+kind: DynamoGraphDeployment
+metadata:
+  name: s4-qwen
+  labels:
+    runai/node-pool: nvidia        # Run:ai's node-pool label for the workload
+spec:
+  components:
+  - name: Frontend
+    type: frontend
+    replicas: 1
+    podTemplate:
+      metadata:
+        labels:
+          runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
+      spec:
+        containers:
+        - name: main
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
+  - name: worker
+    type: worker
+    replicas: 1
+    podTemplate:
+      metadata:
+        labels:
+          runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
+      spec:
+        containers:
+        - name: main
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
+          workingDir: /workspace/examples/backends/vllm
+          command: [python3, -m, dynamo.vllm]
+          args: [--model, Qwen/Qwen3-0.6B]
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+            requests:
+              ephemeral-storage: 2Gi

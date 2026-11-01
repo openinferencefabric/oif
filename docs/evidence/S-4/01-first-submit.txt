@@ -1,0 +1,32 @@
+S-4 run 1, 2026-11-01: Dynamo 1.6.1 (dynamo-platform chart defaults: Grove and bundled KAI off), DGD s4-qwen
+(tests/lab/s4-dynamo-agg.yaml, first version: runai/node-pool: nvidia on the DGD only) submitted by the owner
+through Run:ai > New workload > Via YAML, project team-c. No MNNVL question (no NVLink in the cluster).
+
+Run:ai Workloads: s4-qwen, type DynamoGraphDeployment, NVIDIA icon, Initializing; Pods tab lists both pods.
+
+kubectl -n runai-team-c get dynamographdeployment,dynamocomponentdeployment
+dynamographdeployment.nvidia.com/s4-qwen                   READY False
+dynamocomponentdeployment.nvidia.com/s4-qwen-frontend          AVAILABLE False  BACKEND vllm
+dynamocomponentdeployment.nvidia.com/s4-qwen-worker-9aafffd1   AVAILABLE False  BACKEND vllm
+
+POD                                        SCHEDULER         NODE         GPU-NV   NODE-POOL (label set by Run:ai)
+s4-qwen-frontend-6fd5b65655-dlkl5          runai-scheduler   gpu-amd      <none>   amd
+s4-qwen-worker-9aafffd1-86c86fc8c7-lkdxx   runai-scheduler   gpu-nvidia   1        nvidia
+worker annotations: runai-allocated-gpus 1, runai-allocated-gpu-memory 51527; frontend: 0 GPUs
+pod labels: project team-c, run.ai/workload-id (same for both), one pod group per component
+
+Findings
+- Run:ai 3.0.20 picks up a Dynamo 1.6.1 (nvidia.com/v1beta1) deployment as a workload; Run:ai's scheduler places both
+  pods; the worker gets 1 GPU in pool nvidia under team-c's quota.
+- The DGD's runai/node-pool label does not reach the pods. The frontend (no GPU) went to pool amd through team-c's pool
+  order, so one workload spans both vendors' nodes and gpu-amd pulls the CUDA runtime image.
+  Next: the label on each component's pod template as well (run 2).
+
+Pod events (before the owner deleted the workload in the Run:ai UI, ~8 min in, both still pulling the image):
+frontend: Warning Unschedulable runai-scheduler  Node-Pool 'nvidia': QueueDoesNotExist: Queue 'team-c' does not exist.
+          Normal  Scheduled     runai-scheduler  Successfully assigned pod ... to node gpu-amd at node-pool amd
+worker:   Normal  Scheduled     runai-scheduler  Successfully assigned pod ... to node gpu-nvidia at node-pool nvidia
+-> the frontend tried pool nvidia first (team-c's pool order) but its pod group's queue was "team-c", which pool
+   nvidia's scheduler does not have (Run:ai keeps per-pool queues), and fell through to pool amd.
+Delete from the UI removed the DGD and both pods (Terminating), Run:ai's pod-grouper then warned about the missing
+ReplicaSets (expected during deletion). Chat test not reached: the worker was still pulling vllm-runtime:1.6.1.
