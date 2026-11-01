@@ -15,6 +15,7 @@ One guide per step of the plan in [TASKS.md](../../TASKS.md). Each guide is writ
 | 9 | [Uninstall and reinstall](09-uninstall.md) | T-107 | Tested |
 | 10 | [Multi-node hybrid cluster](10-multi-node.md): NVIDIA and AMD GPUs on separate nodes, HA control plane and platform, Run:ai node pools per vendor, a control-plane node powered off (published: [Installation Guide](https://manmohanbrahma.github.io/ai/runai-amd-ha/install-guide/), [Deployment Guide](https://manmohanbrahma.github.io/ai/runai-amd-ha/deployment-guide/)) | T-120 – T-124 | Tested (lab) |
 | 11 | [GPU fractions on NVIDIA GPUs](11-gpu-fractions.md): driver 615, fractioning daemons, half-GPU workloads from the Run:ai UI, quota on fractions | T-108 | Tested (lab) |
+| 12 | [One job, one vendor](12-one-job-one-vendor.md): workloads without a node pool land on a GPU pool, a job stays in one pool, a pod asking for both vendors is refused | T-125 | Tested (lab) |
 
 Multi-node (P1.3) workflow decks live under [presentations/](../../presentations/) (T-120–T-122). Full multi-node install guides come with T-124.
 
