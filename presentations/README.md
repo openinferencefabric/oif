@@ -23,6 +23,7 @@ Each completed (or substantial) T-xxx task gets a presentation that explains the
 | [T-123 Run:ai Node Pools](T123-Runai-Node-Pools.md) | T-123 | Done | Per-vendor Run:ai node pools (`nvidia`/`amd`) from oif labels, pool quotas, patched images on every node (27 checks PASS) |
 | [T-124 Platform HA](T124-Platform-HA.md) | T-124 | Done | Platform high availability: redundant copies on control-plane nodes, CloudNativePG, conntrack reaper, 20 s detection (≤90 s user outage) |
 | [T-125 One Job, One Vendor](T125-One-Job-One-Vendor.md) | T-125 | Done | Department default node pools (nvidia, amd, default), KAI PodGroup stays in one pool, ValidatingAdmissionPolicy refuses mixed-vendor pods (31 checks PASS) |
+| [T-126 GPU Fractions on AMD](T126-GPU-Fractions-AMD.md) | T-126 | Done | Patched KAI + oif-amd-share NRI plugin: two 0.5-GPU ROCm workloads share a W7900 (soft isolation, ~18–22.5 GiB each); third waits on AMD quota; NVIDIA fractions unchanged |
 
 ## Conventions
 
