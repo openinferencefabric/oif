@@ -4,7 +4,7 @@
 # OIF_NODES="192.168.120.11:control 192.168.120.12:control ... 192.168.120.21:worker" (empty: single node); an entry may
 # carry a label for logs and records, "cp1=192.168.120.11:control". Kubernetes names each node by its hostname anyway.
 
-NODE_STAGES=(preflight host-packages kernel storage-host containerd nvidia-driver amd-firmware gpu-isolation reboot host-verify k8s-packages conntrack-reaper)
+NODE_STAGES=(preflight host-packages kernel storage-host containerd nvidia-driver amd-firmware amd-runtime gpu-isolation reboot host-verify k8s-packages conntrack-reaper)
 NODE_SETTINGS=(INSTALL_DIR INSTALL_USER NVIDIA_GPUS AMD_GPUS ISOLATE_GPUS REBOOT_OK LONGHORN_NODE)   # all a node stage reads
 NODE_SRC=/var/lib/oif/src           # oif's copy on a node; inside the node's state folder, so uninstall removes it
 CLUSTER_KEY=$STATE/ssh/id_ed25519   # oif's own key, created on the first node (root only)
