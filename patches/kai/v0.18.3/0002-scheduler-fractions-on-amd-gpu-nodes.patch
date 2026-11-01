@@ -1,0 +1,58 @@
+diff --git a/pkg/scheduler/plugins/gpusharingnodevalidation/gpusharingnodevalidation.go b/pkg/scheduler/plugins/gpusharingnodevalidation/gpusharingnodevalidation.go
+index d191a26..bae9846 100644
+--- a/pkg/scheduler/plugins/gpusharingnodevalidation/gpusharingnodevalidation.go
++++ b/pkg/scheduler/plugins/gpusharingnodevalidation/gpusharingnodevalidation.go
+@@ -11,6 +11,7 @@ import (
+ 
+ 	kaiv1common "github.com/kai-scheduler/KAI-scheduler/pkg/apis/kai/v1/common"
+ 	"github.com/kai-scheduler/KAI-scheduler/pkg/common/constants"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/common/resources"
+ 	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api"
+ 	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/common_info"
+ 	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/node_info"
+@@ -42,6 +43,10 @@ func checkNvFractionalGPUReadyCondition(task *pod_info.PodInfo, node *node_info.
+ 	if !nvFractionsMode || !task.IsSharedGPURequest() {
+ 		return nil
+ 	}
++	// oif patch (T-126): GPU fractioning (NVIDIA) never covers an AMD GPU node; oif shares its GPU itself.
++	if resources.IsAmdGpuNode(node.Node) {
++		return nil
++	}
+ 
+ 	conditionStatus := v1.ConditionUnknown
+ 	conditionReason := fractionalGPUReadyReasonMissing
+diff --git a/pkg/scheduler/plugins/gpusharingnodevalidation/oif_amd_gpu_test.go b/pkg/scheduler/plugins/gpusharingnodevalidation/oif_amd_gpu_test.go
+new file mode 100644
+index 0000000..e517afd
+--- /dev/null
++++ b/pkg/scheduler/plugins/gpusharingnodevalidation/oif_amd_gpu_test.go
+@@ -0,0 +1,29 @@
++package gpusharingnodevalidation
++
++import (
++	"testing"
++
++	v1 "k8s.io/api/core/v1"
++	"k8s.io/apimachinery/pkg/api/resource"
++
++	kaiv1common "github.com/kai-scheduler/KAI-scheduler/pkg/apis/kai/v1/common"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/pod_info"
++)
++
++// oif patch (T-126): a fraction on an AMD GPU node needs no gpu-fractioning condition; NVIDIA nodes still do.
++func TestOifAmdNodeSkipsNvFractionsReadyCondition(t *testing.T) {
++	task := &pod_info.PodInfo{Name: "shared-pod", Namespace: "ns", ResourceRequestType: pod_info.RequestTypeFraction}
++	nvMode := isNvFractionsMode(newSessionWithMode(kaiv1common.GpuSharingModeNvFractions))
++
++	amd := newNode("gpu-amd")
++	amd.Node.Status.Allocatable = v1.ResourceList{"amd.com/gpu": resource.MustParse("1")}
++	if err := checkNvFractionalGPUReadyCondition(task, amd, nvMode); err != nil {
++		t.Errorf("AMD node refused: %v", err)
++	}
++
++	nv := newNode("gpu-nvidia")
++	nv.Node.Status.Allocatable = v1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")}
++	if err := checkNvFractionalGPUReadyCondition(task, nv, nvMode); err == nil {
++		t.Errorf("NVIDIA node without the gpu-fractioning condition accepted")
++	}
++}

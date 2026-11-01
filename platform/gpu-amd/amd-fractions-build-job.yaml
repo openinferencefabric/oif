@@ -1,0 +1,51 @@
+# T-126: builds the patched KAI components and the oif-amd-share plugin into image tarballs in the oif state folder
+# (patches/kai/build-amd-fractions.sh). The installer imports them into containerd on every node (stage amd-fractions).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: amd-fractions-build
+  namespace: oif-build
+  labels:
+    app.kubernetes.io/managed-by: oif
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      # on the node that runs oif: the source, caches and the image tarballs are host folders there
+      nodeSelector: {kubernetes.io/hostname: "${BUILD_NODE}"}
+      containers:
+        - name: build
+          image: ${GO_BUILD_IMAGE}
+          command: ["sh", "/build/build-amd-fractions.sh"]
+          env:
+            - {name: KAI_VERSION, value: "${KAI_VERSION}"}
+            - {name: KAI_SOURCE_SHA256, value: "${KAI_SOURCE_SHA256}"}
+            - {name: KAI_STOCK_REGISTRY, value: "${KAI_STOCK_REGISTRY}"}
+            - {name: KAI_PATCH_REGISTRY, value: "${KAI_PATCH_REGISTRY}"}
+            - {name: TAG, value: "${KAI_PATCH_TAG}"}
+            - {name: CRANE_VERSION, value: "${CRANE_VERSION}"}
+            - {name: CRANE_SHA256, value: "${CRANE_SHA256}"}
+            - {name: AMD_SHARE_BASE_IMAGE, value: "${AMD_SHARE_BASE_IMAGE}"}
+            - {name: AMD_SHARE_IMAGE, value: "${AMD_SHARE_IMAGE}"}
+            - {name: GOMODCACHE, value: /cache/go-mod}
+            - {name: GOCACHE, value: /cache/go-build}
+            - {name: GOFLAGS, value: -modcacherw}
+          resources:
+            requests: {cpu: "4", memory: 6Gi}
+          volumeMounts:
+            - {name: scripts, mountPath: /build}
+            - {name: patches, mountPath: /patches}
+            - {name: plugin, mountPath: /plugin}
+            - {name: out, mountPath: /out}
+            - {name: src, mountPath: /src, readOnly: true}
+            - {name: cache, mountPath: /cache}
+      volumes:
+        - {name: scripts, configMap: {name: amd-fractions-build}}
+        - {name: patches, configMap: {name: kai-patches}}
+        - {name: plugin, configMap: {name: oif-amd-share-src}}
+        - {name: out, hostPath: {path: "${AMD_FRACTIONS_OUT}", type: DirectoryOrCreate}}
+        # KAI source and crane, downloaded and verified by the installer; the Go caches are shared with the Run:ai builds
+        - {name: src, hostPath: {path: "${RUNAI_BUILD_SRC}", type: Directory}}
+        - {name: cache, hostPath: {path: "${RUNAI_BUILD_CACHE}", type: DirectoryOrCreate}}

@@ -1,0 +1,205 @@
+diff --git a/pkg/binder/binding/resourcereservation/oif_amd_gpu_test.go b/pkg/binder/binding/resourcereservation/oif_amd_gpu_test.go
+new file mode 100644
+index 0000000..c45fdaf
+--- /dev/null
++++ b/pkg/binder/binding/resourcereservation/oif_amd_gpu_test.go
+@@ -0,0 +1,46 @@
++package resourcereservation
++
++import (
++	"context"
++
++	. "github.com/onsi/ginkgo/v2"
++	. "github.com/onsi/gomega"
++	v1 "k8s.io/api/core/v1"
++	"k8s.io/apimachinery/pkg/api/resource"
++	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
++	"sigs.k8s.io/controller-runtime/pkg/client/fake"
++
++	schedulingv1alpha2 "github.com/kai-scheduler/KAI-scheduler/pkg/apis/scheduling/v1alpha2"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/common/constants"
++)
++
++// oif patch (T-126): on an AMD GPU node the reservation pod holds an amd.com/gpu.
++var _ = Describe("oif: GPU reservation pod on an AMD GPU node", func() {
++	It("requests amd.com/gpu and no nvidia.com/gpu", func() {
++		node := &v1.Node{
++			ObjectMeta: metav1.ObjectMeta{Name: "gpu-amd"},
++			Status:     v1.NodeStatus{Allocatable: v1.ResourceList{"amd.com/gpu": resource.MustParse("1")}},
++		}
++		rsc := &service{
++			namespace:           "kai-resource-reservation",
++			appLabelValue:       "kai-reservation",
++			serviceAccountName:  "kai-sa",
++			reservationPodImage: "test-image:latest",
++			kubeClient:          fake.NewClientBuilder().WithScheme(testScheme).WithObjects(node).Build(),
++			podResources: &v1.ResourceRequirements{Limits: v1.ResourceList{
++				constants.NvidiaGpuResource: resource.MustParse("1"), v1.ResourceCPU: resource.MustParse("100m")}},
++			scalingPodNamespace: scalingPodsNamespace,
++		}
++		pod, err := rsc.createGPUReservationPod(context.TODO(), nil, "gpu-amd", schedulingv1alpha2.FractionalGpuGroup{
++			ID: "g1", ComputeSharingMode: schedulingv1alpha2.GPUComputeSharingModeTimeSlicing,
++		})
++		Expect(err).To(BeNil())
++		r := pod.Spec.Containers[0].Resources
++		amd := r.Limits["amd.com/gpu"]
++		Expect(amd.Value()).To(Equal(int64(1)))
++		Expect(r.Limits).NotTo(HaveKey(v1.ResourceName(constants.NvidiaGpuResource)))
++		Expect(r.Requests).NotTo(HaveKey(v1.ResourceName(constants.NvidiaGpuResource)))
++		Expect(r.Limits).To(HaveKey(v1.ResourceCPU))
++		Expect(rsc.podResources.Limits).To(HaveKey(v1.ResourceName(constants.NvidiaGpuResource)), "the shared config is not changed")
++	})
++})
+diff --git a/pkg/binder/binding/resourcereservation/resource_reservation.go b/pkg/binder/binding/resourcereservation/resource_reservation.go
+index c8d47eb..c5144bf 100644
+--- a/pkg/binder/binding/resourcereservation/resource_reservation.go
++++ b/pkg/binder/binding/resourcereservation/resource_reservation.go
+@@ -488,24 +488,38 @@ func (rsc *service) createGPUReservationPod(
+ 
+ 	podName := reservationPodName(nodeName, fractionalGpuGroup.ID)
+ 
++	// oif patch (T-126): the reservation pod holds a whole GPU of the node's kind (amd.com/gpu on an AMD GPU node)
++	node := &v1.Node{}
++	if err := rsc.kubeClient.Get(ctx, client.ObjectKey{Name: nodeName}, node); err != nil {
++		if !apierrors.IsNotFound(err) {
++			return nil, fmt.Errorf("failed to get node %s for the GPU reservation pod: %w", nodeName, err)
++		}
++		node = nil // unknown node: nvidia.com/gpu, as before the patch
++	}
++	gpuResource, amdGpuResource := resources.GpuResourceOfNode(node), resources.AmdGpuResource // before the local shadows the package
++
+ 	// Build resource requirements starting with GPU resources
+ 	resources := v1.ResourceRequirements{
+ 		Limits: v1.ResourceList{
+-			constants.NvidiaGpuResource: *resource.NewQuantity(numberOfGPUsToReserve, resource.DecimalSI),
++			gpuResource: *resource.NewQuantity(numberOfGPUsToReserve, resource.DecimalSI),
+ 		},
+ 		Requests: v1.ResourceList{
+-			constants.NvidiaGpuResource: *resource.NewQuantity(numberOfGPUsToReserve, resource.DecimalSI),
++			gpuResource: *resource.NewQuantity(numberOfGPUsToReserve, resource.DecimalSI),
+ 		},
+ 	}
+ 
+ 	if rsc.podResources != nil {
+ 		if rsc.podResources.Limits != nil {
+-			delete(rsc.podResources.Limits, constants.NvidiaGpuResource)
+-			maps.Copy(resources.Limits, rsc.podResources.Limits)
++			limits := maps.Clone(rsc.podResources.Limits)
++			delete(limits, constants.NvidiaGpuResource)
++			delete(limits, amdGpuResource)
++			maps.Copy(resources.Limits, limits)
+ 		}
+ 		if rsc.podResources.Requests != nil {
+-			delete(rsc.podResources.Requests, constants.NvidiaGpuResource)
+-			maps.Copy(resources.Requests, rsc.podResources.Requests)
++			requests := maps.Clone(rsc.podResources.Requests)
++			delete(requests, constants.NvidiaGpuResource)
++			delete(requests, amdGpuResource)
++			maps.Copy(resources.Requests, requests)
+ 		}
+ 	}
+ 
+diff --git a/pkg/binder/plugins/nvfractions/nv_fractions.go b/pkg/binder/plugins/nvfractions/nv_fractions.go
+index 80355e5..5c23082 100644
+--- a/pkg/binder/plugins/nvfractions/nv_fractions.go
++++ b/pkg/binder/plugins/nvfractions/nv_fractions.go
+@@ -57,6 +57,10 @@ func (p *Plugin) PreBind(
+ 		bindingState.BindingPodAnnotations = map[string]string{}
+ 	}
+ 
++	if resources.IsAmdGpuNode(node) {
++		return setOifAmdShareAnnotations(bindRequest, containerRef.Container.Name, bindingState)
++	}
++
+ 	if err := setNvFractionsMemoryAnnotation(pod, node, bindRequest, containerRef.Container.Name, bindingState); err != nil {
+ 		return fmt.Errorf("failed to set NvFractions memory annotation: %w", err)
+ 	}
+@@ -78,6 +82,26 @@ func (p *Plugin) PreBind(
+ 	return nil
+ }
+ 
++// setOifAmdShareAnnotations (oif patch, T-126): on an AMD GPU node the reserved GPU id is the GPU's PCI address
++// (reported by the reservation pod); oif's NRI plugin gives the container that GPU. No driver limits its memory:
++// the share is passed on for the workload to respect (OIF_GPU_MEMORY_FRACTION).
++func setOifAmdShareAnnotations(bindRequest *v1alpha2.BindRequest, containerName string, bindingState *state.BindingState) error {
++	if len(bindingState.ReservedGPUIds) != 1 {
++		return fmt.Errorf("oif: a pod shares one AMD GPU, got %d reserved", len(bindingState.ReservedGPUIds))
++	}
++	if bindRequest == nil || bindRequest.Spec.ReceivedGPU == nil {
++		return fmt.Errorf("missing received GPU portion for the AMD GPU share")
++	}
++	portion, err := strconv.ParseFloat(bindRequest.Spec.ReceivedGPU.Portion, 64)
++	if err != nil || portion <= 0 || portion > 1 {
++		return fmt.Errorf("invalid received gpu portion %q", bindRequest.Spec.ReceivedGPU.Portion)
++	}
++	bindingState.BindingPodAnnotations[resources.OifAmdGpuAnnotation] = bindingState.ReservedGPUIds[0]
++	bindingState.BindingPodAnnotations[resources.OifAmdGpuContainerAnnotation] = containerName
++	bindingState.BindingPodAnnotations[resources.OifAmdGpuFractionAnnotation] = strconv.FormatFloat(portion, 'f', -1, 64)
++	return nil
++}
++
+ // setNvFractionsMemoryAnnotation computes the allocated GPU memory from the node
+ // total and the received portion and records it as the NvFractions request
+ // annotation. The arithmetic is intentionally kept local to avoid depending on
+diff --git a/pkg/binder/plugins/nvfractions/oif_amd_gpu_test.go b/pkg/binder/plugins/nvfractions/oif_amd_gpu_test.go
+new file mode 100644
+index 0000000..447ef15
+--- /dev/null
++++ b/pkg/binder/plugins/nvfractions/oif_amd_gpu_test.go
+@@ -0,0 +1,56 @@
++package nvfractions
++
++import (
++	"context"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	v1 "k8s.io/api/core/v1"
++	"k8s.io/apimachinery/pkg/api/resource"
++	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
++
++	"github.com/kai-scheduler/KAI-scheduler/pkg/apis/scheduling/v1alpha2"
++	bindercommon "github.com/kai-scheduler/KAI-scheduler/pkg/binder/common"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/binder/plugins/state"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/common/resources"
++)
++
++func oifAmdCase(portion string, ids ...string) (*v1.Pod, *v1.Node, *v1alpha2.BindRequest, *state.BindingState) {
++	pod := &v1.Pod{
++		ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{}},
++		Spec:       v1.PodSpec{Containers: []v1.Container{{Name: "main"}}},
++	}
++	node := &v1.Node{Status: v1.NodeStatus{Allocatable: v1.ResourceList{"amd.com/gpu": resource.MustParse("1")}}}
++	br := &v1alpha2.BindRequest{Spec: v1alpha2.BindRequestSpec{
++		ReceivedResourceType: bindercommon.ReceivedTypeFraction,
++		ReceivedGPU:          &v1alpha2.ReceivedGPU{Portion: portion},
++	}}
++	return pod, node, br, &state.BindingState{ReservedGPUIds: ids}
++}
++
++// oif patch (T-126): on an AMD GPU node the binder names the GPU for oif's NRI plugin instead of NVIDIA's annotations.
++func TestOifPreBindAmdNode(t *testing.T) {
++	pod, node, br, st := oifAmdCase("0.5", "0000:03:00.0")
++	assert.NoError(t, New(false).PreBind(context.Background(), pod, node, br, st))
++	a := st.BindingPodAnnotations
++	assert.Equal(t, "0000:03:00.0", a[resources.OifAmdGpuAnnotation])
++	assert.Equal(t, "main", a[resources.OifAmdGpuContainerAnnotation])
++	assert.Equal(t, "0.5", a[resources.OifAmdGpuFractionAnnotation])
++	assert.Empty(t, a[resources.CalcGpuVisibleDevicesAnnotationForContainer("main")], "no NVIDIA visible devices on an AMD node")
++	assert.Empty(t, a[resources.CalcGpuFractionAnnotationForContainer("main")], "no NVIDIA memory request on an AMD node")
++}
++
++func TestOifPreBindAmdNodeRefused(t *testing.T) {
++	for name, c := range map[string]struct {
++		portion string
++		ids     []string
++	}{
++		"two GPUs":     {"0.5", []string{"0000:03:00.0", "0000:04:00.0"}},
++		"no GPU":       {"0.5", nil},
++		"bad portion":  {"x", []string{"0000:03:00.0"}},
++		"zero portion": {"0", []string{"0000:03:00.0"}},
++	} {
++		pod, node, br, st := oifAmdCase(c.portion, c.ids...)
++		assert.Error(t, New(false).PreBind(context.Background(), pod, node, br, st), name)
++	}
++}
