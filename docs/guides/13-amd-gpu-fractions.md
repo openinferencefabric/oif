@@ -87,6 +87,50 @@ ui-amd-b-55jwg   1/1   Running   gpu-amd
 0.5 AMD Radeon Pro W7900
 ```
 
+### Inside a workload (a notebook from **jupyter-lab-rocm-half-gpu**)
+
+Run:ai's allocation record stays on the pod object; inside the container the share shows as oif's variables and the
+PyTorch cap:
+
+```python
+import os, torch
+for k in ("RUNAI_PROJECT", "RUNAI_JOB_NAME", "OIF_GPU_PCI", "OIF_GPU_MEMORY_FRACTION", "PYTORCH_ALLOC_CONF"):
+    print(f"{k:25} {os.environ.get(k)}")
+free, total = torch.cuda.mem_get_info()
+share = float(os.environ["OIF_GPU_MEMORY_FRACTION"])
+print(f"GPU memory {total/2**30:.1f} GiB, this pod's share {share} = {share*total/2**30:.1f} GiB")
+for gib in (20, 25):
+    try:
+        x = torch.empty(int(gib * 2**30) // 2, dtype=torch.float16, device="cuda"); print(f"{gib} GiB: allocated"); del x
+    except torch.OutOfMemoryError:
+        print(f"{gib} GiB: refused (over the share)")
+```
+
+```text
+RUNAI_PROJECT             team-c
+RUNAI_JOB_NAME            test
+OIF_GPU_PCI               0000:03:00.0
+OIF_GPU_MEMORY_FRACTION   0.5
+PYTORCH_ALLOC_CONF        per_process_memory_fraction:0.5
+GPU memory 45.0 GiB, this pod's share 0.5 = 22.5 GiB
+20 GiB: allocated
+25 GiB: refused (over the share)
+```
+
+`amd-smi` in the pod shows the whole card (46,064 MB, 96 compute units; PyTorch counts 48, the work-group processors of two CUs each): there is no partition. Compute is time-sliced: a half alone on the GPU runs at full speed (49.8 TFLOPS fp16), two busy halves get about 24 each. Run:ai's record, from the first node:
+
+```bash
+kubectl -n runai-<project> get pod -l workloadName=<name> -o jsonpath='{.items[0].metadata.annotations}' | tr ',' '
+' | grep -E 'runai-allocated|gpu-fraction|oif.ai'
+```
+
+```text
+"gpu-fraction":"0.5"
+"oif.ai/amd-gpu":"0000:03:00.0"
+"runai-allocated-gpu-memory":"22500"
+"runai-allocated-gpus":"0.5"
+```
+
 The lab test `tests/lab/t126-amd-fractions.yaml` runs two halves and a third on pool `amd` and two halves on `nvidia` without the UI. Full output: `docs/evidence/T-126/`.
 
 ## What changed on the host
@@ -107,3 +151,4 @@ The lab test `tests/lab/t126-amd-fractions.yaml` runs two halves and a third on 
 | `forbidden: ValidatingAdmissionPolicy 'oif-amd-share-annotations'` | Expected for anyone but KAI's binder: ask for a fraction (`gpu-fraction`) instead of setting `oif.ai/amd-gpu`. |
 | A pod fails with out-of-memory although the GPU is half free | Its neighbour does not keep to its share: set the framework's memory limit from `OIF_GPU_MEMORY_FRACTION` in both. |
 | A fraction asks for GPU memory in GiB instead of % of the device | Not tested on AMD: use % of the device. |
+| A workspace URL (Jupyter) stays blank; its proxy logs `session does not exist` | Before T-127, the HA platform ran two unreplicated copies of `cluster-redis`, where workspace logins are kept: `sudo ./oif install` (runai-ha keeps one copy), then open the link in a new private window. |

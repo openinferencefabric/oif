@@ -1,0 +1,34 @@
+T-127 lab test 3 (2026-11-01, run by the owner): AMD half-GPU templates, automatic PyTorch cap, New cluster note.
+
+== sudo ./oif install on feat/T-127-amd-fractions-ux
+frontend rebuilt with 0002 + 0004 (vitest 53 passed, type check and bundle ok); templates jupyter-lab-rocm-half-gpu and
+pytorch-rocm-half-gpu created; KAI and oif-amd-share rebuilt (tag v0.18.3-oif-2e0204e14517).
+
+== found on the way (fixed in 4a314b6, 6019349, fc6e57e)
+1. the rebuilt frontend kept its tag: deployment "patched (no change)", old UI kept running
+2. image copy compared names only: cp2/cp3 kept the old frontend under the same tag; the restarted pods served two
+   builds and the UI hung at "Getting everything ready" (asset 404 from one pod, 200 from the other)
+3. runai-ha's global replicaCount 2 made two unreplicated cluster-redis copies; workspace login sessions (oauth2-proxy,
+   redis session store) were missing from the other copy: 78 x 500, 95 x 302, "session does not exist", JupyterLab blank.
+   After the fix: cluster-redis 1/1, JupyterLab opens.
+Also measured: workstation <-> lab link about 115 KB/s (2 MB in 17 s): a browser with an empty cache needs ~80 s to log in.
+
+== New cluster page: "Clusters are added with open-inference-fabric" note, no Helm command, link to guide 14
+
+== Jupyter workspace "test" from template jupyter-lab-rocm-half-gpu (team-c, pool amd)
+log: GPU share: 0.5 of the AMD GPU at 0000:03:00.0
+RUNAI_PROJECT team-c | RUNAI_JOB_NAME test | OIF_GPU_PCI 0000:03:00.0 | OIF_GPU_MEMORY_FRACTION 0.5
+PYTORCH_ALLOC_CONF / PYTORCH_HIP_ALLOC_CONF / PYTORCH_CUDA_ALLOC_CONF = per_process_memory_fraction:0.5
+device files: ['card0', 'renderD128'] | /dev/kfd: True
+AMD Radeon Pro W7900 | gfx1100 | 48 compute units (work-group processors; amd-smi: 96 CUs) | 45.0 GiB physical
+PyTorch 2.14.0+rocm10.1.0 | HIP 7.16.26385
+GPU memory 45.0 GiB, free 44.9 GiB, this pod's share 0.5 = 22.5 GiB
+20 GiB: allocated
+25 GiB: refused (over the share)
+terminal: torch.empty(30 GiB) -> torch.OutOfMemoryError: ... GPU 0 has a total capacity of 44.98 GiB of which 44.95 GiB is free. 22.49 GiB allowed
+amd-smi: whole card (VRAM 46064 MB, 96 CUs, no partition); during a matmul GFX 100 %, 241/241 W, 106 C
+fp16 matmul (30 s, alone on the GPU): 49.8 TFLOPS
+
+== Run:ai's record on the pod
+gpu-fraction 0.5 | gpu-fraction-num-devices 1 | runai-allocated-gpus 0.5 | runai-allocated-gpu-memory 22500 | runai-allocated-mig-gpus 0
+oif.ai/amd-gpu 0000:03:00.0 | oif.ai/amd-gpu-container test | oif.ai/amd-gpu-fraction 0.5
