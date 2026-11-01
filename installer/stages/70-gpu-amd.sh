@@ -130,8 +130,13 @@ stage_runai_amd_templates() {   # T-115: Run:ai workload templates on amd.com/gp
   export ROCM_PYTORCH_IMAGE JUPYTERLAB_VERSION
   for f in "$OIF_HOME"/platform/runai/templates/*.json; do
     # half-GPU templates (T-127) need pool amd and AMD GPU fractions: a node with AMD GPUs only (T-126)
-    if [[ $f == *half-gpu* ]] && { [ "${AMD_FRACTIONS:-}" = none ] || [ -z "$(amd_only_nodes)" ]; }; then continue; fi
     render "$f" > "$tmp" || { rm -f "$tmp"; die "cannot render $f"; }
+    if [[ $f == *half-gpu* ]] && { [ "${AMD_FRACTIONS:-}" = none ] || [ -z "$(amd_only_nodes)" ]; }; then
+      # one created while fractions were on is removed: a workload from it could never run (T-128)
+      out=$(runai_api template-delete "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["meta"]["name"])' < "$tmp")" 2>&1) \
+        || { rm -f "$tmp"; die "Run:ai template from ${f##*/}: $out"; }
+      ok "$out"; continue
+    fi
     out=$(runai_api template "$tmp" 2>&1) || { rm -f "$tmp"; die "Run:ai template from ${f##*/}: $out"; }
     ok "$out"
   done

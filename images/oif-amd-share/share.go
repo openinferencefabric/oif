@@ -115,7 +115,7 @@ func (h host) drmNodes(bdf string) ([]string, error) {
 	}
 	var paths []string
 	for _, e := range entries {
-		if n := e.Name(); strings.HasPrefix(n, "card") || strings.HasPrefix(n, "renderD") {
+		if n := e.Name(); isNumbered(n, "card") || isNumbered(n, "renderD") {
 			paths = append(paths, "/dev/dri/"+n)
 		}
 	}
@@ -124,6 +124,42 @@ func (h host) drmNodes(bdf string) ([]string, error) {
 	}
 	sort.Strings(paths)
 	return paths, nil
+}
+
+// isNumbered: name is prefix followed by digits only (card0, renderD128; not card0-DP-1).
+func isNumbered(name, prefix string) bool {
+	rest, ok := strings.CutPrefix(name, prefix)
+	if !ok || rest == "" {
+		return false
+	}
+	for _, c := range rest {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// amdGPUs lists the PCI addresses of the AMD GPUs this plugin can find (vendor 0x1002 with a DRM device), so its log
+// shows at start which GPUs it can give to pods; a GPU's audio function, which has no DRM device, is left out.
+func amdGPUs(sysRoot string) []string {
+	dir := filepath.Join(sysRoot, "bus/pci/devices")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var gpus []string
+	for _, e := range entries {
+		v, err := os.ReadFile(filepath.Join(dir, e.Name(), "vendor"))
+		if err != nil || strings.TrimSpace(string(v)) != "0x1002" {
+			continue
+		}
+		if _, err := (host{sysRoot: sysRoot}).drmNodes(e.Name()); err == nil {
+			gpus = append(gpus, e.Name())
+		}
+	}
+	sort.Strings(gpus)
+	return gpus
 }
 
 // validBDF accepts domain:bus:device.function in hex, e.g. 0000:07:00.0.
