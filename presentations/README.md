@@ -15,6 +15,7 @@ Each completed (or substantial) T-xxx task gets a presentation that explains the
 
 | Deck | Task | Status | Description |
 |------|------|--------|-------------|
+| [T-003 Continuous Integration](T003-Continuous-Integration.md) | T-003 | Done | Four parallel CI jobs on every push/PR: shellcheck/yamllint/unit tests, oif-amd-share Go tests, patch applicability against pinned upstream, full-history gitleaks (guide 15) |
 | [T-108 GPU Fractions on NVIDIA](T108-GPU-Fractions-NVIDIA.md) | T-108 | Done | NVIDIA driver 615-server, in-place upgrade, fractiond/mpsd, two 0.5-GPU workloads sharing an A6000 (24 570 MiB each) |
 | [T-119 KVM Hybrid GPU Lab](T119-KVM-Hybrid-GPU-Lab.md) | T-119 | Done | Repeatable KVM lab (hybrid-gpu-lab): 3 control-plane + 2 GPU workers with PCI passthrough |
 | [T-120 Node List & Cluster Key](T120-Node-List-Cluster-Key.md) | T-120 | Done | Node list (`OIF_NODES`), cluster SSH key, per-node stage runner with reboot resume |
