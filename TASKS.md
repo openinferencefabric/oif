@@ -10,7 +10,7 @@ The work is split into three projects (ADR-010). Each builds on the one before, 
 
 - [x] T-001 Research, PRD, architecture, design, rules, decisions, test plan, security, tasks
 - [x] T-002 Public GitHub repository, licence, README; push
-- [ ] T-003 CI: shellcheck, yamllint, markdown link check, secret scan (gitleaks) on every push
+- [~] T-003 (Claude) CI: shellcheck, yamllint, markdown link check, secret scan (gitleaks) on every push
 
 ## Project 1: Orchestration platform
 
