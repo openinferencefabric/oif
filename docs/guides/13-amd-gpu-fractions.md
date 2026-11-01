@@ -139,7 +139,7 @@ The lab test `tests/lab/t126-amd-fractions.yaml` runs two halves and a third on 
 | --- | --- |
 | On AMD-only GPU nodes: `/etc/containerd/conf.d/90-oif-amd-fractions.toml` (runtime `nvidia` = runc), containerd restarted once | the file (and the folder, if oif created it) is removed |
 | Four images in containerd on every node: `oif.local/kai-scheduler/{scheduler,binder,resourcereservation}`, `oif.local/oif/oif-amd-share` | go with containerd's data |
-| Cluster: RunaiConfig points KAI at the patched images; namespace `oif-system` (plugin DaemonSet); policy `oif-amd-share-annotations` | go with Run:ai and the cluster; `AMD_FRACTIONS=none` in `.env` (`sudo ./oif install --reconfigure`) puts KAI's stock images back and removes the plugin |
+| Cluster: RunaiConfig points KAI at the patched images; namespace `oif-system` (plugin DaemonSet); policy `oif-amd-share-annotations` | go with Run:ai and the cluster; `AMD_FRACTIONS=none` in `.env` (`sudo ./oif install --reconfigure`) puts KAI's stock images back and removes the plugin; `AMD_FRACTIONS=all` (an empty value keeps the saved `none`) turns them on again |
 
 ## Troubleshooting
 
