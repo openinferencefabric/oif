@@ -35,6 +35,30 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | propose as a design |
 | A1 | AMD metrics exporter | Phantom UMC ECC errors on Radeon PRO W7900 with kernel 7.0 | issue (oif raises the threshold) | issue |
 
+## Submitted (2026-11-01)
+
+Opened by Manmohan Brahma; PR commits signed off (DCO). Run:ai merges a PR only after a maintainer approves its issue.
+
+| # | Issue | Pull request |
+| --- | --- | --- |
+| R1 | [run-ai#3939](https://github.com/dsx-ai-factory/run-ai/issues/3939) | [run-ai#3950](https://github.com/dsx-ai-factory/run-ai/pull/3950) |
+| R2 | [run-ai#3940](https://github.com/dsx-ai-factory/run-ai/issues/3940) | [run-ai#3948](https://github.com/dsx-ai-factory/run-ai/pull/3948) |
+| R3 | [run-ai#3941](https://github.com/dsx-ai-factory/run-ai/issues/3941) | [run-ai#3949](https://github.com/dsx-ai-factory/run-ai/pull/3949) |
+| R4 | [run-ai#3942](https://github.com/dsx-ai-factory/run-ai/issues/3942) (as a setting) | |
+| R5 | [run-ai#3943](https://github.com/dsx-ai-factory/run-ai/issues/3943) | |
+| R6 | [run-ai#3944](https://github.com/dsx-ai-factory/run-ai/issues/3944) | |
+| R7 | [run-ai#3945](https://github.com/dsx-ai-factory/run-ai/issues/3945) | |
+| R9 | [run-ai#3946](https://github.com/dsx-ai-factory/run-ai/issues/3946) | |
+| R10 | [run-ai#3947](https://github.com/dsx-ai-factory/run-ai/issues/3947) | |
+| K1–K4 | [KAI#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556) (design questions first) | |
+| K3b | [KAI#2554](https://github.com/kai-scheduler/KAI-Scheduler/issues/2554) | [KAI#2557](https://github.com/kai-scheduler/KAI-Scheduler/pull/2557) |
+| K5 | [KAI#2555](https://github.com/kai-scheduler/KAI-Scheduler/issues/2555) | |
+| K6 | [comment on KAI#1544](https://github.com/kai-scheduler/KAI-Scheduler/issues/1544#issuecomment-6557664853) (NRI injection for fraction pods) | |
+
+Held: R8 (until KAI answers #2556); A1 (not reproduced on the current lab: the W7900 shows no UMC errors; report again with fresh evidence).
+
+PRs were checked on the upstream `main` they target (Run:ai cfd9d8ac, KAI 4e6fcbd): build, vet, the service's tests, and lint with the project's own config and version. R1 for upstream parses the AMD count with `strconv.ParseInt(..., 32)` (gosec G109); oif's patch 0001 still uses `Atoi`.
+
 ## Run:ai
 
 ### R1. cluster-sync: count AMD GPUs in the node inventory (ready)
