@@ -22,6 +22,7 @@ Each completed (or substantial) T-xxx task gets a presentation that explains the
 | [T-122 GPUs on Their Nodes](T122-GPUs-On-Their-Nodes.md) | T-122 | Done | Per-node GPU inventory, vendor drivers/firmware, conditional GPU Operators, correct resource placement |
 | [T-123 Run:ai Node Pools](T123-Runai-Node-Pools.md) | T-123 | Done | Per-vendor Run:ai node pools (`nvidia`/`amd`) from oif labels, pool quotas, patched images on every node (27 checks PASS) |
 | [T-124 Platform HA](T124-Platform-HA.md) | T-124 | Done | Platform high availability: redundant copies on control-plane nodes, CloudNativePG, conntrack reaper, 20 s detection (≤90 s user outage) |
+| [T-125 One Job, One Vendor](T125-One-Job-One-Vendor.md) | T-125 | Done | Department default node pools (nvidia, amd, default), KAI PodGroup stays in one pool, ValidatingAdmissionPolicy refuses mixed-vendor pods (31 checks PASS) |
 
 ## Conventions
 
