@@ -356,7 +356,12 @@ runai_patch_build() {   # component build-image (env BUILD_SCRIPT SRC_DIR BINARY
 this_node() { node_name_of "$HOST_IP"; }   # this host's Kubernetes node name
 runai_patch_spread() {   # component image: load the patched image on every other node too (Run:ai pods run on any node)
   multi_node || return 0
-  local tar=$STATE/build/runai/$1.tar name addr role n=0 has="sudo ctr -n k8s.io images ls -q | grep -xF '$2' >/dev/null"
+  # the same image content as here, not just the name: a rebuilt image keeps its tag (T-127: a node with the old
+  # frontend under the same tag served a mixed UI that never finished loading)
+  local tar=$STATE/build/runai/$1.tar name addr role n=0 digest has
+  digest=$(ctr -n k8s.io images ls | awk -v i="$2" '$1 == i {print $3}')
+  [ -n "$digest" ] || die "image $2 not in containerd on this node"
+  has="sudo ctr -n k8s.io images ls | awk -v i='$2' '\$1 == i {print \$3}' | grep -qxF '$digest'"
   [ -s "$tar" ] || die "no image file $tar to copy to the other nodes"
   while read -r -u 3 name addr role; do
     node_ssh "$addr" "$has" && continue
