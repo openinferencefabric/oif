@@ -20,7 +20,7 @@ func (p *plugin) CreateContainer(_ context.Context, pod *api.PodSandbox, ctr *ap
 	for _, d := range ctr.GetLinux().GetDevices() {
 		have = append(have, d.Path)
 	}
-	a, err := p.host.adjust(pod.GetAnnotations(), ctr.GetName(), have)
+	a, err := p.host.adjust(pod.GetAnnotations(), ctr.GetName(), have, ctr.GetEnv())
 	name := pod.GetNamespace() + "/" + pod.GetName() + "/" + ctr.GetName()
 	if err != nil {
 		log.Printf("%s: %v", name, err)

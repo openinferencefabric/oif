@@ -1,0 +1,71 @@
+diff --git a/control-plane/frontend/src/views/cluster/cluster-new.vue b/control-plane/frontend/src/views/cluster/cluster-new.vue
+index 0e9f2ac..779eebf 100644
+--- a/control-plane/frontend/src/views/cluster/cluster-new.vue
++++ b/control-plane/frontend/src/views/cluster/cluster-new.vue
+@@ -5,7 +5,31 @@
+ 
+ <template>
+   <runai-wizard-layout :steps="steps" :active-step="activeStepName" disable-navigation>
+-    <div class="main-content cluster-creation" v-if="currentStep === 1">
++    <!-- oif patch (open-inference-fabric T-127): this control plane's GPU cluster is built by oif install -->
++    <div class="main-content cluster-creation" v-if="oifNoNewCluster">
++      <div class="justify-center">
++        <div class="oif-note q-pa-lg" aid="oif-new-cluster-note">
++          <div class="text-h6 q-mb-md">Clusters are added with open-inference-fabric</div>
++          <p>
++            This Run:ai control plane was installed by open-inference-fabric (oif), together with its GPU cluster
++            <b>oif</b>, which runs NVIDIA and AMD GPUs side by side: a node pool per vendor, GPU fractions on both, quotas
++            per vendor.
++          </p>
++          <p>
++            The Helm command this page would generate installs NVIDIA's stock Run:ai cluster, without AMD GPU support
++            and without oif's changes, so it is not offered here. To add GPU servers, list them in <code>OIF_NODES</code>
++            in oif's <code>.env</code> on the first control-plane node and run
++            <code>sudo ./oif install --reconfigure</code>.
++          </p>
++          <p>
++            How oif builds the cluster, node by node:
++            <a href="https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/14-build-the-cluster.md"
++              target="_blank" rel="noopener">guide 14</a>.
++          </p>
++        </div>
++      </div>
++    </div>
++    <div class="main-content cluster-creation" v-else-if="currentStep === 1">
+       <div class="justify-center">
+         <runai-form-wrapper class="cluster-form" :form-state="clusterFormModel" ref="elClusterForm">
+           <cluster-creation-step
+@@ -34,7 +58,10 @@
+     </div>
+ 
+     <template #content-footer>
+-      <div v-if="currentStep === 1" class="stepper-controls row justify-between full-width">
++      <div v-if="oifNoNewCluster" class="stepper-controls row justify-end full-width">
++        <runai-btn aid="leave-btn" @click="leave" color="primary" label="Done" />
++      </div>
++      <div v-else-if="currentStep === 1" class="stepper-controls row justify-between full-width">
+         <q-field class="col-4 form-hint no-padding" :model-value="displayFormHint" :rules="[isFormIncomplete]"></q-field>
+         <runai-btn aid="continue-btn" @click="goNext" :loading="loading" color="primary" label="Continue" />
+       </div>
+@@ -109,6 +136,9 @@ export default defineComponent({
+     this.clusterCreationStepLoading = true;
+   },
+   computed: {
++    oifNoNewCluster(): boolean {
++      return !this.$route.params.id; // oif patch: no new cluster registration; editing a cluster stays as it was
++    },
+     activeStepName(): string {
+       return String(this.currentStep);
+     },
+@@ -279,4 +309,11 @@ export default defineComponent({
+ .stepper-controls {
+   padding-right: 20px;
+ }
++.oif-note {
++  max-width: 760px;
++  margin: 24px auto;
++  background: white;
++  border: 1px solid #e0e0e0;
++  line-height: 1.5;
++}
+ </style>

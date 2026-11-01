@@ -37,7 +37,7 @@ type host struct {
 // adjust returns the changes for one container, nil when the pod shares no AMD GPU or the container is not the one
 // named. An annotated GPU that cannot be found is an error: containerd then refuses the container instead of starting
 // it without its GPU.
-func (h host) adjust(ann map[string]string, ctrName string, ctrDevices []string) (*api.ContainerAdjustment, error) {
+func (h host) adjust(ann map[string]string, ctrName string, ctrDevices, ctrEnv []string) (*api.ContainerAdjustment, error) {
 	bdf, ok := ann[gpuKey]
 	if !ok {
 		return nil, nil
@@ -69,8 +69,39 @@ func (h host) adjust(ann map[string]string, ctrName string, ctrDevices []string)
 			return nil, fmt.Errorf("%s=%q is not a fraction between 0 and 1", fractionKey, f)
 		}
 		a.AddEnv("OIF_GPU_MEMORY_FRACTION", f)
+		conf := allocConf(ctrEnv, f)
+		for _, k := range allocConfVars {
+			a.AddEnv(k, conf)
+		}
 	}
 	return a, nil
+}
+
+// PyTorch's GPU allocator settings (the generic name and the two older ones a ROCm build also reads). Every one gets
+// the pod's share as per_process_memory_fraction, so PyTorch (and what runs on it, e.g. vLLM) refuses to allocate
+// more than its share: the soft limit is kept without changing the workload.
+var allocConfVars = []string{"PYTORCH_ALLOC_CONF", "PYTORCH_HIP_ALLOC_CONF", "PYTORCH_CUDA_ALLOC_CONF"}
+
+// allocConf: the image's own allocator settings (the first of allocConfVars it sets) with the share added.
+func allocConf(env []string, fraction string) string {
+	have := map[string]string{}
+	for _, e := range env {
+		if k, v, ok := strings.Cut(e, "="); ok {
+			have[k] = v
+		}
+	}
+	var parts []string
+	for _, k := range allocConfVars {
+		if v, ok := have[k]; ok {
+			for _, p := range strings.Split(v, ",") {
+				if p = strings.TrimSpace(p); p != "" && !strings.HasPrefix(p, "per_process_memory_fraction:") {
+					parts = append(parts, p)
+				}
+			}
+			break
+		}
+	}
+	return strings.Join(append(parts, "per_process_memory_fraction:"+fraction), ",")
 }
 
 // drmNodes lists the /dev/dri nodes of the GPU at a PCI address (its card and render node).

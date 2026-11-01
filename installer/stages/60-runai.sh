@@ -170,12 +170,15 @@ print(json.dumps(v))')
 RUNAI_FRACTIONS_MIN_DRIVER=615   # Run:ai 3.0 support matrix: GPU fractions need driver r615 or later
 # Run:ai's cluster services take their copy count from the operator's RunaiConfig and KAI's Config, not from Helm values.
 # The ones that stay single are operators (and two controllers) without a replica setting or leader election; while
-# one restarts elsewhere, the UI, the API, scheduling and running workloads keep working.
-RUNAI_SINGLE="anyworkload-controller application-controller kai-operator karta-operator krm-operator runai-cluster-gpu-fractioning runai-operator"
-register_stage runai-ha RUNAI_VERSION
+# one restarts elsewhere, the UI, the API, scheduling and running workloads keep working. cluster-redis stays single
+# too: copies of it do not replicate, and workspace login sessions (oauth2-proxy) stored in one were missing from the
+# other, so Jupyter and other workspace URLs looped on the login (T-127). A restart only means logging in again.
+RUNAI_SINGLE="anyworkload-controller application-controller cluster-redis kai-operator karta-operator krm-operator runai-cluster-gpu-fractioning runai-operator"
+runai_ha_rev() { echo "$RUNAI_VERSION single-redis"; }
+register_stage runai-ha runai_ha_rev
 stage_runai_ha() {
   platform_ha || { ok "Run:ai cluster services: one copy each ($(multi_node && echo 'fewer than 3 control-plane nodes' || echo 'single node'))"; return 0; }
-  kc -n runai patch runaiconfig runai --type merge -p '{"spec":{"global":{"replicaCount":2,"requireDefaultPodAntiAffinity":true}}}' >> "$LOG" \
+  kc -n runai patch runaiconfig runai --type merge -p '{"spec":{"global":{"replicaCount":2,"requireDefaultPodAntiAffinity":true},"cluster-redis":{"replicas":1}}}' >> "$LOG" \
     || die "RunaiConfig rejected the replica settings"
   # with two copies KAI turns on leader election itself (--leader-elect=true): one scheduler decides at a time
   kc patch configs.kai.scheduler kai-config --type merge -p '{"spec":{"global":{"replicaCount":2,"requireDefaultPodAntiAffinityTerm":true}}}' >> "$LOG" \
@@ -349,13 +352,19 @@ runai_patch_build() {   # component build-image (env BUILD_SCRIPT SRC_DIR BINARY
   ctr -n k8s.io images import "$out/$comp.tar" >> "$LOG" 2>&1 || die "cannot import the patched $comp image into containerd"
   runai_image_loaded "$img" || die "image $img not found after import"
   echo "$rev" > "$out/$comp.rev"
+  RUNAI_PATCH_FRESH="${RUNAI_PATCH_FRESH:-} $comp"   # same tag, new content: runai_patch_use restarts its pods
   ok "patched image $img loaded into containerd"
   runai_patch_spread "$comp" "$img"
 }
 this_node() { node_name_of "$HOST_IP"; }   # this host's Kubernetes node name
 runai_patch_spread() {   # component image: load the patched image on every other node too (Run:ai pods run on any node)
   multi_node || return 0
-  local tar=$STATE/build/runai/$1.tar name addr role n=0 has="sudo ctr -n k8s.io images ls -q | grep -xF '$2' >/dev/null"
+  # the same image content as here, not just the name: a rebuilt image keeps its tag (T-127: a node with the old
+  # frontend under the same tag served a mixed UI that never finished loading)
+  local tar=$STATE/build/runai/$1.tar name addr role n=0 digest has
+  digest=$(ctr -n k8s.io images ls | awk -v i="$2" '$1 == i {print $3}')
+  [ -n "$digest" ] || die "image $2 not in containerd on this node"
+  has="sudo ctr -n k8s.io images ls | awk -v i='$2' '\$1 == i {print \$3}' | grep -qxF '$digest'"
   [ -s "$tar" ] || die "no image file $tar to copy to the other nodes"
   while read -r -u 3 name addr role; do
     node_ssh "$addr" "$has" && continue
@@ -383,6 +392,10 @@ runai_patch_use() {   # component stock|patched: point Run:ai at the image and w
       deploy=runai-operator
       runai_patch_set_image "$ns" "$deploy" runai-go-operator "$reg/$comp:$tag" ;;
   esac
+  # a rebuilt image keeps its tag, so the deployment looks unchanged: restart it to load the new image (T-127)
+  if [ "$2" = patched ] && [[ " ${RUNAI_PATCH_FRESH:-} " == *" $comp "* ]]; then
+    kc -n "$ns" rollout restart deploy "$deploy" >> "$LOG" || die "cannot restart $ns/$deploy for its rebuilt image"
+  fi
   wait_for "Run:ai $comp runs the $2 image" 300 10 bash -c \
     "kubectl --kubeconfig $KCFG -n $ns get deploy $deploy -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -qxF '$reg/$comp:$tag' && kubectl --kubeconfig $KCFG -n $ns rollout status deploy/$deploy --timeout=10s" \
     || die "$comp did not roll out the $2 image (kubectl -n $ns describe deploy $deploy)"

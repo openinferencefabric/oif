@@ -1,0 +1,22 @@
+{
+  "kind": "workspaces",
+  "meta": {
+    "name": "jupyter-lab-rocm-half-gpu",
+    "description": "Jupyter Lab with PyTorch on ROCm / half an AMD GPU, pool amd; PyTorch is capped to the share (oif)",
+    "scopeType": "tenant"
+  },
+  "spec": {
+    "image": "${ROCM_PYTORCH_IMAGE}",
+    "imagePullPolicy": "IfNotPresent",
+    "command": "bash",
+    "args": "-c \"echo GPU share: $OIF_GPU_MEMORY_FRACTION of the AMD GPU at $OIF_GPU_PCI; python3 -m pip install --quiet --break-system-packages jupyterlab==${JUPYTERLAB_VERSION} && exec python3 -m jupyterlab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.token='' --ServerApp.allow_remote_access=true\"",
+    "compute": {
+      "gpuDevicesRequest": 1,
+      "gpuRequestType": "portion",
+      "gpuPortionRequest": 0.5
+    },
+    "nodePools": ["amd"],
+    "exposedUrls": [{"container": 8888, "toolType": "jupyter-notebook", "toolName": "Jupyter"}],
+    "security": {"uidGidSource": "fromTheImage"}
+  }
+}
