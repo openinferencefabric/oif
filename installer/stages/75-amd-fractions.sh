@@ -99,6 +99,9 @@ amd_fractions_off() {   # KAI's stock images back; the plugin and its policy rem
   done
   kc delete validatingadmissionpolicybinding oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
   kc delete validatingadmissionpolicy oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
-  kc delete namespace oif-system --ignore-not-found --wait=false >> "$LOG" 2>&1 || true
+  # waits until the plugin is gone, so "off" is true when the stage ends and turning it on again finds no namespace
+  # still terminating (T-128)
+  kc delete namespace oif-system --ignore-not-found --timeout=180s >> "$LOG" 2>&1 \
+    || warn "namespace oif-system is still being removed (kubectl get namespace oif-system)"
 }
 stage_after amd-fractions runai-amd-templates
