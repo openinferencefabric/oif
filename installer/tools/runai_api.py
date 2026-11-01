@@ -253,16 +253,27 @@ def submit(token: str, kind: str, name: str, project_name: str, template_name: s
 
 # read-only fields of a department as GET returns it; PUT takes the rest back unchanged
 DEPT_READ_ONLY = {"id", "name", "clusterId", "createdAt", "createdBy", "updatedAt", "updatedBy", "effective", "parent",
-                  "parentId", "status", "totalResources", "overtimeData", "children"}
+                  "parentId", "status", "totalResources", "overtimeData", "children", "projectsAggregatedResources"}
+
+
+def all_departments(token: str) -> list:
+    """Each department as its own GET returns it: the list leaves out defaultNodePools and description."""
+    status, out = call("GET", "/api/v1/org-unit/departments", token=token)
+    if status != 200:
+        sys.exit(f"GET departments: HTTP {status} {out}")
+    full = []
+    for d in out.get("departments", []):
+        status, one = call("GET", f"/api/v1/org-unit/departments/{d['id']}", token=token)
+        if status != 200:
+            sys.exit(f"GET department {d.get('name')}: HTTP {status} {one}")
+        full.append(one)
+    return full
 
 
 def pool_order(token: str, order: list) -> None:
     """Set the default node pool order on every department (T-125): a workload submitted without node pools tries them
     in this order, so it lands where its GPU type exists instead of in a pool without GPUs."""
-    status, out = call("GET", "/api/v1/org-unit/departments", token=token)
-    if status != 200:
-        sys.exit(f"GET departments: HTTP {status} {out}")
-    for d in out.get("departments", []):
+    for d in all_departments(token):
         if d.get("defaultNodePools") != order:
             body = {k: v for k, v in d.items() if k not in DEPT_READ_ONLY}
             body["defaultNodePools"] = order
@@ -273,10 +284,7 @@ def pool_order(token: str, order: list) -> None:
 
 
 def departments(token: str) -> None:
-    status, out = call("GET", "/api/v1/org-unit/departments", token=token)
-    if status != 200:
-        sys.exit(f"GET departments: HTTP {status} {out}")
-    for d in out.get("departments", []):
+    for d in all_departments(token):
         print(f"{d.get('name')} {','.join(d.get('defaultNodePools') or ['-'])}")
 
 
