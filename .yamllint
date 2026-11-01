@@ -1,0 +1,9 @@
+# yamllint (CI, T-003). Manifests are templates: ${NAME} placeholders are filled in at install time, so they must stay
+# valid YAML as written. Long lines (images with digests, CEL expressions) and missing '---' are fine.
+extends: default
+rules:
+  line-length: disable
+  document-start: disable
+  truthy: {check-keys: false}   # GitHub workflows use the key "on:"
+ignore: |
+  tests/.cache/

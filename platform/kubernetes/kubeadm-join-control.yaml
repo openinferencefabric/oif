@@ -6,7 +6,7 @@ discovery:
   bootstrapToken:
     apiServerEndpoint: ${API_ENDPOINT}:6443
     token: ${JOIN_TOKEN}
-    caCertHashes: [${JOIN_CA_HASH}]
+    caCertHashes: ["${JOIN_CA_HASH}"]
 nodeRegistration:
   criSocket: unix:///run/containerd/containerd.sock
   kubeletExtraArgs:

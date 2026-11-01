@@ -150,3 +150,4 @@ half-GPU workloads share the GPU (24.2 TFLOPS each), a third waits on quota, NVI
 1. Open an issue per item in the project's repository, with the problem, the evidence file and the oif patch linked.
 2. For **ready** items, a pull request against the project's main branch: rebase the patch from the pinned release, rename oif's names where noted, keep the tests.
 3. K1 to K4 together, with K6 described in the issue, so the maintainers see the whole AMD fraction path.
+4. Before submitting, check the patch still applies: CI runs `tests/check-patches.sh` on every push against the pinned release (Run:ai 3.0.20, KAI v0.18.3); for a newer upstream, change the version and checksum in `versions.env` and run it.

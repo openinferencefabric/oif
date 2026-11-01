@@ -1,0 +1,69 @@
+# CI (T-003): every check that needs no GPU and no lab, on every push and pull request. Tool versions and checksums
+# come from versions.env; actions are pinned by commit. Run the same checks locally with tests/run.sh and
+# tests/check-patches.sh (guide 15).
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  static:
+    name: shellcheck, yamllint, unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: install shellcheck and yamllint (versions.env)
+        run: |
+          . ./versions.env
+          curl -fsSL -o /tmp/sc.tar.xz "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/shellcheck-$SHELLCHECK_VERSION.linux.x86_64.tar.xz"
+          echo "$SHELLCHECK_SHA256  /tmp/sc.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/sc.tar.xz -C /tmp && sudo install "/tmp/shellcheck-$SHELLCHECK_VERSION/shellcheck" /usr/local/bin/
+          pip install --user "yamllint==$YAMLLINT_VERSION"
+          shellcheck --version | sed -n 2p; yamllint --version
+      - name: tests/run.sh
+        run: tests/run.sh
+
+  go:
+    name: oif-amd-share (gofmt, vet, test)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: go in GO_BUILD_IMAGE (the toolchain the installer builds with)
+        run: |
+          . ./versions.env
+          docker run --rm -v "$PWD/images/oif-amd-share:/src" -w /src "$GO_BUILD_IMAGE" sh -euc '
+            go version
+            test -z "$(gofmt -l .)" || { gofmt -d .; exit 1; }
+            go vet ./...
+            go test -count=1 ./...'
+
+  patches:
+    name: patches apply to pinned upstream source
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: tests/check-patches.sh
+        run: tests/check-patches.sh
+
+  secrets:
+    name: secret scan (gitleaks, full history)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: gitleaks (versions.env; rules in .gitleaks.toml)
+        run: |
+          . ./versions.env
+          curl -fsSL -o /tmp/gl.tgz "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  /tmp/gl.tgz" | sha256sum -c -
+          tar -xzf /tmp/gl.tgz -C /tmp gitleaks
+          /tmp/gitleaks git --redact --no-banner -v .

@@ -32,7 +32,7 @@ Process: [docs/SDLC.md](SDLC.md).
 
 T-120 – T-123 done and tested on hybrid-gpu-lab (guide 10; lab scripts t120–t123 pass). Next implementation work: **T-124** (demonstration: stop cp1, workloads in both pools, dashboards, uninstall across nodes, `lab recreate`, install again).
 
-Still open from earlier slices: T-116 KAI vendor-aware placement on mixed nodes, T-003 CI.
+Still open from earlier slices: T-116 KAI vendor-aware placement on mixed nodes. T-003 CI done (guide 15): every push runs the static checks, Go tests, patch check and secret scan; keep it green before merging.
 
 P1.4 (T-130+) is defined and ready to start after P1.3 checkpoint (or in parallel for design-only work). Cross-vendor distributed model-parallel execution remains unsupported by default until an engine and configuration are explicitly validated.
 

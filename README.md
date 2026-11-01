@@ -1,5 +1,7 @@
 # Open Inference Fabric
 
+[![ci](https://github.com/manmohanbrahma/open-inference-fabric/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/manmohanbrahma/open-inference-fabric/actions/workflows/ci.yml)
+
 **One open-source platform to schedule, serve, benchmark and observe LLMs on NVIDIA and AMD GPUs.**
 
 Open Inference Fabric (OIF) assembles open-source AI infrastructure into a suite you can install on GPU servers with one command:

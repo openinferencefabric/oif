@@ -18,6 +18,7 @@ One guide per step of the plan in [TASKS.md](../../TASKS.md). Each guide is writ
 | 12 | [One job, one vendor](12-one-job-one-vendor.md): workloads without a node pool land on a GPU pool, a job stays in one pool, a pod asking for both vendors is refused | T-125 | Tested (lab) |
 | 13 | [GPU fractions on AMD GPUs](13-amd-gpu-fractions.md): patched KAI and the oif-amd-share NRI plugin, half-GPU ROCm workloads from the Run:ai UI, soft memory isolation | T-126 | Tested (lab) |
 | 14 | [How oif builds the cluster](14-build-the-cluster.md): from bare machines to Run:ai, stage by stage across all nodes; why Run:ai's New cluster page is not used | T-101 – T-127 | Reference |
+| 15 | [Continuous integration](15-ci.md): shellcheck, yamllint, unit tests, Go tests, patch check and secret scan on every push; run them locally | T-003 | Tested (CI) |
 
 Multi-node (P1.3) workflow decks live under [presentations/](../../presentations/) (T-120–T-122). Full multi-node install guides come with T-124.
 
