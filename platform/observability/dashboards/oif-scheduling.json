@@ -316,7 +316,7 @@
    "id": 5,
    "type": "timeseries",
    "title": "GPUs in use by namespace",
-   "description": "Running pods' GPU requests per vendor and namespace (Run:ai project namespaces are runai-<project>). No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "Running pods' GPU requests per vendor and namespace (Run:ai project namespaces are runai-<project>). No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -406,7 +406,7 @@
    "id": 6,
    "type": "timeseries",
    "title": "GPUs waiting by namespace",
-   "description": "Pending pods' GPU requests per vendor and namespace. No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "Pending pods' GPU requests per vendor and namespace. No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -608,7 +608,7 @@
    "id": 10,
    "type": "timeseries",
    "title": "Allocated GPUs by project (Run:ai)",
-   "description": "GPUs Run:ai has allocated to each project over time. No data: see https://github.com/manmohanbrahma/open-inference-fabric/blob/main/docs/guides/07-observability.md#troubleshooting",
+   "description": "GPUs Run:ai has allocated to each project over time. No data: see https://github.com/openinferencefabric/oif/blob/main/docs/guides/07-observability.md#troubleshooting",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"

@@ -1,7 +1,7 @@
 # T-121 — Highly Available Kubernetes Across Nodes
 
 **Status:** Done (2026-10-26)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-017 · `installer/lib/60-nodes.sh` · `installer/stages/40-kubernetes.sh` · `tests/lab/t121-cluster.sh`
 
 ---

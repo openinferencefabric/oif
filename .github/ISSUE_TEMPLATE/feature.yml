@@ -1,0 +1,16 @@
+name: Idea or request
+description: Suggest a feature, a GPU or model to support, or a guide
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you need
+      description: The problem first, then the solution you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware you can test on
+      description: Optional. Tell us if you can run tests on it.

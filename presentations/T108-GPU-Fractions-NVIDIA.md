@@ -1,7 +1,7 @@
 # T-108 — GPU Fractions on NVIDIA (ADR-032)
 
 **Status:** Done (tested 2026-11-01 on the lab)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-032 · `installer/stages/30-gpu-host.sh` (nvidia-driver) · `installer/stages/60-runai.sh` (runai-fractions) · `docs/guides/11-gpu-fractions.md` · `docs/evidence/T-108/`
 
 ---

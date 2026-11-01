@@ -1,4 +1,4 @@
-module github.com/manmohanbrahma/open-inference-fabric/images/oif-amd-share
+module github.com/openinferencefabric/oif/images/oif-amd-share
 
 go 1.24.0
 

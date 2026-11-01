@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in oif, a guide or a patch does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Remove IP addresses, host names, tokens and passwords from anything you paste.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, what you got.
+    validations:
+      required: true
+  - type: input
+    id: step
+    attributes:
+      label: Guide or step
+      placeholder: e.g. guide 13, oif install stage amd-fractions
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: oif commit, OS, GPUs (vendor and model), single node or multi-node, Run:ai and KAI versions.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output
+      description: The relevant part of /var/log/oif-install.log, kubectl output or a lab script summary.
+      render: text

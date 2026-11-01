@@ -1,7 +1,7 @@
 # T-125 — One Job, One Vendor
 
 **Status:** Done (2026-11-01)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-032 · `installer/stages/60-runai.sh` (stage `one-vendor`) · `installer/tools/runai_api.py` · `platform/kubernetes/one-gpu-vendor.yaml` · `tests/lab/t123-runai.sh` · Guide 12
 
 ---

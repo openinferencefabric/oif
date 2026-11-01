@@ -1,7 +1,7 @@
 # T-003 — Continuous Integration (guide 15)
 
 **Status:** Done (first green run 2026-11-01)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** Guide 15 · `.github/workflows/ci.yml` · `tests/run.sh` · `tests/check-patches.sh` · `versions.env`
 
 ---

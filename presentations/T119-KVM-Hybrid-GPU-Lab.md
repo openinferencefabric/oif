@@ -1,7 +1,7 @@
 # T-119 — KVM Hybrid GPU Lab
 
 **Status:** Done (2026-10-26)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Lab repo:** [manmohanbrahma/hybrid-gpu-lab](https://github.com/manmohanbrahma/hybrid-gpu-lab)  
 **Related:** TASKS.md P1.3 · ADR-017 (multi-node design) · hybrid-gpu-lab README & GUIDE
 
