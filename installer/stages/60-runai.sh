@@ -170,12 +170,15 @@ print(json.dumps(v))')
 RUNAI_FRACTIONS_MIN_DRIVER=615   # Run:ai 3.0 support matrix: GPU fractions need driver r615 or later
 # Run:ai's cluster services take their copy count from the operator's RunaiConfig and KAI's Config, not from Helm values.
 # The ones that stay single are operators (and two controllers) without a replica setting or leader election; while
-# one restarts elsewhere, the UI, the API, scheduling and running workloads keep working.
-RUNAI_SINGLE="anyworkload-controller application-controller kai-operator karta-operator krm-operator runai-cluster-gpu-fractioning runai-operator"
-register_stage runai-ha RUNAI_VERSION
+# one restarts elsewhere, the UI, the API, scheduling and running workloads keep working. cluster-redis stays single
+# too: copies of it do not replicate, and workspace login sessions (oauth2-proxy) stored in one were missing from the
+# other, so Jupyter and other workspace URLs looped on the login (T-127). A restart only means logging in again.
+RUNAI_SINGLE="anyworkload-controller application-controller cluster-redis kai-operator karta-operator krm-operator runai-cluster-gpu-fractioning runai-operator"
+runai_ha_rev() { echo "$RUNAI_VERSION single-redis"; }
+register_stage runai-ha runai_ha_rev
 stage_runai_ha() {
   platform_ha || { ok "Run:ai cluster services: one copy each ($(multi_node && echo 'fewer than 3 control-plane nodes' || echo 'single node'))"; return 0; }
-  kc -n runai patch runaiconfig runai --type merge -p '{"spec":{"global":{"replicaCount":2,"requireDefaultPodAntiAffinity":true}}}' >> "$LOG" \
+  kc -n runai patch runaiconfig runai --type merge -p '{"spec":{"global":{"replicaCount":2,"requireDefaultPodAntiAffinity":true},"cluster-redis":{"replicas":1}}}' >> "$LOG" \
     || die "RunaiConfig rejected the replica settings"
   # with two copies KAI turns on leader election itself (--leader-elect=true): one scheduler decides at a time
   kc patch configs.kai.scheduler kai-config --type merge -p '{"spec":{"global":{"replicaCount":2,"requireDefaultPodAntiAffinityTerm":true}}}' >> "$LOG" \
