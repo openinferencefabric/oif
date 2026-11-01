@@ -24,7 +24,7 @@ Each completed (or substantial) T-xxx task gets a presentation that explains the
 | [T-124 Platform HA](T124-Platform-HA.md) | T-124 | Done | Platform high availability: redundant copies on control-plane nodes, CloudNativePG, conntrack reaper, 20 s detection (≤90 s user outage) |
 | [T-125 One Job, One Vendor](T125-One-Job-One-Vendor.md) | T-125 | Done | Department default node pools (nvidia, amd, default), KAI PodGroup stays in one pool, ValidatingAdmissionPolicy refuses mixed-vendor pods (31 checks PASS) |
 | [T-126 GPU Fractions on AMD](T126-GPU-Fractions-AMD.md) | T-126 | Done | Patched KAI + oif-amd-share NRI plugin: two 0.5-GPU ROCm workloads share a W7900 (soft isolation, ~18–22.5 GiB each); third waits on AMD quota; NVIDIA fractions unchanged |
-| [T-127 AMD Fractions UX](T127-AMD-Fractions-UX.md) | T-127 | Done | Half-GPU AMD templates (pool amd), automatic PyTorch memory cap, New cluster page note pointing to oif install, guide 14 |
+| [T-127 AMD Fractions Usable from the UI](T127-AMD-Fractions-UX.md) | T-127 | Done | Automatic PyTorch memory cap on AMD fractions, half-GPU ROCm templates (pool amd), New cluster page points to oif install, guide 14; cluster-redis kept single |
 
 ## Conventions
 
