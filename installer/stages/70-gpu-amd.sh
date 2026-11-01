@@ -121,14 +121,16 @@ stage_amd_quota() {   # S-2: Run:ai quotas count amd.com/gpu (team-a quota 1 run
 }
 
 # the templates stage reruns when a template file or a pinned image changes
-AMD_TEMPLATES_REV=$(cat "$OIF_HOME"/platform/runai/templates/*.json 2>/dev/null | { cat; echo "$ROCM_PYTORCH_IMAGE $JUPYTERLAB_VERSION"; } | sha256sum | cut -c1-12)
+amd_templates_rev() { cat "$OIF_HOME"/platform/runai/templates/*.json 2>/dev/null | { cat; echo "$ROCM_PYTORCH_IMAGE $JUPYTERLAB_VERSION ${AMD_FRACTIONS:-}"; } | sha256sum | cut -c1-12; }
 
-register_stage runai-amd-templates AMD_TEMPLATES_REV
+register_stage runai-amd-templates amd_templates_rev   # a function: AMD_FRACTIONS is read with the settings
 stage_runai_amd_templates() {   # T-115: Run:ai workload templates on amd.com/gpu (extendedResources), next to Run:ai's NVIDIA ones
   [ "$(gpu_count amd)" -gt 0 ] || return 0
   local f out tmp; tmp=$(mktemp)
   export ROCM_PYTORCH_IMAGE JUPYTERLAB_VERSION
   for f in "$OIF_HOME"/platform/runai/templates/*.json; do
+    # half-GPU templates (T-127) need pool amd and AMD GPU fractions: a node with AMD GPUs only (T-126)
+    if [[ $f == *half-gpu* ]] && { [ "${AMD_FRACTIONS:-}" = none ] || [ -z "$(amd_only_nodes)" ]; }; then continue; fi
     render "$f" > "$tmp" || { rm -f "$tmp"; die "cannot render $f"; }
     out=$(runai_api template "$tmp" 2>&1) || { rm -f "$tmp"; die "Run:ai template from ${f##*/}: $out"; }
     ok "$out"

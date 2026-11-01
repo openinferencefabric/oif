@@ -8,7 +8,12 @@ Step T-126 (ADR-032, spike S-7). Tested on the lab cluster (guide 10) on 2026-11
 - Run:ai counts the fractions: the Workloads page shows 0.5 GPU and 22.5 GB each in pool `amd`; with 1 AMD GPU of quota, two halves run and a third waits (`team-c-amd quota is 1 GPUs, while 1 GPUs are already allocated`).
 - NVIDIA fractions (guide 11) and whole GPUs of both vendors work as before.
 
-**Memory isolation is soft.** No AMD driver limits a process's GPU memory and the W7900 cannot be partitioned. Each pod gets its share in `OIF_GPU_MEMORY_FRACTION` (for example `0.5`) and must keep to it: PyTorch `torch.cuda.set_per_process_memory_fraction(...)`, vLLM `--gpu-memory-utilization`. A pod that ignores it can take the memory its neighbour needs (S-7: a pod without a cap took 40.5 GiB and the second one failed with out-of-memory). NVIDIA fractions are hard limits, enforced by the driver.
+**Memory isolation is soft.** No AMD driver limits a process's GPU memory and the W7900 cannot be partitioned, so `amd-smi` in a pod always shows the whole GPU (46,064 MB), where `nvidia-smi` in an NVIDIA half shows 24,570 MiB. oif keeps the share in two ways (T-127):
+
+- **PyTorch is capped automatically.** The plugin sets PyTorch's allocator to the pod's share (`PYTORCH_ALLOC_CONF=per_process_memory_fraction:0.5`, also the HIP and CUDA names, added to the image's own allocator settings). PyTorch, and what runs on it such as vLLM, refuses to allocate past the share. vLLM's default `--gpu-memory-utilization 0.9` then fails on half a GPU instead of taking the neighbour's memory: set it below the share (for example `0.45`).
+- **Everything else gets the share** in `OIF_GPU_MEMORY_FRACTION` (for example `0.5`) and must keep to it. A process outside PyTorch that ignores it can take the memory its neighbour needs (S-7: a pod without a cap took 40.5 GiB and the second one failed with out-of-memory).
+
+NVIDIA fractions are hard limits, enforced by the driver.
 
 How it works:
 
@@ -48,7 +53,9 @@ How it works:
    == install finished
    ```
 
-2. In the Run:ai UI: **Workload manager > Workloads > New workload > Training**, a project with AMD quota, **Start from scratch**, a name, then:
+2. In the Run:ai UI the quickest way is a template (T-127): **Workload manager > Workloads > New workload > Training**, a project with AMD quota, template **pytorch-rocm-half-gpu**, a name, **Create training**. It has the ROCm image, half a GPU and pool `amd` already set, and its log shows the GPU, its share and five minutes of compute. For Jupyter: **New workload > Workspace**, template **jupyter-lab-rocm-half-gpu**.
+
+   Or from scratch: **Start from scratch**, a name, then:
    - **Environment**: a ROCm image, for example `docker.io/rocm/pytorch:rocm10.1.0_ubuntu24.04_py3.12_pytorch_release_2.14.0`, and its command;
    - **Compute resources**: GPU devices `1`, **GPU fractioning** on, GPU memory **% of device** `50`;
    - **Nodes**: keep only `amd` (the **X** on the `nvidia` and `default` rows). The form starts with the project's order (`nvidia`, `amd`, `default`, guide 12), and a fraction placed first on `nvidia` runs on the NVIDIA GPU.

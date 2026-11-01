@@ -30,7 +30,11 @@ export ROCM_PYTORCH_IMAGE JUPYTERLAB_VERSION
 for t in "$ROOT"/platform/runai/templates/*.json; do   # Run:ai templates: rendered, valid JSON with kind, meta.name and an AMD GPU
   out=$(render "$t") || { fail "render $t"; continue; }
   grep -qE '\$\{[A-Z_]+\}' <<< "$out" && fail "placeholder left in $t"
+  # a whole AMD GPU (extendedResources), or half of one in pool amd (T-127: a GPU fraction, shared by oif-amd-share)
   python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["kind"] in ("trainings","workspaces") and t["meta"]["name"]
-assert {"resource": "amd.com/gpu", "quantity": "1"} in t["spec"]["compute"]["extendedResources"]' <<< "$out" || fail "invalid template $t"
+c = t["spec"]["compute"]
+assert {"resource": "amd.com/gpu", "quantity": "1"} in c.get("extendedResources", []) or (
+    c.get("gpuRequestType") == "portion" and c.get("gpuPortionRequest") == 0.5 and c.get("gpuDevicesRequest") == 1
+    and t["spec"].get("nodePools") == ["amd"])' <<< "$out" || fail "invalid template $t"
 done
 finish

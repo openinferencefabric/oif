@@ -33,14 +33,14 @@ func fakeHost(t *testing.T) host {
 }
 
 func TestNoAnnotation(t *testing.T) {
-	a, err := fakeHost(t).adjust(map[string]string{"other": "x"}, "main", nil)
+	a, err := fakeHost(t).adjust(map[string]string{"other": "x"}, "main", nil, nil)
 	if a != nil || err != nil {
 		t.Fatalf("want nothing, got %v %v", a, err)
 	}
 }
 
 func TestSharedGPU(t *testing.T) {
-	a, err := fakeHost(t).adjust(map[string]string{gpuKey: gpu, fractionKey: "0.5"}, "main", nil)
+	a, err := fakeHost(t).adjust(map[string]string{gpuKey: gpu, fractionKey: "0.5"}, "main", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,20 +61,42 @@ func TestSharedGPU(t *testing.T) {
 	if env["OIF_GPU_MEMORY_FRACTION"] != "0.5" || env["OIF_GPU_PCI"] != gpu {
 		t.Errorf("env: %v", env)
 	}
+	for _, k := range allocConfVars {
+		if env[k] != "per_process_memory_fraction:0.5" {
+			t.Errorf("%s = %q", k, env[k])
+		}
+	}
+}
+
+func TestAllocConfKeepsImageSettings(t *testing.T) {
+	for _, c := range []struct {
+		env  []string
+		want string
+	}{
+		{nil, "per_process_memory_fraction:0.25"},
+		{[]string{"PYTORCH_HIP_ALLOC_CONF=expandable_segments:True"}, "expandable_segments:True,per_process_memory_fraction:0.25"},
+		{[]string{"PYTORCH_ALLOC_CONF=garbage_collection_threshold:0.6, per_process_memory_fraction:0.9",
+			"PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128"}, "garbage_collection_threshold:0.6,per_process_memory_fraction:0.25"},
+		{[]string{"PATH=/bin"}, "per_process_memory_fraction:0.25"},
+	} {
+		if got := allocConf(c.env, "0.25"); got != c.want {
+			t.Errorf("allocConf(%v) = %q, want %q", c.env, got, c.want)
+		}
+	}
 }
 
 func TestOtherContainer(t *testing.T) {
 	ann := map[string]string{gpuKey: gpu, containerKey: "main"}
-	if a, _ := fakeHost(t).adjust(ann, "sidecar", nil); a != nil {
+	if a, _ := fakeHost(t).adjust(ann, "sidecar", nil, nil); a != nil {
 		t.Errorf("sidecar got the GPU")
 	}
-	if a, _ := fakeHost(t).adjust(ann, "main", nil); a == nil {
+	if a, _ := fakeHost(t).adjust(ann, "main", nil, nil); a == nil {
 		t.Errorf("main did not get the GPU")
 	}
 }
 
 func TestWholeGPUContainerLeftAlone(t *testing.T) {
-	a, err := fakeHost(t).adjust(map[string]string{gpuKey: gpu}, "main", []string{"/dev/kfd", "/dev/dri/renderD128"})
+	a, err := fakeHost(t).adjust(map[string]string{gpuKey: gpu}, "main", []string{"/dev/kfd", "/dev/dri/renderD128"}, nil)
 	if a != nil || err != nil {
 		t.Fatalf("want nothing, got %v %v", a, err)
 	}
@@ -88,7 +110,7 @@ func TestRefused(t *testing.T) {
 		"fraction too big": {gpuKey: gpu, fractionKey: "1.5"},
 		"fraction text":    {gpuKey: gpu, fractionKey: "half"},
 	} {
-		if _, err := fakeHost(t).adjust(ann, "main", nil); err == nil {
+		if _, err := fakeHost(t).adjust(ann, "main", nil, nil); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
