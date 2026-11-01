@@ -349,6 +349,7 @@ runai_patch_build() {   # component build-image (env BUILD_SCRIPT SRC_DIR BINARY
   ctr -n k8s.io images import "$out/$comp.tar" >> "$LOG" 2>&1 || die "cannot import the patched $comp image into containerd"
   runai_image_loaded "$img" || die "image $img not found after import"
   echo "$rev" > "$out/$comp.rev"
+  RUNAI_PATCH_FRESH="${RUNAI_PATCH_FRESH:-} $comp"   # same tag, new content: runai_patch_use restarts its pods
   ok "patched image $img loaded into containerd"
   runai_patch_spread "$comp" "$img"
 }
@@ -383,6 +384,10 @@ runai_patch_use() {   # component stock|patched: point Run:ai at the image and w
       deploy=runai-operator
       runai_patch_set_image "$ns" "$deploy" runai-go-operator "$reg/$comp:$tag" ;;
   esac
+  # a rebuilt image keeps its tag, so the deployment looks unchanged: restart it to load the new image (T-127)
+  if [ "$2" = patched ] && [[ " ${RUNAI_PATCH_FRESH:-} " == *" $comp "* ]]; then
+    kc -n "$ns" rollout restart deploy "$deploy" >> "$LOG" || die "cannot restart $ns/$deploy for its rebuilt image"
+  fi
   wait_for "Run:ai $comp runs the $2 image" 300 10 bash -c \
     "kubectl --kubeconfig $KCFG -n $ns get deploy $deploy -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -qxF '$reg/$comp:$tag' && kubectl --kubeconfig $KCFG -n $ns rollout status deploy/$deploy --timeout=10s" \
     || die "$comp did not roll out the $2 image (kubectl -n $ns describe deploy $deploy)"
