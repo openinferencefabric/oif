@@ -1,0 +1,116 @@
+diff --git a/pkg/resourcereservation/discovery/discovery.go b/pkg/resourcereservation/discovery/discovery.go
+index 4663e44..e89bc76 100644
+--- a/pkg/resourcereservation/discovery/discovery.go
++++ b/pkg/resourcereservation/discovery/discovery.go
+@@ -14,6 +14,10 @@ import (
+ func GetGPUDevice(ctx context.Context) (string, error) {
+ 	logger := log.FromContext(ctx)
+ 
++	if id, ok, err := amdGPUDevice(); ok { // oif patch (T-126)
++		return id, err
++	}
++
+ 	ret := nvml.Init()
+ 	if ret != nvml.SUCCESS {
+ 		return "", fmt.Errorf("unable to initialize NVML: %v", nvml.ErrorString(ret))
+diff --git a/pkg/resourcereservation/discovery/oif_amd_gpu.go b/pkg/resourcereservation/discovery/oif_amd_gpu.go
+new file mode 100644
+index 0000000..30ad16c
+--- /dev/null
++++ b/pkg/resourcereservation/discovery/oif_amd_gpu.go
+@@ -0,0 +1,36 @@
++// oif patch (open-inference-fabric T-126): on an AMD GPU node the reservation pod holds an amd.com/gpu; the AMD
++// device plugin gave it /dev/kfd and one render node. The pod reports that GPU's PCI address as its device id, which
++// the binder passes to oif's NRI plugin (oif.ai/amd-gpu).
++
++package discovery
++
++import (
++	"fmt"
++	"os"
++	"path/filepath"
++)
++
++var (
++	oifDevRoot = "/dev"
++	oifSysRoot = "/sys"
++)
++
++// amdGPUDevice returns the PCI address of the one AMD GPU given to this container; ok is false when the container
++// has no AMD GPU (an NVIDIA node), so NVML is asked as before.
++func amdGPUDevice() (id string, ok bool, err error) {
++	if _, err := os.Stat(filepath.Join(oifDevRoot, "kfd")); err != nil {
++		return "", false, nil
++	}
++	nodes, err := filepath.Glob(filepath.Join(oifDevRoot, "dri", "renderD*"))
++	if err != nil {
++		return "", true, err
++	}
++	if len(nodes) != 1 {
++		return "", true, fmt.Errorf("found %d AMD render nodes, 1 was expected", len(nodes))
++	}
++	dev, err := filepath.EvalSymlinks(filepath.Join(oifSysRoot, "class", "drm", filepath.Base(nodes[0]), "device"))
++	if err != nil {
++		return "", true, fmt.Errorf("cannot find the PCI device of %s: %w", nodes[0], err)
++	}
++	return filepath.Base(dev), true, nil
++}
+diff --git a/pkg/resourcereservation/discovery/oif_amd_gpu_test.go b/pkg/resourcereservation/discovery/oif_amd_gpu_test.go
+new file mode 100644
+index 0000000..04e0196
+--- /dev/null
++++ b/pkg/resourcereservation/discovery/oif_amd_gpu_test.go
+@@ -0,0 +1,53 @@
++package discovery
++
++import (
++	"os"
++	"path/filepath"
++	"testing"
++)
++
++// fakeRoots: /dev with kfd and the given render nodes; /sys/class/drm/<node>/device -> a PCI device folder.
++func fakeRoots(t *testing.T, kfd bool, render ...string) {
++	t.Helper()
++	base := t.TempDir()
++	oifDevRoot, oifSysRoot = filepath.Join(base, "dev"), filepath.Join(base, "sys")
++	t.Cleanup(func() { oifDevRoot, oifSysRoot = "/dev", "/sys" })
++	must := func(err error) {
++		if err != nil {
++			t.Fatal(err)
++		}
++	}
++	must(os.MkdirAll(filepath.Join(oifDevRoot, "dri"), 0o755))
++	if kfd {
++		must(os.WriteFile(filepath.Join(oifDevRoot, "kfd"), nil, 0o644))
++	}
++	pci := filepath.Join(oifSysRoot, "devices", "pci0000:00", "0000:03:00.0")
++	must(os.MkdirAll(pci, 0o755))
++	for _, r := range render {
++		must(os.WriteFile(filepath.Join(oifDevRoot, "dri", r), nil, 0o644))
++		must(os.MkdirAll(filepath.Join(oifSysRoot, "class", "drm", r), 0o755))
++		must(os.Symlink(pci, filepath.Join(oifSysRoot, "class", "drm", r, "device")))
++	}
++}
++
++func TestOifAmdGPUDevice(t *testing.T) {
++	fakeRoots(t, true, "renderD128")
++	id, ok, err := amdGPUDevice()
++	if !ok || err != nil || id != "0000:03:00.0" {
++		t.Fatalf("got %q %v %v", id, ok, err)
++	}
++}
++
++func TestOifNoAmdGPU(t *testing.T) {
++	fakeRoots(t, false)
++	if _, ok, _ := amdGPUDevice(); ok {
++		t.Fatal("an NVIDIA node was taken for AMD")
++	}
++}
++
++func TestOifTwoRenderNodes(t *testing.T) {
++	fakeRoots(t, true, "renderD128", "renderD129")
++	if _, ok, err := amdGPUDevice(); !ok || err == nil {
++		t.Fatal("two GPUs accepted")
++	}
++}

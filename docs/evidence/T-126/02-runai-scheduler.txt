@@ -1,0 +1,43 @@
+T-126 lab test 2 (2026-11-01, run by the owner): AMD GPU fractions through Run:ai's scheduler (patched KAI v0.18.3).
+Branch feat/T-126-amd-fractions; images v0.18.3-oif-216ce155df72.
+
+== sudo ./oif install (stage amd-fractions; build Job)
+    == patch 0001-common-amd-gpu-node.patch ... 0004-resourcereservation-amd-gpu-device.patch
+    ok  .../pkg/binder/binding/resourcereservation   ok  .../pkg/binder/plugins/nvfractions   ok  .../pkg/common/resources
+    ok  .../pkg/resourcereservation/discovery        ok  .../pkg/scheduler/plugins/gpusharingnodevalidation
+    == image oif.local/kai-scheduler/{scheduler,binder,resourcereservation}:v0.18.3-oif-216ce155df72 (stock image + patched binary)
+    ok  .../images/oif-amd-share;  == image oif.local/oif/oif-amd-share:v0.18.3-oif-216ce155df72 (distroless static)
+  [ok] patched images on every node; binder, runai-scheduler-{amd,default,nvidia} run the patched KAI image
+  [ok] AMD GPUs on gpu-amd can be shared: Run:ai GPU fractions in pool amd; memory isolation is soft
+
+== guard: a pod setting the annotation itself
+pods "t126-sneaky" is forbidden: ValidatingAdmissionPolicy 'oif-amd-share-annotations' ... denied request:
+oif: only KAI's binder sets the oif.ai/amd-gpu annotations (they give a pod a shared AMD GPU; ADR-032)
+
+== first run: frac-a/b bound to gpu-amd, sandbox failed
+Failed to create pod sandbox: ... no runtime for "nvidia" is configured
+(KAI's admission sets runtimeClassName nvidia on every GPU-fraction pod before a node is chosen.)
+Fix 3eb3bb1, node stage amd-runtime on 192.168.120.21: "runtime class nvidia runs runc on this AMD GPU node"
+
+== second run: tests/lab/t126-amd-fractions.yaml in runai-team-c (quota 1 NVIDIA + 1 AMD GPU)
+frac-a      1/1  Running  gpu-amd
+frac-b      1/1  Running  gpu-amd
+frac-c      0/1  Pending
+nv-frac-a   1/1  Running  gpu-nvidia
+nv-frac-b   1/1  Running  gpu-nvidia
+== frac-a / frac-b (each)
+OIF_GPU_PCI=0000:03:00.0 OIF_GPU_MEMORY_FRACTION=0.5
+GPU visible: True
+AMD Radeon Pro W7900: 45.0 GiB total, holding 18.0 GiB
+TFLOPS over 120 s: 24.2
+== frac-c
+Unschedulable  runai-scheduler  NonPreemptibleOverQuota: Non-preemptible workload is over quota. Workload requested 0.5 GPUs,
+but team-c-amd quota is 1 GPUs, while 1 GPUs are already allocated for non-preemptible pods.
+== nv-frac-a / nv-frac-b (NVIDIA fractions unchanged)
+NVIDIA RTX A6000, 24570 MiB
+== reservation pods
+gpu-reservation-3117eb96bc13da22   gpu-amd      limits amd.com/gpu: 1
+gpu-reservation-ee24ae37c1dade95   gpu-nvidia   limits nvidia.com/gpu: 1
+== plugin (oif-system/oif-amd-share on gpu-amd; re-registered by itself after the containerd restart)
+runai-team-c/frac-a/main: AMD GPU 0000:03:00.0 shared (3 devices)
+runai-team-c/frac-b/main: AMD GPU 0000:03:00.0 shared (3 devices)

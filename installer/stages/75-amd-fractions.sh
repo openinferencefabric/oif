@@ -1,0 +1,104 @@
+# shellcheck shell=bash
+# T-126 (ADR-032): GPU fractions on AMD GPUs. KAI Scheduler's fraction path is written for NVIDIA; oif rebuilds its
+# scheduler, binder and resource-reservation with patches (patches/kai/) so a fraction on an AMD GPU node is reserved
+# with an amd.com/gpu and named in pod annotations, and runs the oif-amd-share NRI plugin on AMD GPU nodes to give the
+# pod that GPU. Memory isolation is soft: no driver limits a pod's share (OIF_GPU_MEMORY_FRACTION tells the workload).
+# Needs a node whose GPUs are AMD only (multi-node, T-123); AMD_FRACTIONS=none puts KAI's stock images back.
+
+KAI_STOCK_REGISTRY=ghcr.io/kai-scheduler/kai-scheduler
+KAI_PATCH_REGISTRY=oif.local/kai-scheduler
+KAI_COMPONENTS="scheduler binder resourcereservation"
+
+amd_fractions_build_rev() {   # what decides the images: their tag
+  cat "$OIF_HOME/patches/kai/build-amd-fractions.sh" "$OIF_HOME/patches/kai/$KAI_VERSION"/*.patch \
+    "$OIF_HOME"/images/oif-amd-share/*.go "$OIF_HOME"/images/oif-amd-share/go.* "$OIF_HOME/platform/gpu-amd/amd-fractions-build-job.yaml" \
+    | { cat; echo "$GO_BUILD_IMAGE $CRANE_VERSION $CRANE_SHA256 $KAI_VERSION $KAI_SOURCE_SHA256 $AMD_SHARE_BASE_IMAGE"; } \
+    | sha256sum | cut -c1-12; }
+amd_fractions_rev() {   # the stage reruns when the images, the plugin's manifests or AMD_FRACTIONS change
+  { amd_fractions_build_rev; cat "$OIF_HOME/platform/gpu-amd/amd-share.yaml"; echo "${AMD_FRACTIONS:-}"; } | sha256sum | cut -c1-12; }
+amd_only_nodes() {   # nodes whose GPUs are all AMD: where oif shares an AMD GPU
+  kc get nodes -o json | python3 -c 'import json,sys
+for n in json.load(sys.stdin)["items"]:
+    a = n["status"].get("allocatable", {})
+    if int(a.get("amd.com/gpu", "0")) > 0 and int(a.get("nvidia.com/gpu", "0")) == 0: print(n["metadata"]["name"])'; }
+
+register_stage amd-fractions amd_fractions_rev
+stage_amd_fractions() {
+  if [ "${AMD_FRACTIONS:-}" = none ]; then amd_fractions_off; ok "GPU fractions on AMD GPUs off (AMD_FRACTIONS=none)"; return 0; fi
+  local nodes; nodes=$(amd_only_nodes | paste -sd' ')
+  [ -n "$nodes" ] || { amd_fractions_off; ok "no node with AMD GPUs only: AMD GPUs are shared only there (whole GPUs elsewhere)"; return 0; }
+  local tag c img
+  tag=$KAI_VERSION-oif-$(amd_fractions_build_rev)
+  export AMD_SHARE_IMAGE=oif.local/oif/oif-amd-share:$tag
+  amd_fractions_build "$tag"
+  for c in $KAI_COMPONENTS; do runai_patch_spread "kai-$c" "$KAI_PATCH_REGISTRY/$c:$tag"; done
+  runai_patch_spread oif-amd-share "$AMD_SHARE_IMAGE"
+  # Run:ai's operator writes KAI's config: point it at the patched images (the reservation pods run on GPU nodes)
+  kc -n runai patch runaiconfig runai --type merge -p "$(python3 - "$KAI_PATCH_REGISTRY" "$tag" <<'PY'
+import json, sys
+img = lambda n: {"image": {"registry": sys.argv[1], "name": n, "tag": sys.argv[2], "pullPolicy": "IfNotPresent"}}
+print(json.dumps({"spec": {"runai-scheduler": img("scheduler"),
+                           "binder": dict(img("binder"), resourceReservation=img("resourcereservation"))}}))
+PY
+)" >> "$LOG" || die "RunaiConfig rejected the patched KAI images"
+  for c in binder $(kc -n runai get deploy -o name | sed -n 's|^deployment.apps/\(runai-scheduler-.*\)|\1|p'); do
+    img=$KAI_PATCH_REGISTRY/scheduler:$tag; [ "$c" = binder ] && img=$KAI_PATCH_REGISTRY/binder:$tag   # one scheduler per pool
+    wait_for "$c runs the patched KAI image" 600 10 bash -c \
+      "kubectl --kubeconfig $KCFG -n runai get deploy $c -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -qxF '$img' && kubectl --kubeconfig $KCFG -n runai rollout status deploy/$c --timeout=10s" \
+      || die "$c did not roll out $img (kubectl -n runai describe deploy $c)"
+  done
+  ok "KAI scheduler and binder patched for AMD GPU fractions ($tag)"
+  export KAI_BINDER_USER
+  KAI_BINDER_USER=system:serviceaccount:runai:$(kc -n runai get deploy binder -o jsonpath='{.spec.template.spec.serviceAccountName}')
+  [ "$KAI_BINDER_USER" != system:serviceaccount:runai: ] || die "cannot find KAI binder's service account"
+  render "$OIF_HOME/platform/gpu-amd/amd-share.yaml" | kc apply -f - >> "$LOG" || die "oif-amd-share rejected"
+  kc -n oif-system rollout status ds/oif-amd-share --timeout=300s >> "$LOG" 2>&1 \
+    || die "oif-amd-share not running on every AMD GPU node (kubectl -n oif-system get pods -o wide)"
+  ok "AMD GPUs on $nodes can be shared: Run:ai GPU fractions in pool $(pool_for amd); memory isolation is soft"
+}
+amd_fractions_build() {   # tag: build the four images once per tag (Job -> tarballs -> containerd on this node)
+  local tag=$1 out=$STATE/build/runai c ok_=1
+  for c in $KAI_COMPONENTS; do runai_image_loaded "$KAI_PATCH_REGISTRY/$c:$tag" && [ -s "$out/kai-$c.tar" ] || ok_=0; done
+  runai_image_loaded "$AMD_SHARE_IMAGE" && [ -s "$out/oif-amd-share.tar" ] || ok_=0
+  [ $ok_ = 1 ] && { ok "patched KAI and oif-amd-share images already built ($tag)"; return 0; }
+  runai_fetch_resumable "https://codeload.github.com/kai-scheduler/KAI-scheduler/tar.gz/refs/tags/$KAI_VERSION" \
+    "$KAI_SOURCE_SHA256" "$STATE/build/src/kai-$KAI_VERSION.tgz"
+  runai_fetch_resumable "https://github.com/google/go-containerregistry/releases/download/$CRANE_VERSION/go-containerregistry_Linux_x86_64.tar.gz" \
+    "$CRANE_SHA256" "$STATE/build/src/crane-$CRANE_VERSION.tgz"
+  kc create namespace oif-build --dry-run=client -o yaml | kc apply -f - >> "$LOG"
+  kc -n oif-build create configmap amd-fractions-build --from-file="$OIF_HOME/patches/kai/build-amd-fractions.sh" \
+    --dry-run=client -o yaml | kc apply -f - >> "$LOG"
+  kc -n oif-build create configmap kai-patches --from-file="$OIF_HOME/patches/kai/$KAI_VERSION/" --dry-run=client -o yaml \
+    | kc apply -f - >> "$LOG"
+  kc -n oif-build create configmap oif-amd-share-src --from-file="$OIF_HOME/images/oif-amd-share/" --dry-run=client -o yaml \
+    | kc apply -f - >> "$LOG"
+  mkdir -p "$out"; for c in $KAI_COMPONENTS; do rm -f "$out/kai-$c.tar"; done; rm -f "$out/oif-amd-share.tar"
+  kc -n oif-build delete job amd-fractions-build --ignore-not-found --wait=true >> "$LOG" 2>&1
+  export KAI_VERSION KAI_SOURCE_SHA256 KAI_STOCK_REGISTRY KAI_PATCH_REGISTRY CRANE_VERSION CRANE_SHA256 AMD_SHARE_BASE_IMAGE GO_BUILD_IMAGE
+  KAI_PATCH_TAG=$tag AMD_FRACTIONS_OUT=$out RUNAI_BUILD_SRC=$STATE/build/src RUNAI_BUILD_CACHE=$STATE/build/cache BUILD_NODE=$(this_node) \
+    render "$OIF_HOME/platform/gpu-amd/amd-fractions-build-job.yaml" | kc apply -f - >> "$LOG" || die "build Job for AMD GPU fractions rejected"
+  log "building KAI $KAI_VERSION with $(cd "$OIF_HOME/patches/kai/$KAI_VERSION" && ls ./*.patch | sed 's|./||' | paste -sd' ') and oif-amd-share (10-30 min; longer on a slow link)"
+  wait_for "AMD GPU fractions build finished" 14400 15 bash -c \
+    "kubectl --kubeconfig $KCFG -n oif-build get job amd-fractions-build -o jsonpath='{.status.conditions[*].type}' | grep -qE 'Complete|Failed'" || true
+  kc -n oif-build logs job/amd-fractions-build 2>&1 | grep -E '^(==|ok|FAIL|---)' | sed 's/^/    /' | tee -a "$TLOG"
+  [ "$(kc -n oif-build get job amd-fractions-build -o jsonpath='{.status.succeeded}')" = 1 ] \
+    || die "AMD GPU fractions build failed (kubectl -n oif-build logs job/amd-fractions-build)"
+  for c in $KAI_COMPONENTS; do amd_fractions_import "kai-$c" "$KAI_PATCH_REGISTRY/$c:$tag"; done
+  amd_fractions_import oif-amd-share "$AMD_SHARE_IMAGE"
+}
+amd_fractions_import() {   # tarball-name image: into containerd on this node
+  [ -s "$STATE/build/runai/$1.tar" ] || die "no image file $1.tar from the build"
+  ctr -n k8s.io images import "$STATE/build/runai/$1.tar" >> "$LOG" 2>&1 || die "cannot import $2 into containerd"
+  runai_image_loaded "$2" || die "image $2 not found after import"
+  ok "image $2 loaded into containerd"
+}
+amd_fractions_off() {   # KAI's stock images back; the plugin and its policy removed (no pod is given a shared AMD GPU)
+  local p
+  for p in /spec/runai-scheduler/image /spec/binder/image /spec/binder/resourceReservation/image; do
+    kc -n runai patch runaiconfig runai --type json -p "[{\"op\":\"remove\",\"path\":\"$p\"}]" >> "$LOG" 2>&1 || true
+  done
+  kc delete validatingadmissionpolicybinding oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
+  kc delete validatingadmissionpolicy oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
+  kc delete namespace oif-system --ignore-not-found --wait=false >> "$LOG" 2>&1 || true
+}
+stage_after amd-fractions runai-amd-templates

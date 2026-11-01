@@ -1,0 +1,103 @@
+// T-126 (ADR-032): give a pod that shares an AMD GPU (a GPU fraction placed by KAI) the devices of that GPU. The pod
+// asks for no amd.com/gpu, so the AMD device plugin gives it nothing; KAI's binder names the GPU in an annotation and
+// this NRI plugin adds /dev/kfd and the GPU's DRM nodes when containerd creates the container.
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/containerd/nri/pkg/api"
+)
+
+// Annotations written by KAI's binder (oif patch); a ValidatingAdmissionPolicy keeps everyone else from setting them.
+const (
+	gpuKey       = "oif.ai/amd-gpu"           // PCI address of the shared GPU, e.g. 0000:07:00.0
+	containerKey = "oif.ai/amd-gpu-container" // the container that gets it; all containers when absent
+	fractionKey  = "oif.ai/amd-gpu-fraction"  // the share of the GPU, e.g. 0.5
+	kfd          = "/dev/kfd"
+)
+
+// devNode is what the plugin needs to know about a device file on the host.
+type devNode struct {
+	major, minor int64
+	mode         os.FileMode
+	gid          uint32
+}
+
+type host struct {
+	sysRoot string                             // /sys, or a fake tree in tests
+	stat    func(path string) (devNode, error) // a character device on the host
+}
+
+// adjust returns the changes for one container, nil when the pod shares no AMD GPU or the container is not the one
+// named. An annotated GPU that cannot be found is an error: containerd then refuses the container instead of starting
+// it without its GPU.
+func (h host) adjust(ann map[string]string, ctrName string, ctrDevices []string) (*api.ContainerAdjustment, error) {
+	bdf, ok := ann[gpuKey]
+	if !ok {
+		return nil, nil
+	}
+	if c, ok := ann[containerKey]; ok && c != ctrName {
+		return nil, nil
+	}
+	for _, d := range ctrDevices {
+		if d == kfd { // a whole-GPU container: the device plugin already gave it the GPU
+			return nil, nil
+		}
+	}
+	paths, err := h.drmNodes(bdf)
+	if err != nil {
+		return nil, err
+	}
+	a := &api.ContainerAdjustment{}
+	for _, p := range append([]string{kfd}, paths...) {
+		n, err := h.stat(p)
+		if err != nil {
+			return nil, fmt.Errorf("GPU %s: %w", bdf, err)
+		}
+		a.AddDevice(&api.LinuxDevice{Path: p, Type: "c", Major: n.major, Minor: n.minor,
+			FileMode: api.FileMode(uint32(n.mode.Perm())), Gid: api.UInt32(n.gid)})
+	}
+	a.AddEnv("OIF_GPU_PCI", bdf)
+	if f, ok := ann[fractionKey]; ok {
+		if v, err := strconv.ParseFloat(f, 64); err != nil || v <= 0 || v > 1 {
+			return nil, fmt.Errorf("%s=%q is not a fraction between 0 and 1", fractionKey, f)
+		}
+		a.AddEnv("OIF_GPU_MEMORY_FRACTION", f)
+	}
+	return a, nil
+}
+
+// drmNodes lists the /dev/dri nodes of the GPU at a PCI address (its card and render node).
+func (h host) drmNodes(bdf string) ([]string, error) {
+	if !validBDF(bdf) { // also keeps the value from walking out of the sysfs folder
+		return nil, fmt.Errorf("%s=%q is not a PCI address", gpuKey, bdf)
+	}
+	entries, err := os.ReadDir(filepath.Join(h.sysRoot, "bus/pci/devices", bdf, "drm"))
+	if err != nil {
+		return nil, fmt.Errorf("GPU %s not on this node: %w", bdf, err)
+	}
+	var paths []string
+	for _, e := range entries {
+		if n := e.Name(); strings.HasPrefix(n, "card") || strings.HasPrefix(n, "renderD") {
+			paths = append(paths, "/dev/dri/"+n)
+		}
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("GPU %s has no DRM device (is amdgpu bound to it?)", bdf)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// validBDF accepts domain:bus:device.function in hex, e.g. 0000:07:00.0.
+func validBDF(s string) bool {
+	var d, b, dev, fn uint
+	n, err := fmt.Sscanf(s, "%4x:%2x:%2x.%1x", &d, &b, &dev, &fn)
+	return err == nil && n == 4 && len(s) == 12
+}

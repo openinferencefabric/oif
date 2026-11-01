@@ -9,7 +9,7 @@ Step T-108 (ADR-032). Tested on the lab cluster (guide 10) on 2026-11-01.
 - A workload can ask for part of a GPU in the Run:ai UI (**GPU fractioning**, % of the device) or with the `gpu-fraction` / `gpu-memory` annotations. Two half-GPU workloads share one RTX A6000; each container sees and can allocate only its half (24,570 MiB of 49,140 MiB), enforced by the driver.
 - Quotas count fractions: with 1 NVIDIA GPU of quota, two 0.5 workloads run and a third waits.
 
-AMD GPUs are not shared yet: upstream has no fractions for the Radeon PRO W7900. Spike S-7 decides whether oif adds them (ADR-032).
+AMD GPUs: see [guide 13](13-amd-gpu-fractions.md) (T-126; soft memory isolation).
 
 ## Before you start
 
@@ -105,5 +105,5 @@ Both running pods are bound to the same GPU (the same UUID in `NVIDIA_VISIBLE_DE
 | --- | --- |
 | A fractional workload stays pending with `No node in the default node-pool has GPU resources` | The project's default node pools are `default` only: put `nvidia` (and `amd`) first in the form's Nodes section, or see [guide 12](12-one-job-one-vendor.md) (T-125). |
 | `gpu-fractioning` pods not on an NVIDIA node, cluster still Missing prerequisites | The node runs a driver older than 615: `nvidia-smi` on it; run `sudo ./oif install` again. The `GpuFractioningConfig` condition names the reason (`GPUDriverVersionUnsupported`). |
-| `node is not ready for fractional GPU scheduling` in the events, for pool `amd` | Expected: AMD GPUs have no fractions (S-7). |
+| `node is not ready for fractional GPU scheduling` in the events, for pool `amd` | Before T-126: AMD GPUs had no fractions. Since T-126 (guide 13) KAI skips this check on AMD GPU nodes. |
 | The Overview shows Allocated GPU devices 0 while fractional workloads run | Seen on the lab with whole-GPU workloads too; the Workloads and Projects pages show the allocations (team-c: 1.00). |

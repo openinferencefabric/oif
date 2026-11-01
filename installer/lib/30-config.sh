@@ -2,7 +2,7 @@
 # Settings: read from .env (never executed), validated, missing values asked, saved to $CONF (mode 600).
 
 CONFIG_KEYS=(HOST_IP METALLB_RANGE INSTALL_DIR NVIDIA_GPUS AMD_GPUS ISOLATE_GPUS
-             HF_TOKEN RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD MODEL_ID RUNAI_PATCHES
+             HF_TOKEN RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD MODEL_ID RUNAI_PATCHES AMD_FRACTIONS
              OIF_NODES OIF_API_VIP OIF_NODE_USER ADMIN_KEY_ON_CONTROL)
 
 env_parse() {   # file: print KEY<TAB>VALUE for the known keys; values are data, never evaluated
@@ -110,7 +110,7 @@ runai_domain() { echo "${RUNAI_DOMAIN:-runai.$(first_ip "$METALLB_RANGE" | tr . 
 
 CONFIG_CHECKS=(HOST_IP:v_ip_here METALLB_RANGE:v_range INSTALL_DIR:v_dir NVIDIA_GPUS:v_nv AMD_GPUS:v_amd ISOLATE_GPUS:v_iso
                RUNAI_DOMAIN:v_domain RUNAI_ADMIN_EMAIL:check_email RUNAI_ADMIN_PASSWORD:check_runai_password GRAFANA_ADMIN_PASSWORD:check_password
-               RUNAI_PATCHES:v_patches OIF_NODES:v_nodes OIF_API_VIP:v_vip ADMIN_KEY_ON_CONTROL:v_yesno)
+               RUNAI_PATCHES:v_patches AMD_FRACTIONS:v_patches OIF_NODES:v_nodes OIF_API_VIP:v_vip ADMIN_KEY_ON_CONTROL:v_yesno)
 config_validate() {   # saved settings still valid on this host (secret values are never printed)
   local kv k f why bad=0
   for kv in "${CONFIG_CHECKS[@]}"; do k=${kv%%:*}; f=${kv#*:}

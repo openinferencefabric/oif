@@ -1,0 +1,40 @@
+T-126 lab test 1 (2026-11-01, run by the owner): the oif-amd-share NRI plugin alone, before any KAI change.
+Plugin run by hand on gpu-amd (sudo /tmp/oif-amd-share, build 99ca854d...); four pods pinned to gpu-amd, none
+privileged, none asking for amd.com/gpu; the W7900 is at 0000:03:00.0 (card0, renderD128).
+
+== plugin (gpu-amd)
+INFO[0000] Created plugin 90-oif-amd-share (oif-amd-share, handles CreateContainer)
+oif-amd-share: registered with containerd (NRI index 90)
+INFO[0000] Configuring plugin 90-oif-amd-share for runtime containerd/2.2.2...
+INFO[0000] Started plugin 90-oif-amd-share...
+oif-t126/share-a/main: AMD GPU 0000:03:00.0 shared (3 devices)
+oif-t126/share-b/main: AMD GPU 0000:03:00.0 shared (3 devices)
+oif-t126/wrong-gpu-d/main: GPU 0000:09:00.0 not on this node: open /sys/bus/pci/devices/0000:09:00.0/drm: no such file or directory   (x10, kubelet retries)
+
+== pods (cp1)
+control-c     0/1     Completed              gpu-amd
+share-a       1/1     Running                gpu-amd
+share-b       1/1     Running                gpu-amd
+wrong-gpu-d   0/1     CreateContainerError   gpu-amd
+== share-a
+OIF_GPU_PCI=0000:03:00.0 OIF_GPU_MEMORY_FRACTION=0.5
+devices: ['card0', 'renderD128'] kfd: True
+GPU visible: True
+AMD Radeon Pro W7900: 45.0 GiB total, holding 18.0 GiB
+TFLOPS over 60 s: 25.5
+== share-b
+OIF_GPU_PCI=0000:03:00.0 OIF_GPU_MEMORY_FRACTION=0.5
+devices: ['card0', 'renderD128'] kfd: True
+GPU visible: True
+AMD Radeon Pro W7900: 45.0 GiB total, holding 18.0 GiB
+TFLOPS over 60 s: 25.5
+== control-c
+OIF_GPU_PCI=None OIF_GPU_MEMORY_FRACTION=None
+devices: - kfd: False
+GPU visible: False
+== wrong-gpu-d
+Warning  Failed  kubelet  Error: failed to create containerd container: failed to get NRI adjustment for container:
+rpc error: code = Unknown desc = GPU 0000:09:00.0 not on this node: open /sys/bus/pci/devices/0000:09:00.0/drm: no such file or directory
+
+Unit tests (go test, golang 1.27.1 pinned image): TestNoAnnotation, TestSharedGPU, TestOtherContainer,
+TestWholeGPUContainerLeftAlone, TestRefused: PASS. gofmt and go vet clean.

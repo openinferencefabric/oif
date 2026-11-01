@@ -64,6 +64,27 @@ stage_amd_firmware() {
   amd_gpu_up || reboot_ask "start the AMD GPU with its firmware"
 }
 
+# T-126 (ADR-032): KAI's admission gives every GPU-fraction pod the runtime class "nvidia" before a node is chosen. A
+# node whose GPUs are all AMD has no NVIDIA runtime; there that name runs plain runc, so a fraction KAI places on the
+# AMD GPU starts (oif's NRI plugin gives it the GPU). NVIDIA pods never land there: each vendor has its own pool.
+AMD_RUNTIME_FILE=/etc/containerd/conf.d/90-oif-amd-fractions.toml
+register_stage amd-runtime
+stage_amd_runtime() {
+  if [ -z "$(amd_targets)" ] || [ -n "$(nv_targets)" ]; then ok "not a node with AMD GPUs only: containerd unchanged"; return 0; fi
+  [ -d "${AMD_RUNTIME_FILE%/*}" ] || rec "DIR ${AMD_RUNTIME_FILE%/*}"
+  put_file "$AMD_RUNTIME_FILE" "# oif (T-126): runtime class nvidia on an AMD GPU node = runc, for KAI's GPU-fraction pods
+version = 3
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.nvidia]
+  runtime_type = 'io.containerd.runc.v2'
+  [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.nvidia.options]
+    SystemdCgroup = true
+"
+  systemctl restart containerd   # running containers keep running
+  wait_for "containerd running" 60 2 ctr version || die "containerd did not start (journalctl -u containerd)"
+  containerd config dump 2>/dev/null | grep -qF "runtimes.nvidia]" || die "containerd did not take $AMD_RUNTIME_FILE"
+  ok "runtime class nvidia runs runc on this AMD GPU node (GPU fractions)"
+}
+
 register_stage gpu-isolation
 stage_gpu_isolation() {
   [ -n "$(iso_list)" ] || { ok "no GPUs to isolate"; return 0; }
