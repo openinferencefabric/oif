@@ -43,6 +43,7 @@ sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GP
 | [Memory](docs/MEMORY.md) | Current project state |
 | [Test plan](docs/TEST_PLAN.md) | What "working" means |
 | [Install guides](docs/guides/README.md) | Step-by-step install and deployment |
+| [Upstream changes](docs/UPSTREAM.md) | Every patch and workaround, prepared for the Run:ai and KAI Scheduler projects |
 | [Design sketches](docs/design/) | Vendor-agnostic job model, lab acceptance checks |
 | [Presentations](presentations/) | Feature and product decks |
 | [Security](docs/SECURITY.md) | Security requirements |
