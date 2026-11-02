@@ -18,6 +18,7 @@ never printed. Commands:
   templates                              list the workload templates (name, kind)
   template-delete NAME                   delete the workload template NAME, if there is one
   submit KIND NAME PROJECT TEMPLATE [COMMAND [ARGS]]  submit a training or workspace (KIND trainings, workspaces) from a template
+  workloads                              list the workloads as Run:ai shows them: name, type, phase, project
 """
 import json
 import os
@@ -321,6 +322,15 @@ def nodes(token: str) -> None:
         print(f"{n.get('name')} type={g.get('gpuType', '-').replace(' ', '')} gpus {g.get('gpuCount', 0)}")
 
 
+def workloads(token: str) -> None:
+    """Print each workload as the Workloads page shows it: name, type, phase, project (T-201: a Dynamo deployment)."""
+    status, out = call("GET", "/api/v1/workloads", token=token)
+    if status != 200:
+        sys.exit(f"GET workloads: HTTP {status} {out}")
+    for w in out.get("workloads", []):
+        print(w.get("name"), w.get("type", "-").replace(" ", ""), w.get("phase", "-"), w.get("projectName", "-"))
+
+
 def main() -> None:
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     token = login()
@@ -355,6 +365,8 @@ def main() -> None:
             print(name, kind)
     elif cmd == "template-delete" and len(sys.argv) == 3:
         template_delete(token, sys.argv[2])
+    elif cmd == "workloads" and len(sys.argv) == 2:
+        workloads(token)
     elif cmd == "submit" and 6 <= len(sys.argv) <= 8:
         submit(token, *sys.argv[2:])
     else:

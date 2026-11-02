@@ -19,7 +19,7 @@ One guide per step of the plan in [TASKS.md](../../TASKS.md). Each guide is writ
 | 13 | [GPU fractions on AMD GPUs](13-amd-gpu-fractions.md): patched KAI and the oif-amd-share NRI plugin, half-GPU ROCm workloads from the Run:ai UI, soft memory isolation | T-126 – T-128 | Tested (lab) |
 | 14 | [How oif builds the cluster](14-build-the-cluster.md): from bare machines to Run:ai, stage by stage across all nodes; why Run:ai's New cluster page is not used | T-101 – T-127 | Reference |
 | 15 | [Continuous integration](15-ci.md): shellcheck, yamllint, unit tests, Go tests, patch check and secret scan on every push; run them locally | T-003 | Tested (CI) |
-| 16 | [Dynamo under Run:ai](16-dynamo-under-runai.md): Dynamo 1.6.1 with Grove and its own KAI off, a DynamoGraphDeployment submitted through the Run:ai UI, the worker on the project's NVIDIA quota, chat through the frontend, a deployment over quota waits | S-4 | Tested (lab) |
+| 16 | [Dynamo under Run:ai](16-dynamo-under-runai.md): Dynamo 1.6.1 with Grove and its own KAI off, a DynamoGraphDeployment submitted through the Run:ai UI, the worker on the project's NVIDIA quota, chat through the frontend, a deployment over quota waits; installed by `oif install` | S-4, T-201 | Tested (lab) |
 
 Multi-node (P1.3) workflow decks live under [presentations/](../../presentations/) (T-120–T-122). Full multi-node install guides come with T-124.
 

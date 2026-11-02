@@ -1,15 +1,16 @@
 # Guide 16: Dynamo under Run:ai
 
-Spike S-4. Tested on the lab cluster (guide 10) on 2026-11-01 and 2026-11-02. Dynamo is installed by hand here; T-201
-moves it into `oif install`.
+Spike S-4 and step T-201. Tested on the lab cluster (guide 10) on 2026-11-02: the hand install (appendix) in S-4,
+then `oif install` taking it over and `tests/lab/t201-dynamo.sh` passing 23 of 23 checks.
 
 ## What you get
 
-- NVIDIA Dynamo 1.6.1 (operator and CRDs) on the cluster, with the chart's defaults: Grove and Dynamo's own bundled
-  KAI Scheduler **off**. Dynamo's pods are then scheduled by Run:ai's KAI like any other project workload.
-- A DynamoGraphDeployment (a frontend and one vLLM worker serving Qwen3-0.6B) submitted through the Run:ai UI to a
-  project. Run:ai shows it in **Workloads** as type DynamoGraphDeployment, the worker gets an NVIDIA GPU from the
-  project's quota in pool `nvidia`, and the frontend answers OpenAI-compatible requests.
+- NVIDIA Dynamo 1.6.1 (operator and CRDs) on the cluster, with Grove and Dynamo's own bundled KAI Scheduler **off**
+  ([platform/dynamo/values.yaml](../../platform/dynamo/values.yaml)). Dynamo's pods are then scheduled by Run:ai's KAI
+  like any other project workload.
+- A DynamoGraphDeployment (a frontend and one vLLM worker serving Qwen3-0.6B), submitted to a project through the
+  Run:ai UI or with `kubectl`. Run:ai shows it in **Workloads** as type DynamoGraphDeployment, the worker gets an
+  NVIDIA GPU from the project's quota in pool `nvidia`, and the frontend answers OpenAI-compatible requests.
 - Quotas hold: a second deployment over the project's quota waits with `NonPreemptibleOverQuota`.
 
 ## Before you start
@@ -17,49 +18,47 @@ moves it into `oif install`.
 - A multi-node cluster with Run:ai and per-vendor node pools (guide 10), and a project with NVIDIA GPU quota in pool
   `nvidia`. The lab uses `team-c`, with a quota of 1 GPU in pool `nvidia`.
 - NVIDIA driver 580 or newer on the NVIDIA node (`NVIDIA_DRIVER_MIN`; the lab runs 615, guide 2).
-- `helm` on the first control-plane node (oif installs it, guide 3), and internet access to `helm.ngc.nvidia.com`,
-  `nvcr.io` and Hugging Face. These public artefacts need no NGC key.
+- Internet access to `helm.ngc.nvidia.com`, `nvcr.io` and Hugging Face. These public artefacts need no NGC key.
 
 ## Steps
 
-1. On the first control-plane node, fetch the chart and check it against `DYNAMO_PLATFORM_SHA256` in `versions.env`:
+1. Get the oif version with T-201 and run the install on the first node:
 
    ```bash
-   mkdir -p ~/s4 && cd ~/s4
-   helm fetch https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-platform-1.6.1.tgz
-   sha256sum dynamo-platform-1.6.1.tgz
+   cd ~/open-inference-fabric && git pull
+   sudo ./oif install
    ```
+
+   On a new cluster this is part of the normal install. On an installed one only the new stage runs:
 
    ```text
-   c10af6c9a9dc13d9a26623cc159cc2b3043d86e092e6ad85c17224f59f997d3e  dynamo-platform-1.6.1.tgz
+   2026-11-02 08:05:39 == stage: dynamo
+   2026-11-02 08:05:43 == Dynamo 1.6.1 platform (operator and CRDs, 1-3 min)
+   Release "dynamo-platform" has been upgraded. Happy Helming!
+   ...
+     [ok] Dynamo 1.6.1 operator ready, 6 CRDs; no Grove or bundled KAI: Run:ai's KAI schedules Dynamo's pods
+   2026-11-02 08:05:46 == install finished
    ```
 
-   Stop if the checksum differs.
+   "upgraded" and revision 2 on the lab: the stage took over the S-4 hand install. A new cluster shows "installed".
 
-2. Install the Dynamo platform with the chart's defaults:
+   The stage installs Helm release `dynamo-platform` in namespace `dynamo-system`, the names used by the hand install
+   in the appendix, so it takes over a hand install instead of adding a second one. It is skipped on a cluster without
+   NVIDIA GPUs (Dynamo on AMD comes with S-1). `DYNAMO=none` in `.env` turns it off (see "What changed").
 
-   ```bash
-   helm install dynamo-platform dynamo-platform-1.6.1.tgz -n dynamo-system --create-namespace --wait --timeout 10m
-   kubectl get crd | grep -i dynamo
-   ```
-
-   The release is `deployed`, the operator pod in `dynamo-system` is Running, and six CRDs exist:
-   `dynamocomponentdeployments`, `dynamographdeploymentrequests`, `dynamographdeployments`,
-   `dynamographdeploymentscalingadapters`, `dynamomodels` and `dynamoworkermetadatas`.
-
-   Do not turn on Grove or the chart's KAI. Grove is for multi-node gangs, and a second KAI would schedule Dynamo's
-   pods outside Run:ai's quotas.
-
-3. Take the deployment from [tests/lab/s4-dynamo-agg.yaml](../../tests/lab/s4-dynamo-agg.yaml). It sets the pool
+2. Take the deployment from [tests/lab/s4-dynamo-agg.yaml](../../tests/lab/s4-dynamo-agg.yaml). It sets the pool
    label `runai/node-pool: nvidia` on the deployment **and in each component's `podTemplate.metadata.labels`**. The
    deployment-level label does not reach the pods. Without the per-pod label, the frontend, which asks for no GPU,
    lands in another pool (see Troubleshooting).
 
-4. In the Run:ai UI, open **Workload manager > Workloads > New workload > Via YAML**. Paste only the file's content
-   (from `apiVersion:` to the last line, with no shell prompt), open **Projects** and pick the project, then click
-   **Create workload**.
+3. Submit it to the project, either way:
+   - In the Run:ai UI, open **Workload manager > Workloads > New workload > Via YAML**. Paste only the file's content
+     (from `apiVersion:` to the last line, with no shell prompt), open **Projects** and pick the project, then click
+     **Create workload**.
+   - Or with `kubectl` into the project's namespace:
+     `kubectl -n runai-<project> apply -f tests/lab/s4-dynamo-agg.yaml`.
 
-5. Wait for both pods. The first start pulls the runtime image (about 20 GB) and the model:
+4. Wait for both pods. The first start pulls the runtime image (about 20 GB) and the model:
 
    ```bash
    kubectl -n runai-<project> get pods -o wide -L runai/node-pool
@@ -99,32 +98,79 @@ moves it into `oif install`.
    ```
 
    Run:ai schedules a DynamoGraphDeployment as non-preemptible (inference), so it cannot borrow over-quota capacity.
-   Its frontend still starts. Delete `s4-qwen-2` in the UI afterwards.
+   Its frontend still starts. Delete `s4-qwen-2` afterwards.
 
-The recorded output is in [docs/evidence/S-4/](../evidence/S-4/).
+4. The lab script does all of the above with deployments of its own (`t201-qwen`, `t201-qwen-2`, deleted at the
+   end), submitted with `kubectl`. It needs team-c's NVIDIA quota free:
+
+   ```bash
+   sudo tests/lab/t201-dynamo.sh              # platform, deployment, chat, over quota
+   sudo tests/lab/t201-dynamo.sh --platform   # the platform checks only
+   ```
+
+   ```text
+   T-201 Dynamo 1.6.1 platform
+     PASS  Helm release dynamo-platform deployed in dynamo-system
+     ...
+     INFO  Run:ai: t201-qwen DynamoGraphDeployment Pending team-c
+     PASS  Run:ai lists t201-qwen as a DynamoGraphDeployment in team-c
+     ...
+     INFO  scheduler: NonPreemptibleOverQuota: Non-preemptible workload is over quota
+     PASS  t201-qwen-2 worker waits (Pending)
+     PASS  reason: over quota
+     PASS  t201-qwen still serves
+     PASS  both deployments deleted
+   T-201: 23/23 checks passed
+   ```
+
+Recorded output: [docs/evidence/S-4/](../evidence/S-4/) (hand install) and `docs/evidence/T-201/`.
 
 ## What changed on the host
 
-Nothing on the hosts themselves. In the cluster:
+Nothing on the hosts themselves; oif keeps the chart in its state folder. In the cluster:
 
 | Change | Undo |
 | --- | --- |
-| Helm release `dynamo-platform`, namespace `dynamo-system` | `helm uninstall dynamo-platform -n dynamo-system; kubectl delete ns dynamo-system` |
-| The six Dynamo CRDs listed in step 2 | `kubectl delete crd <name>`, for those six only |
-| Deployments `s4-qwen` and `s4-qwen-2` | Delete them in the Run:ai UI |
-| `~/s4` on the first node | `rm -rf ~/s4` |
-
-`oif uninstall` does not know about this manual install yet (T-201 adds it). Remove it as above before an uninstall.
+| Helm release `dynamo-platform`, namespace `dynamo-system`, the six Dynamo CRDs (`dynamocomponentdeployments`, `dynamographdeploymentrequests`, `dynamographdeployments`, `dynamographdeploymentscalingadapters`, `dynamomodels`, `dynamoworkermetadatas`) | `sudo ./oif uninstall` removes them with the cluster. To remove only Dynamo, set `DYNAMO=none` in `.env` and run `sudo ./oif install --reconfigure`; `DYNAMO=all` installs it again (an empty value keeps the saved `none`) |
+| Your Dynamo deployments | Delete them in the Run:ai UI. Removing the CRDs (above) deletes them too; the install warns how many |
 
 ## Troubleshooting
 
 - **The frontend runs in pool `amd` (or another pool) while its worker is in `nvidia`.** The frontend asks for no
   GPU and carries no pool label, so KAI books it against the project's parent queue (`team-c`). Pool `nvidia` does not
   have that queue (`QueueDoesNotExist`), so the frontend falls through to the next pool. Put `runai/node-pool` in each
-  component's `podTemplate.metadata.labels` (step 3). Tracked with T-129.
+  component's `podTemplate.metadata.labels` (step 2). T-129 makes oif do this for you.
 - **The new worker stays Pending after deleting an earlier deployment.** Pods of the deleted deployment may still be
   Terminating and holding the project's GPU. Wait, and check before forcing anything:
   `kubectl -n runai-<project> get pods -o custom-columns=NAME:.metadata.name,DELETED:.metadata.deletionTimestamp,FINALIZERS:.metadata.finalizers`.
 - **The UI says "Add a valid Kubernetes YAML".** The pasted text contains something other than the file, such as a
   shell prompt. Clear the box and paste only the file.
+- **The install stops with "Dynamo started its own scheduler".** A chart version turned Grove or its KAI on despite
+  oif's values. Check `platform/dynamo/values.yaml` against the new chart's `values.yaml`.
 - **`kubectl describe pod` shows no events.** Events expire after an hour; read them while the problem is happening.
+
+## Appendix: the hand install (S-4)
+
+How S-4 installed Dynamo before T-201. `oif install` now does the same; keep this for a cluster oif did not build.
+
+1. Fetch the chart and check it against `DYNAMO_PLATFORM_SHA256` in `versions.env`:
+
+   ```bash
+   mkdir -p ~/s4 && cd ~/s4
+   helm fetch https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-platform-1.6.1.tgz
+   sha256sum dynamo-platform-1.6.1.tgz
+   ```
+
+   ```text
+   c10af6c9a9dc13d9a26623cc159cc2b3043d86e092e6ad85c17224f59f997d3e  dynamo-platform-1.6.1.tgz
+   ```
+
+2. Install it. The chart's own defaults already keep Grove and its KAI off; oif's values file only makes that explicit:
+
+   ```bash
+   helm install dynamo-platform dynamo-platform-1.6.1.tgz -n dynamo-system --create-namespace --wait --timeout 10m
+   kubectl get crd | grep -i dynamo
+   ```
+
+3. Undo: `helm uninstall dynamo-platform -n dynamo-system; kubectl delete ns dynamo-system`, then
+   `kubectl delete crd <name>` for the six CRDs above, and `rm -rf ~/s4`.
