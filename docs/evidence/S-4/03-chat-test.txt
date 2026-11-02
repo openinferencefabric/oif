@@ -1,0 +1,12 @@
+S-4 run 2 chat test, 2026-11-02: OpenAI-compatible API of the Dynamo frontend (svc/s4-qwen-frontend, port 8000),
+reached by kubectl port-forward from cp1. Frontend and worker both on gpu-nvidia, pool nvidia (02-run2-placement.txt).
+
+$ curl -s localhost:8000/v1/models
+{"object":"list","data":[{"id":"Qwen/Qwen3-0.6B","object":"model","created":1793602102,"owned_by":"nvidia","context_window":40960}]}
+
+$ curl -s localhost:8000/v1/chat/completions -H 'Content-Type: application/json' \
+    -d '{"model":"Qwen/Qwen3-0.6B","messages":[{"role":"user","content":"Say hello in five words."}],"max_tokens":40}'
+{"id":"chatcmpl-a470e0c2-7c32-4089-992a-1a7314d63ce8","choices":[{"index":0,"message":{"content":"<think>\nOkay, the user wants me to say hello in five words. Let me think. The standard way is \"Hello, how are you?\" but that's six words. Maybe shorten it.","refusal":null,"role":"assistant"},"finish_reason":"length","logprobs":null}],"created":1793602102,"model":"Qwen/Qwen3-0.6B","object":"chat.completion","usage":{"prompt_tokens":14,"completion_tokens":40,"total_tokens":54,"prompt_tokens_details":{"cached_tokens":0}}}
+
+Result: pass. The frontend routes to the vLLM worker and returns tokens. finish_reason "length" is the 40-token cap;
+the <think> block is Qwen3's default reasoning mode, not an error.
