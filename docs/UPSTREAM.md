@@ -34,6 +34,9 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | K5 | KAI admission | `runtimeClassName: nvidia` set on every fraction pod, whatever the vendor | issue (oif maps the name to runc on AMD nodes) | issue + PR |
 | K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | propose as a design |
 | A1 | AMD metrics exporter | Phantom UMC ECC errors on Radeon PRO W7900 with kernel 7.0 | issue (oif raises the threshold) | issue |
+| A2 | ROCm (clr, rocr-runtime) | `hipMemGetInfo` and the HSA pool size ignore the cgroup `dmem.max` VRAM limit (S-8) | issue (oif keeps the in-process fraction as the sizing hint) | issue |
+| A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | issue |
+| A4 | ROCm (rocr-runtime, amdkfd) | CU mask only settable by the workload (`HSA_CU_MASK`), no node-enforced compute share (S-8) | issue | drafted, held for a measured run |
 
 ## Submitted (2026-11-01)
 
@@ -54,8 +57,10 @@ Opened by Manmohan Brahma; PR commits signed off (DCO). Run:ai merges a PR only 
 | K3b | [KAI#2554](https://github.com/kai-scheduler/KAI-Scheduler/issues/2554) | [KAI#2557](https://github.com/kai-scheduler/KAI-Scheduler/pull/2557) |
 | K5 | [KAI#2555](https://github.com/kai-scheduler/KAI-Scheduler/issues/2555) | |
 | K6 | [comment on KAI#1544](https://github.com/kai-scheduler/KAI-Scheduler/issues/1544#issuecomment-6557664853) (NRI injection for fraction pods) | |
+| A2 | [rocm-systems#14860](https://github.com/ROCm/rocm-systems/issues/14860) | |
+| A3 | [rocm-systems#14861](https://github.com/ROCm/rocm-systems/issues/14861) | |
 
-Held: R8 (until KAI answers #2556); A1 (not reproduced on the current lab: the W7900 shows no UMC errors; report again with fresh evidence).
+Held: R8 (until KAI answers #2556); A4 (needs a measured CU-mask run, docs/evidence/S-8/ticket-drafts.md); A1 (not reproduced on the current lab: the W7900 shows no UMC errors; report again with fresh evidence).
 
 Follow-ups (2026-11-01): CodeRabbit's findings on #3950 (family count when the product count is unusable) and #3949 (malformed daemon conditions reported unavailable) fixed in e619499f and 6ddd263e, checked on Run:ai main 1fee5ece; T-128 evidence added to [run-ai#3943](https://github.com/dsx-ai-factory/run-ai/issues/3943#issuecomment-6560336091) (one cluster-redis copy survives a restart with a workspace logged in) and [KAI#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556#issuecomment-6560342620) (soft memory isolation measured: 23 GiB taken from a 22.5 GiB share).
 
