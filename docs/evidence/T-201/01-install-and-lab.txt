@@ -1,0 +1,53 @@
+T-201 lab run, 2026-11-02, first node of the lab cluster, branch feat/T-201-dynamo (2067bfa). The cluster had the S-4
+hand install of Dynamo 1.6.1 (release dynamo-platform, revision 1); team-c had nothing running.
+
+$ sudo ./oif install
+2026-11-02 08:05:38 == oif 0.1.0-dev install (state in /var/lib/oif)
+2026-11-02 08:05:39 == stage: dynamo
+2026-11-02 08:05:43 == Dynamo 1.6.1 platform (operator and CRDs, 1-3 min)
+Release "dynamo-platform" has been upgraded. Happy Helming!
+NAMESPACE: dynamo-system
+STATUS: deployed
+REVISION: 2
+deployment.apps/dynamo-platform-dynamo-operator-controller-manager condition met
+  [ok] Dynamo 1.6.1 operator ready, 6 CRDs; no Grove or bundled KAI: Run:ai's KAI schedules Dynamo's pods
+2026-11-02 08:05:46 == install finished
+
+$ sudo tests/lab/t201-dynamo.sh
+T-201 Dynamo 1.6.1 platform
+  PASS  Helm release dynamo-platform deployed in dynamo-system
+  PASS  chart version 1.6.1
+  PASS  CRD dynamocomponentdeployments.nvidia.com
+  PASS  CRD dynamographdeploymentrequests.nvidia.com
+  PASS  CRD dynamographdeployments.nvidia.com
+  PASS  CRD dynamographdeploymentscalingadapters.nvidia.com
+  PASS  CRD dynamomodels.nvidia.com
+  PASS  CRD dynamoworkermetadatas.nvidia.com
+  PASS  operator available
+  PASS  no Grove or bundled KAI running
+  PASS  oif's values in use (bundled KAI off)
+T-201 a Dynamo deployment submitted with kubectl to project team-c
+  PASS  deployment t201-qwen accepted
+  INFO  Run:ai: t201-qwen DynamoGraphDeployment Pending team-c
+  PASS  Run:ai lists t201-qwen as a DynamoGraphDeployment in team-c
+  ...   waiting for the worker (first start pulls the image and the model, up to 25 min)
+        t201-qwen-frontend-647444589c-25v8r         1/1   Running   0     6m33s   gpu-nvidia   nvidia
+        t201-qwen-worker-c1dbf85d-6fc949c7b-pttj4   1/1   Running   0     6m33s   gpu-nvidia   nvidia
+  PASS  worker running
+  PASS  worker in pool nvidia, on an NVIDIA node
+  PASS  worker scheduled by Run:ai's KAI (pod group)
+  PASS  frontend in pool nvidia too (per-pod label)
+  INFO  chat: 40 <think> Okay, the user wants me to say hello in five words. Let me think. The st
+  PASS  chat completion through the Dynamo frontend
+T-201 a second deployment over team-c's quota
+  PASS  deployment t201-qwen-2 accepted
+  INFO  scheduler: NonPreemptibleOverQuota: Non-preemptible workload is over quota
+  PASS  t201-qwen-2 worker waits (Pending)
+  PASS  reason: over quota
+  PASS  t201-qwen still serves
+  PASS  both deployments deleted
+T-201: 23/23 checks passed
+
+Result: pass. The stage took over the hand install (helm revision 2, no second release) in 7 s. A deployment applied
+with kubectl into the project namespace is adopted by Run:ai like one submitted in the UI. Worker ready in about
+6.5 min with the runtime image already on the node (model download and engine start).

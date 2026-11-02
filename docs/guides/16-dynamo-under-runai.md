@@ -1,7 +1,7 @@
 # Guide 16: Dynamo under Run:ai
 
-Spike S-4 and step T-201. The hand install (appendix) was tested on the lab cluster (guide 10) on 2026-11-01 and
-2026-11-02; the `oif install` path is T-201 and is tested with `tests/lab/t201-dynamo.sh`.
+Spike S-4 and step T-201. Tested on the lab cluster (guide 10) on 2026-11-02: the hand install (appendix) in S-4,
+then `oif install` taking it over and `tests/lab/t201-dynamo.sh` passing 23 of 23 checks.
 
 ## What you get
 
@@ -32,11 +32,15 @@ Spike S-4 and step T-201. The hand install (appendix) was tested on the lab clus
    On a new cluster this is part of the normal install. On an installed one only the new stage runs:
 
    ```text
-   == stage: dynamo
-   == Dynamo 1.6.1 platform (operator and CRDs, 1-3 min)
+   2026-11-02 08:05:39 == stage: dynamo
+   2026-11-02 08:05:43 == Dynamo 1.6.1 platform (operator and CRDs, 1-3 min)
+   Release "dynamo-platform" has been upgraded. Happy Helming!
+   ...
      [ok] Dynamo 1.6.1 operator ready, 6 CRDs; no Grove or bundled KAI: Run:ai's KAI schedules Dynamo's pods
-   == install finished
+   2026-11-02 08:05:46 == install finished
    ```
+
+   "upgraded" and revision 2 on the lab: the stage took over the S-4 hand install. A new cluster shows "installed".
 
    The stage installs Helm release `dynamo-platform` in namespace `dynamo-system`, the names used by the hand install
    in the appendix, so it takes over a hand install instead of adding a second one. It is skipped on a cluster without
@@ -102,6 +106,21 @@ Spike S-4 and step T-201. The hand install (appendix) was tested on the lab clus
    ```bash
    sudo tests/lab/t201-dynamo.sh              # platform, deployment, chat, over quota
    sudo tests/lab/t201-dynamo.sh --platform   # the platform checks only
+   ```
+
+   ```text
+   T-201 Dynamo 1.6.1 platform
+     PASS  Helm release dynamo-platform deployed in dynamo-system
+     ...
+     INFO  Run:ai: t201-qwen DynamoGraphDeployment Pending team-c
+     PASS  Run:ai lists t201-qwen as a DynamoGraphDeployment in team-c
+     ...
+     INFO  scheduler: NonPreemptibleOverQuota: Non-preemptible workload is over quota
+     PASS  t201-qwen-2 worker waits (Pending)
+     PASS  reason: over quota
+     PASS  t201-qwen still serves
+     PASS  both deployments deleted
+   T-201: 23/23 checks passed
    ```
 
 Recorded output: [docs/evidence/S-4/](../evidence/S-4/) (hand install) and `docs/evidence/T-201/`.
