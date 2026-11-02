@@ -42,6 +42,7 @@ sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GP
 
 | Document | Purpose |
 | --- | --- |
+| [Project brief](docs/PROJECT-BRIEF.md) | One page for partners, sponsors and new contributors |
 | [PRD](docs/PRD.md) | What we are building and why; goals and success criteria |
 | [SDLC](docs/SDLC.md) | How we build, test, document and release (process for humans and agents) |
 | [Architecture](docs/ARCHITECTURE.md) | Layers, flows, telemetry schema, repository layout |
