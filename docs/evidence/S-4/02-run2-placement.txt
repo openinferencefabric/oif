@@ -1,0 +1,18 @@
+S-4 run 2, 2026-11-02: DGD s4-qwen resubmitted through Run:ai > New workload > Via YAML, project team-c, with
+tests/lab/s4-dynamo-agg.yaml second version (runai/node-pool: nvidia on the DGD and in each component's
+podTemplate.metadata.labels). The run-1 pods had finished terminating; none left, no finalizers.
+
+$ kubectl -n runai-team-c get pods -o wide -L runai/node-pool
+NAME                                       READY   STATUS    RESTARTS   AGE   NODE         NODE-POOL
+s4-qwen-frontend-c4b58957-86drb            1/1     Running   0          8h    gpu-nvidia   nvidia
+s4-qwen-worker-5fa00681-6b75cdc9fb-qnjjj   1/1     Running   0          8h    gpu-nvidia   nvidia
+
+$ kubectl -n runai-team-c get pods -o custom-columns=NAME:.metadata.name,DELETED:.metadata.deletionTimestamp,FINALIZERS:.metadata.finalizers
+NAME                                       DELETED   FINALIZERS
+s4-qwen-frontend-c4b58957-86drb            <none>    <none>
+s4-qwen-worker-5fa00681-6b75cdc9fb-qnjjj   <none>    <none>
+
+Events: <none> (pods older than the 1 h event TTL).
+
+Result: with the per-pod label the GPU-less frontend lands in pool nvidia next to its worker (run 1 put it in pool amd).
+The DGD-level label alone does not reach the pods.
