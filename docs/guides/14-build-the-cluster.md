@@ -105,6 +105,12 @@ Each line is a stage (`sudo ./oif status` lists them). A stage that finished is 
 | --- | --- |
 | observability, observability-verify | one set of GPU metrics for both vendors (`oif:gpu_*`), the Fleet and Scheduling dashboards in Grafana, checked with live data |
 
+### 8. Serving
+
+| Stage | What it does |
+| --- | --- |
+| dynamo | NVIDIA Dynamo's operator and CRDs (guide 16), with Grove and Dynamo's own KAI off so Run:ai's KAI schedules its pods; only when the cluster has an NVIDIA GPU; `DYNAMO=none` removes it |
+
 ## When it has finished
 
 ```bash
