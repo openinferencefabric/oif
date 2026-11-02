@@ -9,33 +9,33 @@ metadata:
     runai/node-pool: nvidia        # Run:ai's node-pool label for the workload
 spec:
   components:
-  - name: Frontend
-    type: frontend
-    replicas: 1
-    podTemplate:
-      metadata:
-        labels:
-          runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
-      spec:
-        containers:
-        - name: main
-          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
-  - name: worker
-    type: worker
-    replicas: 1
-    podTemplate:
-      metadata:
-        labels:
-          runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
-      spec:
-        containers:
-        - name: main
-          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
-          workingDir: /workspace/examples/backends/vllm
-          command: [python3, -m, dynamo.vllm]
-          args: [--model, Qwen/Qwen3-0.6B]
-          resources:
-            limits:
-              nvidia.com/gpu: "1"
-            requests:
-              ephemeral-storage: 2Gi
+    - name: Frontend
+      type: frontend
+      replicas: 1
+      podTemplate:
+        metadata:
+          labels:
+            runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
+        spec:
+          containers:
+            - name: main
+              image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
+    - name: worker
+      type: worker
+      replicas: 1
+      podTemplate:
+        metadata:
+          labels:
+            runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
+        spec:
+          containers:
+            - name: main
+              image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
+              workingDir: /workspace/examples/backends/vllm
+              command: [python3, -m, dynamo.vllm]
+              args: [--model, Qwen/Qwen3-0.6B]
+              resources:
+                limits:
+                  nvidia.com/gpu: "1"
+                requests:
+                  ephemeral-storage: 2Gi
