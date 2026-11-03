@@ -1,0 +1,12 @@
+# sudo tests/lab/t123-runai.sh on cp1, 2026-11-03, with T-129 installed (the T-125 Job names pool nvidia on the Job only)
+  (T-123 node, pool, patched-image and quota checks: 27 PASS, as in docs/evidence/T-123/)
+T-125 one job, one vendor
+        default nvidia,amd,default
+  PASS  every department's default node pools are nvidia,amd,default
+        job pods running on: gpu-nvidia gpu-nvidia
+  PASS  a 2-pod half-GPU Job in pool nvidia (named on the Job only) runs both pods on the NVIDIA node (gpu-nvidia)
+  PASS  the Job is one PodGroup in pool nvidia
+        both vendors: Error from server (Forbidden): error when creating "STDIN": pods "t125-both-vendors" is forbidden: ValidatingAdmissionPolicy 'oif-one-gpu-vendor' with
+  PASS  a pod asking for NVIDIA and AMD GPUs is refused
+
+T-123: PASS (31 checks)

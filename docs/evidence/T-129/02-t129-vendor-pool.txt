@@ -1,0 +1,16 @@
+# sudo tests/lab/t129-vendor-pool.sh on cp1, 2026-11-03, right after 01-install.txt
+T-129 one GPU vendor per workload
+  PASS  webhook oif-vendor-pool ready
+  PASS  webhook registered, failing open
+  PASS  policy oif-vendor-agnostic-gpu bound
+  PASS  an nvidia.com/gpu pod is pinned to pool nvidia (label and node selector)
+  PASS  it runs on the NVIDIA node
+  INFO  t129-spill: phase Pending node ''; NonPreemptibleOverQuota: Non-preemptible workload is over quota. Workload requested 1 GPUs, but team-c-nvidia quota is 1 GPUs, while 1 GPUs are alread
+  PASS  a second one waits on NVIDIA quota instead of moving to the AMD GPU (UI-10b)
+  INFO  Error from server (Forbidden): error when creating "STDIN": pods "t129-anyvendor" is forbidden: ValidatingAdmissionPolicy 'oif-vendor-agnostic-gpu' with binding 'oif-vendor-agnostic-gpu' denied reques
+  PASS  a fraction without a vendor, pools nvidia and amd: refused with the T-129 message
+  PASS  the same fraction in pool amd is accepted
+  PASS  an amd.com/gpu pod is accepted and pinned to pool amd
+  PASS  a GPU-less pod of a Deployment in pool nvidia is pinned to nvidia
+  INFO  webhook log: pod runai-team-c/t129-hold: pool nvidia (it asks for that vendor's GPU);pod runai-team-c/t129-spill: pool nvidia (it asks for that vendor's GPU);pod runai-team-c/t129-frontend-6648b8bdd-*: pool nvidia (its workload Deployment/t129-frontend is in that pool)
+T-129: 10/10 checks passed

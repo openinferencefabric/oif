@@ -1,7 +1,7 @@
 # Guide 12: One job, one vendor
 
-Steps T-125 and T-129 (ADR-032). T-125 tested on the lab cluster (guide 10) on 2026-11-01; T-129 with
-`tests/lab/t129-vendor-pool.sh`.
+Steps T-125 and T-129 (ADR-032). T-125 tested on the lab cluster (guide 10) on 2026-11-01; T-129 on 2026-11-03 with
+`tests/lab/t129-vendor-pool.sh` (10/10, docs/evidence/T-129/).
 
 ## What you get
 
