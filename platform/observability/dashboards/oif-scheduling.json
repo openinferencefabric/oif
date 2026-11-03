@@ -517,7 +517,7 @@
    },
    "options": {
     "mode": "markdown",
-    "content": "Run:ai's project figures count GPUs of **both vendors** in one number; the vendor split is in the rows above and in the per-vendor caps below (ADR-015)."
+    "content": "Run:ai's project figures count GPUs of **both vendors** in one number. On several nodes each vendor has its own node pool: the second table splits each project by pool (`nvidia`, `amd`, `default`); on a single node the vendor split is in the per-vendor caps below (ADR-015)."
    }
   },
   {
@@ -534,7 +534,7 @@
     "w": 24,
     "h": 6
    },
-   "description": "Deserved (quota), allocated and pending GPUs per Run:ai project, NVIDIA and AMD together.",
+   "description": "Deserved (quota), allocated and pending GPUs per Run:ai project: the sum over its node pools, NVIDIA and AMD together (T-137).",
    "targets": [
     {
      "datasource": {
@@ -595,8 +595,91 @@
    ],
    "fieldConfig": {
     "defaults": {
-     "noValue": "0",
-     "decimals": 0
+     "noValue": "0"
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "id": 13,
+   "type": "table",
+   "title": "Project quotas by node pool (Run:ai)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 23,
+    "w": 24,
+    "h": 7
+   },
+   "description": "The same figures per node pool: on several nodes, nvidia and amd are the vendors' pools; default has no GPU.",
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max by (project, nodepool) (oif:project_pool_gpu_deserved)",
+     "format": "table",
+     "instant": true,
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "legendFormat": "",
+     "range": false
+    },
+    {
+     "refId": "B",
+     "expr": "max by (project, nodepool) (oif:project_pool_gpu_allocated or oif:project_pool_gpu_deserved * 0)",
+     "format": "table",
+     "instant": true,
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "legendFormat": "",
+     "range": false
+    },
+    {
+     "refId": "C",
+     "expr": "max by (project, nodepool) (oif:project_pool_gpu_pending or oif:project_pool_gpu_deserved * 0)",
+     "format": "table",
+     "instant": true,
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "legendFormat": "",
+     "range": false
+    }
+   ],
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      },
+      "renameByName": {
+       "project": "Project",
+       "Value #A": "Quota (GPUs)",
+       "Value #B": "Allocated",
+       "Value #C": "Pending",
+       "nodepool": "Node pool"
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "0"
     },
     "overrides": []
    },
@@ -615,7 +698,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 23,
+    "y": 30,
     "w": 24,
     "h": 8
    },
@@ -697,11 +780,11 @@
   {
    "id": 11,
    "type": "row",
-   "title": "Per-vendor caps (ResourceQuota oif-gpu-vendor)",
+   "title": "Per-vendor caps (single node: ResourceQuota oif-gpu-vendor)",
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 31,
+    "y": 38,
     "w": 24,
     "h": 1
    },
@@ -717,11 +800,11 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 32,
+    "y": 39,
     "w": 24,
     "h": 7
    },
-   "description": "Hard caps and current use from the oif-gpu-vendor ResourceQuota in each project namespace.",
+   "description": "Per-vendor caps exist on a single node with both vendors, where one node cannot be split into pools (ADR-015). On several nodes each vendor has its own node pool and there is no cap to show.",
    "targets": [
     {
      "datasource": {
@@ -771,7 +854,7 @@
    ],
    "fieldConfig": {
     "defaults": {
-     "noValue": "0",
+     "noValue": "No per-vendor caps: on several nodes each vendor has its own node pool (ADR-015)",
      "decimals": 0
     },
     "overrides": []

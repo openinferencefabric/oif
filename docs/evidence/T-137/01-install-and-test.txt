@@ -1,0 +1,27 @@
+# T-137 on the lab cluster, 2026-11-03: sudo ./oif install on branch feat/T-137-scheduling-pools (95b7cab), then
+# sudo tests/lab/t137-scheduling.sh, on cp1 of the five-node hybrid-gpu-lab cluster. Only the observability stages ran.
+2026-11-03 18:57:32 == stage: observability (29f06e6cf663 -> 45f8e0732ae0)
+prometheusrule.monitoring.coreos.com/oif-gpu configured
+  [ok] recording rules oif:gpu_*, oif:node_*, oif:project_* loaded into Prometheus
+configmap/oif-dashboards serverside-applied
+  [ok] dashboards OIF Fleet and OIF Scheduling handed to Grafana
+2026-11-03 18:57:37 == stage: observability-verify (29f06e6cf663 -> 45f8e0732ae0)
+  [ok] GPU vendors recorded (oif:gpu_allocatable)
+  [ok] every oif:gpu_* series covers the vendors with allocatable GPUs
+    amd AMD Radeon Pro W7900 (gpu 0): util 0%, memory 0.0 of 45.0 GiB, 9 W, 31 °C
+    nvidia NVIDIA RTX A6000 (gpu 0): util 0%, memory 0.0 of 48.0 GiB, 35 W, 42 °C
+  [ok] Grafana dashboard oif-fleet
+  [ok] Grafana dashboard oif-scheduling
+2026-11-03 18:57:39 == install finished
+
+T-137 Scheduling dashboard on several node pools (project team-c: 1 GPU in nvidia, 1 in amd)
+  INFO  per pool: amd=1 default=0 nvidia=1
+  PASS  team-c's quota is 2 GPUs (1 nvidia + 1 amd), as in Run:ai
+  PASS  only projects are counted (department queues have no project)
+  INFO  allocated per pool: nvidia=1 amd=0.5
+  PASS  team-c's allocated GPUs are 1.5 (a whole NVIDIA GPU and half an AMD one)
+  PASS  per pool: 1 in nvidia
+  PASS  per pool: 0.5 in amd
+  PASS  Grafana serves the dashboard with the per-pool table
+  PASS  the per-vendor caps panel explains why it is empty on several nodes
+T-137: 7/7 checks passed

@@ -114,10 +114,18 @@ groups:
             kube_resourcequota{resource=~"requests\\.(nvidia|amd)\\.com/gpu"},
             "vendor", "$1", "resource", "requests\\.(nvidia|amd)\\.com/gpu"))
 
-      # Run:ai projects: deserved (quota), allocated and pending GPUs, both vendors in one count
+      # Run:ai projects: deserved (quota), allocated and pending GPUs. Run:ai keeps one queue per project and node pool
+      # (team-c-nvidia, team-c-amd, team-c for pool default; department queues have no project). Per pool: max over
+      # copies of the same series; -1 (no quota) counts as 0. Per project: the sum over its pools (T-137).
+      - record: oif:project_pool_gpu_deserved
+        expr: clamp_min(max by (project, nodepool) (runai_deserved_gpu_count_per_queue{project!=""}), 0)
+      - record: oif:project_pool_gpu_allocated
+        expr: clamp_min(max by (project, nodepool) (runai_allocated_gpu_count_per_queue{project!=""}), 0)
+      - record: oif:project_pool_gpu_pending
+        expr: clamp_min(max by (project, nodepool) (runai_pending_requested_gpu_count_per_queue{project!=""}), 0)
       - record: oif:project_gpu_deserved
-        expr: max by (project) (runai_deserved_gpu_count_per_queue{project!=""})
+        expr: sum by (project) (oif:project_pool_gpu_deserved)
       - record: oif:project_gpu_allocated
-        expr: max by (project) (runai_allocated_gpu_count_per_queue{project!=""})
+        expr: sum by (project) (oif:project_pool_gpu_allocated)
       - record: oif:project_gpu_pending
-        expr: max by (project) (runai_pending_requested_gpu_count_per_queue{project!=""})
+        expr: sum by (project) (oif:project_pool_gpu_pending)
