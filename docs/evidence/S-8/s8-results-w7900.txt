@@ -1,0 +1,37 @@
+S-8 2026-11-03 02:17:36  kernel 7.0.0-38-generic  GPU 0000:c8:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD
+  dmem region drm/0000:c8:00.0/vram, VRAM 46064 MiB, renderD129, gfx1100 (code built for gfx1100), KFD gpu_id 62517, image docker.io/rocm/dev-ubuntu-24.04:7.2.4
+  ROCm 7.2.4
+
+A. no cap: allocate 34304 MiB (3/4 of VRAM)
+  dmem.current of free: 34532 MiB
+   start: hipMemGetInfo rc=0 free=45986 MiB total=46064 MiB
+   allocated 34304 MiB of 34304 MiB asked
+   holding: hipMemGetInfo rc=0 free=11536 MiB total=46064 MiB
+
+B. dmem.max 11264 MiB (1/4 of VRAM): ask for 34304 MiB
+  dmem.max: drm/0000:c8:00.0/vram 11811160064
+drm/0000:03:00.0/vram max
+  dmem.current of capped: 11148 MiB
+
+C. a neighbour without a cap allocates the rest while B holds its share
+ B   start: hipMemGetInfo rc=0 free=45986 MiB total=46064 MiB
+ B   hipMalloc/hipMemset failed after 11008 MiB: 2 hipErrorOutOfMemory
+ B   allocated 11008 MiB of 34304 MiB asked
+ B   holding: hipMemGetInfo rc=0 free=34832 MiB total=46064 MiB
+ C   start: hipMemGetInfo rc=0 free=34832 MiB total=46064 MiB
+ C   allocated 34048 MiB of 34288 MiB asked
+ C   holding: hipMemGetInfo rc=0 free=638 MiB total=46064 MiB
+
+D. CU mask: compile a busy kernel for gfx1100, run it without and with HSA_CU_MASK, sample KFD cu_occupancy
+  the GPU has 96 CUs
+  HSA_CU_MASK=<unset>: KFD process 27006, cu_occupancy samples:     
+    files the kernel offers for this process: /sys/class/kfd/kfd/proc/27006/: counters_62517 pasid queues sdma_62517 stats_62517 vram_62517  /sys/class/kfd/kfd/proc/27006/stats_62517: evicted_ms 
+    fdinfo engine lines: drm-memory-cpu: 	0 KiB;drm-memory-gtt: 	8240 KiB;drm-memory-vram:	147584 KiB;
+    host busy %: 3
+  HSA_CU_MASK=0:0-3: KFD process 27346, cu_occupancy samples:     
+    files the kernel offers for this process: /sys/class/kfd/kfd/proc/27346/: counters_62517 pasid queues sdma_62517 stats_62517 vram_62517  /sys/class/kfd/kfd/proc/27346/stats_62517: evicted_ms 
+    fdinfo engine lines: drm-memory-cpu: 	0 KiB;drm-memory-gtt: 	8240 KiB;drm-memory-vram:	147584 KiB;
+    host busy %: 96
+
+Results: /shared_storage/nutanix/s8/s8-results.txt (logs a.log b.log c.log d.log in /shared_storage/nutanix/s8)
+cleanup: cgroup removed, dmem off again in the root cgroup
