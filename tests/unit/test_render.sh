@@ -20,7 +20,8 @@ export HOST_IP=192.0.2.10 POD_CIDR=10.244.0.0/16 SERVICE_CIDR=172.30.0.0/16 KUBE
   SYSTEM_LABEL PLATFORM_SC=longhorn LONGHORN_DATA=/data/oif/longhorn LONGHORN_REPLICAS=3 RUNAI_CP_VALUES="{}" RUNAI_CLUSTER_VALUES="{}" RUNAI_SYSTEM_NODES="{\"enabled\": false}" \
   PG_INSTANCES=3 CNPG_PG_IMAGE PG_HOST=oif-pg-rw.oif-db.svc.cluster.local GRAFANA_DB_SECRET=oif-grafana-db \
   AMD_SHARE_IMAGE=oif.local/oif/oif-amd-share:x KAI_BINDER_USER=system:serviceaccount:runai:binder KAI_VERSION KAI_SOURCE_SHA256 \
-  KAI_STOCK_REGISTRY=stock KAI_PATCH_REGISTRY=patched KAI_PATCH_TAG=x AMD_SHARE_BASE_IMAGE GO_BUILD_IMAGE AMD_FRACTIONS_OUT=/tmp/out
+  KAI_STOCK_REGISTRY=stock KAI_PATCH_REGISTRY=patched KAI_PATCH_TAG=x AMD_SHARE_BASE_IMAGE GO_BUILD_IMAGE AMD_FRACTIONS_OUT=/tmp/out \
+  FRACTIOND_IMAGE=oif.local/oif/oif-fractiond:x GPU_FRACTIONING_REF GPU_FRACTIONING_SHA256
 for t in "$ROOT"/platform/*/*.yaml; do
   out=$(render "$t") || { fail "render $t"; continue; }
   grep -qE '\$\{[A-Z_]+\}' <<< "$out" && fail "placeholder left in $t"

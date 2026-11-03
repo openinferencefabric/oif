@@ -4,7 +4,7 @@
 # oif-amd-share NRI plugin (images/oif-amd-share/) on a static base. Runs in the pinned Go image as a Kubernetes Job
 # (installer stage amd-fractions); needs no Docker and no registry.
 #   env: KAI_VERSION KAI_SOURCE_SHA256 KAI_STOCK_REGISTRY KAI_PATCH_REGISTRY TAG CRANE_VERSION CRANE_SHA256
-#        AMD_SHARE_BASE_IMAGE AMD_SHARE_IMAGE
+#        AMD_SHARE_BASE_IMAGE AMD_SHARE_IMAGE GPU_FRACTIONING_REF GPU_FRACTIONING_SHA256 FRACTIOND_IMAGE
 #   mounts: /src (KAI source and crane, read), /patches (read), /plugin (plugin source, read), /out (write), /cache
 set -eu
 cd /tmp
@@ -44,4 +44,15 @@ go vet ./...
 go test ./...
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /tmp/bin/oif-amd-share .
 image oif-amd-share "$AMD_SHARE_BASE_IMAGE" "$AMD_SHARE_IMAGE" oif-amd-share /tmp/bin/oif-amd-share 0
+
+# T-139: KAI's gpu-fractioning fractiond with oif's AMD backend (hard VRAM cap, dmem cgroup), from the pinned fork
+echo "== fractiond (gpu-fractioning $GPU_FRACTIONING_REF)"
+cd /tmp && cp "/src/gpu-fractioning-$GPU_FRACTIONING_REF.tgz" gf.tgz
+echo "$GPU_FRACTIONING_SHA256  gf.tgz" | sha256sum -c -
+tar -xzf gf.tgz && rm gf.tgz && cd "gpu-fractioning-$GPU_FRACTIONING_REF"
+export GOWORK=off   # the root module alone: fractiond and its ./pkg
+go vet ./fractioning-manager/fractiond/...
+go test ./fractioning-manager/fractiond/internal/amd/
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /tmp/bin/fractiond ./fractioning-manager/fractiond/cmd
+image oif-fractiond "$AMD_SHARE_BASE_IMAGE" "$FRACTIOND_IMAGE" fractiond /tmp/bin/fractiond 0
 echo "== done"

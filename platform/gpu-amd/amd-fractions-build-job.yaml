@@ -1,4 +1,4 @@
-# T-126: builds the patched KAI components and the oif-amd-share plugin into image tarballs in the oif state folder
+# T-126, T-139: builds the patched KAI components, the oif-amd-share plugin and fractiond into image tarballs in the oif state folder
 # (patches/kai/build-amd-fractions.sh). The installer imports them into containerd on every node (stage amd-fractions).
 apiVersion: batch/v1
 kind: Job
@@ -29,6 +29,9 @@ spec:
             - {name: CRANE_SHA256, value: "${CRANE_SHA256}"}
             - {name: AMD_SHARE_BASE_IMAGE, value: "${AMD_SHARE_BASE_IMAGE}"}
             - {name: AMD_SHARE_IMAGE, value: "${AMD_SHARE_IMAGE}"}
+            - {name: GPU_FRACTIONING_REF, value: "${GPU_FRACTIONING_REF}"}
+            - {name: GPU_FRACTIONING_SHA256, value: "${GPU_FRACTIONING_SHA256}"}
+            - {name: FRACTIOND_IMAGE, value: "${FRACTIOND_IMAGE}"}
             - {name: GOMODCACHE, value: /cache/go-mod}
             - {name: GOCACHE, value: /cache/go-build}
             - {name: GOFLAGS, value: -modcacherw}

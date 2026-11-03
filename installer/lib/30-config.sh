@@ -2,7 +2,7 @@
 # Settings: read from .env (never executed), validated, missing values asked, saved to $CONF (mode 600).
 
 CONFIG_KEYS=(HOST_IP METALLB_RANGE INSTALL_DIR NVIDIA_GPUS AMD_GPUS ISOLATE_GPUS
-             HF_TOKEN RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD MODEL_ID RUNAI_PATCHES AMD_FRACTIONS DYNAMO
+             HF_TOKEN RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD MODEL_ID RUNAI_PATCHES AMD_FRACTIONS AMD_VRAM_CAP DYNAMO
              OIF_NODES OIF_API_VIP OIF_NODE_USER ADMIN_KEY_ON_CONTROL)
 
 env_parse() {   # file: print KEY<TAB>VALUE for the known keys; values are data, never evaluated
@@ -106,11 +106,12 @@ v_dir() { [[ $1 == /* && $1 != / ]] || { echo "give an absolute path (not /)"; r
 v_domain() { [ -z "$1" ] || [[ $1 =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || { echo "not a domain name"; return 1; }; }
 first_ip() { echo "${1%%-*}"; }   # first address of a range
 v_patches() { case "$1" in ""|all|none) ;; *) echo "use all (empty) or none"; return 1 ;; esac; }
+v_vram_cap() { case "$1" in ""|dmem|none) ;; *) echo "use dmem (empty) or none"; return 1 ;; esac; }
 runai_domain() { echo "${RUNAI_DOMAIN:-runai.$(first_ip "$METALLB_RANGE" | tr . -).sslip.io}"; }
 
 CONFIG_CHECKS=(HOST_IP:v_ip_here METALLB_RANGE:v_range INSTALL_DIR:v_dir NVIDIA_GPUS:v_nv AMD_GPUS:v_amd ISOLATE_GPUS:v_iso
                RUNAI_DOMAIN:v_domain RUNAI_ADMIN_EMAIL:check_email RUNAI_ADMIN_PASSWORD:check_runai_password GRAFANA_ADMIN_PASSWORD:check_password
-               RUNAI_PATCHES:v_patches AMD_FRACTIONS:v_patches DYNAMO:v_patches OIF_NODES:v_nodes OIF_API_VIP:v_vip ADMIN_KEY_ON_CONTROL:v_yesno)
+               RUNAI_PATCHES:v_patches AMD_FRACTIONS:v_patches AMD_VRAM_CAP:v_vram_cap DYNAMO:v_patches OIF_NODES:v_nodes OIF_API_VIP:v_vip ADMIN_KEY_ON_CONTROL:v_yesno)
 config_validate() {   # saved settings still valid on this host (secret values are never printed)
   local kv k f why bad=0
   for kv in "${CONFIG_CHECKS[@]}"; do k=${kv%%:*}; f=${kv#*:}
