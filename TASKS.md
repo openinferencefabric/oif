@@ -11,6 +11,7 @@ The work is split into three projects (ADR-010). Each builds on the one before, 
 - [x] T-001 Research, PRD, architecture, design, rules, decisions, test plan, security, tasks
 - [x] T-002 Public GitHub repository, licence, README; push
 - [x] T-003 CI (guide 15): `.github/workflows/ci.yml` on every push and pull request, four jobs: `tests/run.sh` (shellcheck incl. build scripts, yamllint, Python syntax, unit tests with promtool, new dashboard `oif:*` and Markdown link tests), the oif-amd-share Go tests in `GO_BUILD_IMAGE`, `tests/check-patches.sh` (all Run:ai and KAI patches apply to the pinned source), gitleaks over the full history; tools pinned in versions.env, actions by commit. Passed 2026-11-01: first run green on all four jobs. Found on the way: the join templates were invalid YAML as written (`[${JOIN_CA_HASH}]`, now quoted); gitleaks flags the unit tests' fake kubeadm token and key (allowed by exact value); a failed promtool download silently skipped the rule tests (now fails in CI)
+- [ ] T-004 (Grok) Re-plan from [proposal 0001](docs/proposals/0001-oif-distro-and-selector.md): ADR-023 to ADR-031 (ADR-030 amends ADR-005; ADR-022 is taken by T-124 platform HA), PRD and ARCHITECTURE updates, new task list; ChatGPT reviews; the owner accepts. Until then the projects below stand as written.
 
 ## Project 1: Orchestration platform
 
