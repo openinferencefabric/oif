@@ -1,6 +1,7 @@
 # Guide 13: GPU fractions on AMD GPUs
 
-Step T-126 (ADR-032, spike S-7). Tested on the lab cluster (guide 10) on 2026-11-01.
+Step T-126 (ADR-032, spike S-7), with the hard VRAM cap of T-139 (spike S-8). Tested on the lab cluster (guide 10) on
+2026-11-01; the VRAM cap on 2026-11-03 (quick test and vLLM benchmark), the installed cap on 2026-11-03 with `tests/lab/t139-vram-cap.sh` (10/10, docs/evidence/T-139/).
 
 ## What you get
 
@@ -8,13 +9,18 @@ Step T-126 (ADR-032, spike S-7). Tested on the lab cluster (guide 10) on 2026-11
 - Run:ai counts the fractions: the Workloads page shows 0.5 GPU and 22.5 GB each in pool `amd`; with 1 AMD GPU of quota, two halves run and a third waits (`team-c-amd quota is 1 GPUs, while 1 GPUs are already allocated`).
 - NVIDIA fractions (guide 11) and whole GPUs of both vendors work as before.
 
-**Memory isolation is soft.** No AMD driver limits a process's GPU memory and the W7900 cannot be partitioned, so `amd-smi` in a pod always shows the whole GPU (46,064 MB), where `nvidia-smi` in an NVIDIA half shows 24,570 MiB. oif keeps the share in two ways (T-127):
+**Memory isolation is hard where the kernel supports it (T-139).** KAI's gpu-fractioning `fractiond`, with oif's AMD backend, caps each fraction pod's GPU memory with the Linux dmem cgroup: `dmem.max` on the pod's cgroup is its share of the VRAM, and the kernel refuses allocations past it. This needs Linux 6.14 or newer with `amdgpu` (the lab's Ubuntu 26.04 runs 7.0). Measured on the W7900:
 
-- **PyTorch is capped automatically.** The plugin sets PyTorch's allocator to the pod's share (`PYTORCH_ALLOC_CONF=per_process_memory_fraction:0.5`, also the HIP and CUDA names, added to the image's own allocator settings). PyTorch, and what runs on it such as vLLM, refuses to allocate past the share. vLLM's default `--gpu-memory-utilization 0.9` then fails on half a GPU instead of taking the neighbour's memory: set it below the share (for example `0.45`).
-- **Everything else gets the share** in `OIF_GPU_MEMORY_FRACTION` (for example `0.5`) and must keep to it. A process outside PyTorch that ignores it can take the memory its neighbour needs (S-7: a pod without a cap took 40.5 GiB and the second one failed with out-of-memory).
-- **A pod can lift the cap itself.** In T-128 a half-GPU pod that called `torch.cuda.set_per_process_memory_fraction(1.0)` took 23 GiB next to a neighbour holding 20 GiB: more than its 22.5 GiB share, limited only by the free memory. Share an AMD GPU only between workloads you trust to keep to their share.
+- a 0.25 pod asking for 30 GiB was stopped at 11,264 MiB by its 11,516 MiB cap, while a 0.5 pod on the same GPU allocated 20 GiB;
+- a 0.5 pod whose vLLM asked for 0.9 of the GPU was refused with `HIP out of memory` at its 22.5 GiB cap;
+- a capped half-GPU vLLM pod served within about 1% of the whole GPU (time per token, latency, throughput), the same as NVIDIA's fractions on an A6000 ([report](https://manmohanbrahma.github.io/gpu-benchmark/amd-fraction-dmem-cap/)).
 
-NVIDIA fractions are hard limits, enforced by the driver.
+What the pod sees is still the whole GPU: `amd-smi` shows 46,064 MB and `torch.cuda.mem_get_info()` 45 GiB (ROCm does not read the cap yet, ROCm/rocm-systems#14860), where `nvidia-smi` in an NVIDIA half shows 24,570 MiB. So the workload still has to be told its share (T-127):
+
+- **PyTorch is sized automatically.** The plugin sets PyTorch's allocator to the pod's share (`PYTORCH_ALLOC_CONF=per_process_memory_fraction:0.5`, also the HIP and CUDA names, added to the image's own allocator settings). vLLM's default `--gpu-memory-utilization 0.9` would try to take 0.9 of the whole GPU and fail at the cap: set it to the share or just below (for example `0.45`).
+- **Everything else gets the share** in `OIF_GPU_MEMORY_FRACTION` (for example `0.5`) to size itself. A process that ignores it is stopped at its share by the kernel; it no longer takes its neighbour's memory.
+
+On a node whose kernel cannot cap VRAM, or with `AMD_VRAM_CAP=none`, the share is soft as before T-139: a pod that lifts PyTorch's cap (T-128: `torch.cuda.set_per_process_memory_fraction(1.0)`) takes more than its share, limited only by the free memory. The install says which nodes are which. Compute is time-sliced on both: AMD has no counterpart to NVIDIA's MPS compute sharing.
 
 How it works:
 
@@ -22,6 +28,7 @@ How it works:
 | --- | --- |
 | KAI Scheduler v0.18.3, rebuilt with oif's patches (`patches/kai/`) | the scheduler skips NVIDIA's readiness check on AMD GPU nodes; the binder reserves the GPU with a reservation pod that holds an `amd.com/gpu`, and writes the GPU's PCI address into the pod (`oif.ai/amd-gpu`) |
 | oif-amd-share, an NRI plugin (`images/oif-amd-share/`), on every AMD GPU node | when containerd creates the pod's container, gives it `/dev/kfd` and that GPU's `/dev/dri` nodes, and sets `OIF_GPU_MEMORY_FRACTION` |
+| fractiond from KAI's gpu-fractioning with oif's AMD backend (`--gpu-vendor=amd`, built from `GPU_FRACTIONING_REF` in `versions.env`), DaemonSet `oif-fractiond` on AMD nodes labelled `oif.ai/amd-vram-cap=dmem` | when containerd creates a fraction pod's container, writes `dmem.max` = share × VRAM on the pod's cgroup (T-139); refuses the container if it cannot |
 | ValidatingAdmissionPolicy `oif-amd-share-annotations` | only KAI's binder may set the `oif.ai/amd-gpu` annotations, so no one gets a GPU outside Run:ai's quotas |
 | containerd on AMD-only GPU nodes | runtime class `nvidia` runs `runc` there: KAI's admission gives every fraction pod that class before a node is chosen |
 
@@ -50,9 +57,18 @@ How it works:
        == image oif.local/kai-scheduler/scheduler:v0.18.3-oif-216ce155df72 from ghcr.io/kai-scheduler/kai-scheduler/scheduler:v0.18.3
      [ok] patched image oif.local/kai-scheduler/binder:v0.18.3-oif-216ce155df72 on every node (4 loaded now)
      [ok] KAI scheduler and binder patched for AMD GPU fractions (v0.18.3-oif-216ce155df72)
-     [ok] AMD GPUs on gpu-amd can be shared: Run:ai GPU fractions in pool amd; memory isolation is soft
+     [ok] hard VRAM cap (dmem) for AMD fractions on gpu-amd
+     [ok] AMD GPUs on gpu-amd can be shared: Run:ai GPU fractions in pool amd; memory isolation is hard on gpu-amd
    == install finished
    ```
+
+   A node whose kernel cannot cap VRAM gets a warning instead, and its fractions keep a soft share:
+
+   ```text
+     [!] gpu-amd (kernel 6.8.0-49-generic): no amdgpu VRAM region in /sys/fs/cgroup/dmem.capacity (needs Linux 6.14+): its AMD fractions keep a soft memory share
+   ```
+
+   To keep the soft share everywhere, set `AMD_VRAM_CAP=none` in `.env` and run `sudo ./oif install --reconfigure`.
 
 2. In the Run:ai UI the quickest way is a template (T-127): **Workload manager > Workloads > New workload > Training**, a project with AMD quota, template **pytorch-rocm-half-gpu**, a name, **Create training**. It has the ROCm image, half a GPU and pool `amd` already set, and its log shows the GPU, its share and five minutes of compute. For Jupyter: **New workload > Workspace**, template **jupyter-lab-rocm-half-gpu**.
 
@@ -134,7 +150,25 @@ kubectl -n runai-<project> get pod -l workloadName=<name> -o jsonpath='{.items[0
 
 The lab test `tests/lab/t126-amd-fractions.yaml` runs two halves and a third on pool `amd` and two halves on `nvidia` without the UI. Full output: `docs/evidence/T-126/`.
 
-`sudo tests/lab/t128-hardening.sh` (T-128) checks the rest: the plugin names its GPUs at start, only the binder may set the `oif.ai/amd-gpu*` annotations, a whole AMD GPU and a half never run on the one GPU together (the second waits on quota), the soft memory limit above; options for a replaced image on a node, `AMD_FRACTIONS=none` and a `cluster-redis` restart with a workspace open (it stays logged in). Output: `docs/evidence/T-128/`. The plugin's log on each AMD GPU node starts with:
+### The VRAM cap
+
+```bash
+kubectl -n oif-system get pods -l app=oif-fractiond -o wide          # fractiond on every capped AMD node
+kubectl -n oif-system logs ds/oif-fractiond | grep 'capped AMD GPU memory'
+# on the AMD node: the pod's cgroup, by the pod's UID with - written as _
+uid=$(kubectl -n runai-<project> get pod <pod> -o jsonpath='{.metadata.uid}' | tr - _)
+cat /sys/fs/cgroup/kubepods.slice/*/*pod${uid}.slice/dmem.max
+```
+
+```text
+oif-fractiond-x2k8w   1/1   Running   gpu-amd
+... "msg":"capped AMD GPU memory","pod":"ui-amd-a","gpu":"0000:03:00.0","fraction":0.5,"limitMiB":23032 ...
+drm/0000:03:00.0/vram 24150802432
+```
+
+`sudo tests/lab/t139-vram-cap.sh` (T-139) checks the cap end to end: the node label, fractiond on the AMD backend, `dmem.max` at half the VRAM on each half-GPU pod, a pod that lifts PyTorch's cap stopped at its share while its neighbour still allocates; `--expect-off` after `AMD_VRAM_CAP=none`.
+
+`sudo tests/lab/t128-hardening.sh` (T-128) checks the rest: the plugin names its GPUs at start, only the binder may set the `oif.ai/amd-gpu*` annotations, a whole AMD GPU and a half never run on the one GPU together (the second waits on quota), the memory limit above (hard with the cap, soft without); options for a replaced image on a node, `AMD_FRACTIONS=none` and a `cluster-redis` restart with a workspace open (it stays logged in). Output: `docs/evidence/T-128/`. The plugin's log on each AMD GPU node starts with:
 
 ```text
 oif-amd-share: AMD GPUs on this node: 0000:03:00.0
@@ -145,7 +179,9 @@ oif-amd-share: AMD GPUs on this node: 0000:03:00.0
 | Change | Reversed by uninstall |
 | --- | --- |
 | On AMD-only GPU nodes: `/etc/containerd/conf.d/90-oif-amd-fractions.toml` (runtime `nvidia` = runc), containerd restarted once | the file (and the folder, if oif created it) is removed |
-| Four images in containerd on every node: `oif.local/kai-scheduler/{scheduler,binder,resourcereservation}`, `oif.local/oif/oif-amd-share` | go with containerd's data |
+| Five images in containerd on every node: `oif.local/kai-scheduler/{scheduler,binder,resourcereservation}`, `oif.local/oif/oif-amd-share`, `oif.local/oif/oif-fractiond` | go with containerd's data |
+| On capped AMD nodes: `dmem.max` on each fraction pod's cgroup; `dmem` turned on in `cgroup.subtree_control` above the pods where the kubelet had not already (kernel 7.0's kubelet has) | the pod's cap goes with the pod; the controller setting goes with the next reboot |
+| Cluster: node label `oif.ai/amd-vram-cap=dmem` and DaemonSet `oif-fractiond` (T-139) | `AMD_VRAM_CAP=none` (`sudo ./oif install --reconfigure`) removes both; running pods keep their cap until they end |
 | Cluster: RunaiConfig points KAI at the patched images; namespace `oif-system` (plugin DaemonSet); policy `oif-amd-share-annotations` | go with Run:ai and the cluster; `AMD_FRACTIONS=none` in `.env` (`sudo ./oif install --reconfigure`) puts KAI's stock images back and removes the plugin; `AMD_FRACTIONS=all` (an empty value keeps the saved `none`) turns them on again |
 
 ## Troubleshooting
@@ -156,7 +192,11 @@ oif-amd-share: AMD GPUs on this node: 0000:03:00.0
 | Pod on gpu-amd stuck in ContainerCreating: `no runtime for "nvidia" is configured` | The node stage `amd-runtime` has not run there: `sudo ./oif install` again. |
 | Pod on gpu-amd runs but `torch.cuda.is_available()` is False | oif-amd-share was not running when the container was created: `kubectl -n oif-system get pods`; delete the pod so it starts again. The plugin log names every pod it gives a GPU. |
 | `forbidden: ValidatingAdmissionPolicy 'oif-amd-share-annotations'` | Expected for anyone but KAI's binder: ask for a fraction (`gpu-fraction`) instead of setting `oif.ai/amd-gpu`. |
-| A pod fails with out-of-memory although the GPU is half free | Its neighbour does not keep to its share: set the framework's memory limit from `OIF_GPU_MEMORY_FRACTION` in both. |
+| vLLM on half an AMD GPU fails at start with `HIP out of memory` | The VRAM cap stopped it: vLLM sizes itself from the whole GPU. Set `--gpu-memory-utilization` to the share or just below (`0.45` for half). |
+| A pod fails with out-of-memory although the GPU is half free | With the cap: the pod asked for more than its own share (as above). Without it (soft share): its neighbour does not keep to its share; set the framework's memory limit from `OIF_GPU_MEMORY_FRACTION` in both. |
+| Install warns `no amdgpu VRAM region in /sys/fs/cgroup/dmem.capacity` | The node's kernel is older than 6.14 or `amdgpu` is not bound: its fractions keep a soft share. Move the node to a kernel with the dmem controller and run `sudo ./oif install` again. |
+| A half-GPU pod on a capped node never starts: `CreateContainer` error from the NRI plugin `oif-amd-vram-cap` | fractiond could not cap it and refuses it rather than run it uncapped: `kubectl -n oif-system logs ds/oif-fractiond` names the reason (no VRAM region for the GPU, pod cgroup not found). |
+| Fraction pods started before the cap was installed are not capped | fractiond caps a pod when its containers are created: restart those workloads. |
 | A fraction asks for GPU memory in GiB instead of % of the device | Not tested on AMD: use % of the device. |
 | The plugin log says `WARNING: no AMD GPU with a DRM device under /sys/bus/pci/devices` | amdgpu is not bound to the GPU on that node (or it is isolated with vfio): check guide 06; half-GPU pods there would be refused. |
 | A pod on gpu-amd fails with `GPU <bdf> not on this node` or `has no DRM device` | The plugin refuses a container whose named GPU it cannot find instead of starting it without a GPU: check the node's GPU (as above) and delete the pod. |

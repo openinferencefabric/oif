@@ -2,7 +2,8 @@
 # Acceptance test for T-128 (hardening after the external review), run on the first node after  sudo ./oif install
 # on several nodes with AMD GPU fractions on. Creates and deletes test pods in project team-c's namespace and sets
 # team-c's AMD quota to 2 GPUs for the run (1 again at the end); otherwise read-only unless an option says so.
-#   sudo tests/lab/t128-hardening.sh                 policy, plugin start log, soft memory, whole and half GPU
+#   sudo tests/lab/t128-hardening.sh                 policy, plugin start log, memory isolation (hard with the T-139
+#                                                     VRAM cap, soft without), whole and half GPU
 #   sudo tests/lab/t128-hardening.sh --image-copy    + another image under the UI's tag on a node: install fixes it
 #                                                     and restarts the UI; a second install restarts nothing (slow)
 #   sudo tests/lab/t128-hardening.sh --expect-off    after AMD_FRACTIONS=none in .env and  sudo ./oif install
@@ -82,7 +83,7 @@ if [ "$MODE" = --image-copy ]; then
 fi
 
 # ---------------------------------------------------------------- default: policy, plugin, memory, whole and half GPU
-echo "T-128 AMD GPU sharing: guard, plugin, soft memory isolation, whole and half GPU on one node"
+echo "T-128 AMD GPU sharing: guard, plugin, memory isolation, whole and half GPU on one node"
 NS=$(runai_api project-pools team-c nvidia=1 amd=2)
 ROCM=$ROCM_PYTORCH_IMAGE
 cleanup() { kc -n "$NS" delete pod -l app.kubernetes.io/part-of=oif-t128 --ignore-not-found --wait=true >/dev/null 2>&1
@@ -172,9 +173,17 @@ wait_for "t128-greedy done allocating" 600 5 bash -c "kubectl --kubeconfig $KCFG
 sleep 25
 info "$(logs t128-greedy | grep 'GREEDY HOLDS')"
 info "the first pod now: $(logs t128-polite | tail -1)"
-check "soft limit shown: a pod that lifts PyTorch's cap takes more than its share" \
-  bash -c "kubectl --kubeconfig $KCFG -n $NS logs t128-greedy | awk '/GREEDY HOLDS/ { f = \$3 > \$6 * \$8 } END { exit !f }'"
-echo "        (expected with soft isolation: the greedy pod takes the free memory; the first may be refused inside its share)"
+if [ "$(kc get node "$AMD_NODE" -o jsonpath='{.metadata.labels.oif\.ai/amd-vram-cap}')" = dmem ]; then
+  # T-139: fractiond caps each pod's VRAM at its share (dmem), so the greedy pod stops there and the first keeps room
+  check "hard limit: a pod that lifts PyTorch's cap is stopped at its share" \
+    bash -c "kubectl --kubeconfig $KCFG -n $NS logs t128-greedy | awk '/GREEDY HOLDS/ { f = \$3 <= \$6 * \$8 } END { exit !f }'"
+  check "the first pod can still take one more GiB inside its share" \
+    bash -c "kubectl --kubeconfig $KCFG -n $NS logs t128-polite | tail -1 | grep -q 'inside my share: ok'"
+else
+  check "soft limit shown: a pod that lifts PyTorch's cap takes more than its share" \
+    bash -c "kubectl --kubeconfig $KCFG -n $NS logs t128-greedy | awk '/GREEDY HOLDS/ { f = \$3 > \$6 * \$8 } END { exit !f }'"
+  echo "        (no VRAM cap on $AMD_NODE: the greedy pod takes the free memory; the first may be refused inside its share)"
+fi
 
 # 3. the annotation guard: only KAI's binder names a GPU for a pod
 binder="system:serviceaccount:runai:$(kc -n runai get deploy binder -o jsonpath='{.spec.template.spec.serviceAccountName}')"

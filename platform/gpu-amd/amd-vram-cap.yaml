@@ -1,0 +1,47 @@
+# T-139 (ADR-032 amendment): a hard VRAM cap for AMD GPU fractions. KAI's gpu-fractioning fractiond with oif's AMD
+# backend (--gpu-vendor=amd) reads the binder's oif.ai/amd-gpu* annotations when containerd creates a fraction pod's
+# containers and writes dmem.max = share x VRAM on the pod's cgroup; the kernel refuses allocations past it. Only on
+# nodes labelled oif.ai/amd-vram-cap=dmem by stage amd-fractions (kernel 6.14+, the GPU's VRAM region in
+# /sys/fs/cgroup/dmem.capacity). Fails closed: a fraction container that cannot be capped is refused.
+# Rendered by stage amd-fractions; ${...} from the installer. Namespace oif-system comes with amd-share.yaml.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: oif-fractiond
+  namespace: oif-system
+  labels: {app.kubernetes.io/managed-by: oif, app: oif-fractiond}
+spec:
+  selector:
+    matchLabels: {app: oif-fractiond}
+  template:
+    metadata:
+      labels: {app: oif-fractiond}
+    spec:
+      nodeSelector: {oif.ai/amd-vram-cap: dmem}
+      priorityClassName: system-node-critical
+      automountServiceAccountToken: false
+      containers:
+        - name: fractiond
+          image: ${FRACTIOND_IMAGE}
+          imagePullPolicy: IfNotPresent   # built by oif, loaded on every node
+          command: [/fractiond]
+          args: [--gpu-vendor=amd, --plugin-name=oif-amd-vram-cap, --plugin-idx=20, --sys-root=/host/sys,
+                 --cgroup-root=/host/cgroup, --map-dir=/run/fractiond/map, --readiness-port=8093]
+          # writes dmem.max and cgroup.subtree_control on the host's cgroup tree; privileged as upstream runs fractiond
+          securityContext: {privileged: true, runAsUser: 0, readOnlyRootFilesystem: true}
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8093}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - {name: nri, mountPath: /var/run/nri}
+            - {name: sys, mountPath: /host/sys, readOnly: true}
+            - {name: cgroup, mountPath: /host/cgroup}
+            - {name: run, mountPath: /run/fractiond}
+      volumes:
+        - {name: nri, hostPath: {path: /var/run/nri, type: Directory}}
+        - {name: sys, hostPath: {path: /sys, type: Directory}}
+        - {name: cgroup, hostPath: {path: /sys/fs/cgroup, type: Directory}}
+        - {name: run, emptyDir: {}}

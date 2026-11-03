@@ -2,7 +2,9 @@
 # T-126 (ADR-032): GPU fractions on AMD GPUs. KAI Scheduler's fraction path is written for NVIDIA; oif rebuilds its
 # scheduler, binder and resource-reservation with patches (patches/kai/) so a fraction on an AMD GPU node is reserved
 # with an amd.com/gpu and named in pod annotations, and runs the oif-amd-share NRI plugin on AMD GPU nodes to give the
-# pod that GPU. Memory isolation is soft: no driver limits a pod's share (OIF_GPU_MEMORY_FRACTION tells the workload).
+# pod that GPU. T-139 (ADR-032 amendment): KAI's gpu-fractioning fractiond with oif's AMD backend caps each fraction
+# pod's VRAM with the Linux dmem cgroup (dmem.max = share x VRAM) on nodes whose kernel supports it (6.14+); elsewhere,
+# or with AMD_VRAM_CAP=none, the share is soft (OIF_GPU_MEMORY_FRACTION and PyTorch's cap tell the workload).
 # Needs a node whose GPUs are AMD only (multi-node, T-123); AMD_FRACTIONS=none puts KAI's stock images back.
 
 KAI_STOCK_REGISTRY=ghcr.io/kai-scheduler/kai-scheduler
@@ -12,10 +14,11 @@ KAI_COMPONENTS="scheduler binder resourcereservation"
 amd_fractions_build_rev() {   # what decides the images: their tag
   cat "$OIF_HOME/patches/kai/build-amd-fractions.sh" "$OIF_HOME/patches/kai/$KAI_VERSION"/*.patch \
     "$OIF_HOME"/images/oif-amd-share/*.go "$OIF_HOME"/images/oif-amd-share/go.* "$OIF_HOME/platform/gpu-amd/amd-fractions-build-job.yaml" \
-    | { cat; echo "$GO_BUILD_IMAGE $CRANE_VERSION $CRANE_SHA256 $KAI_VERSION $KAI_SOURCE_SHA256 $AMD_SHARE_BASE_IMAGE"; } \
+    | { cat; echo "$GO_BUILD_IMAGE $CRANE_VERSION $CRANE_SHA256 $KAI_VERSION $KAI_SOURCE_SHA256 $AMD_SHARE_BASE_IMAGE $GPU_FRACTIONING_REF $GPU_FRACTIONING_SHA256"; } \
     | sha256sum | cut -c1-12; }
-amd_fractions_rev() {   # the stage reruns when the images, the plugin's manifests or AMD_FRACTIONS change
-  { amd_fractions_build_rev; cat "$OIF_HOME/platform/gpu-amd/amd-share.yaml"; echo "${AMD_FRACTIONS:-}"; } | sha256sum | cut -c1-12; }
+amd_fractions_rev() {   # the stage reruns when the images, the plugins' manifests, AMD_FRACTIONS or AMD_VRAM_CAP change
+  { amd_fractions_build_rev; cat "$OIF_HOME/platform/gpu-amd/amd-share.yaml" "$OIF_HOME/platform/gpu-amd/amd-vram-cap.yaml"
+    echo "${AMD_FRACTIONS:-} ${AMD_VRAM_CAP:-}"; } | sha256sum | cut -c1-12; }
 amd_only_nodes() {   # nodes whose GPUs are all AMD: where oif shares an AMD GPU
   kc get nodes -o json | python3 -c 'import json,sys
 for n in json.load(sys.stdin)["items"]:
@@ -29,10 +32,11 @@ stage_amd_fractions() {
   [ -n "$nodes" ] || { amd_fractions_off; ok "no node with AMD GPUs only: AMD GPUs are shared only there (whole GPUs elsewhere)"; return 0; }
   local tag c img
   tag=$KAI_VERSION-oif-$(amd_fractions_build_rev)
-  export AMD_SHARE_IMAGE=oif.local/oif/oif-amd-share:$tag
+  export AMD_SHARE_IMAGE=oif.local/oif/oif-amd-share:$tag FRACTIOND_IMAGE=oif.local/oif/oif-fractiond:$tag
   amd_fractions_build "$tag"
   for c in $KAI_COMPONENTS; do runai_patch_spread "kai-$c" "$KAI_PATCH_REGISTRY/$c:$tag"; done
   runai_patch_spread oif-amd-share "$AMD_SHARE_IMAGE"
+  runai_patch_spread oif-fractiond "$FRACTIOND_IMAGE"
   # Run:ai's operator writes KAI's config: point it at the patched images (the reservation pods run on GPU nodes)
   kc -n runai patch runaiconfig runai --type merge -p "$(python3 - "$KAI_PATCH_REGISTRY" "$tag" <<'PY'
 import json, sys
@@ -54,17 +58,62 @@ PY
   render "$OIF_HOME/platform/gpu-amd/amd-share.yaml" | kc apply -f - >> "$LOG" || die "oif-amd-share rejected"
   kc -n oif-system rollout status ds/oif-amd-share --timeout=300s >> "$LOG" 2>&1 \
     || die "oif-amd-share not running on every AMD GPU node (kubectl -n oif-system get pods -o wide)"
-  ok "AMD GPUs on $nodes can be shared: Run:ai GPU fractions in pool $(pool_for amd); memory isolation is soft"
+  amd_vram_cap "$nodes"
+  ok "AMD GPUs on $nodes can be shared: Run:ai GPU fractions in pool $(pool_for amd); $VRAM_CAP_MSG"
+}
+amd_node_run() {   # node-name command: run the command on that Kubernetes node (this host, or over SSH with the cluster key)
+  local name addr role
+  if ! multi_node || [ "$1" = "$(this_node)" ]; then bash -c "$2"; return; fi
+  while read -r -u 3 name addr role; do
+    [ "$(node_name_of "$addr")" = "$1" ] && { node_ssh "$addr" "$2"; return; }
+  done 3< <(nodes_list)
+  return 1
+}
+amd_vram_cap() {   # nodes: the hard VRAM cap (T-139) on the AMD nodes whose kernel caps VRAM with dmem; soft elsewhere
+  local n hard="" soft="" k
+  if [ "${AMD_VRAM_CAP:-}" = none ]; then
+    amd_vram_cap_off; VRAM_CAP_MSG="memory isolation is soft (AMD_VRAM_CAP=none)"; return 0
+  fi
+  for n in $1; do
+    if amd_node_run "$n" "grep -q '^drm/.*/vram' /sys/fs/cgroup/dmem.capacity 2>/dev/null"; then hard="$hard $n"; else
+      soft="$soft $n"; k=$(amd_node_run "$n" "uname -r" 2>/dev/null || echo "?")
+      warn "$n (kernel $k): no amdgpu VRAM region in /sys/fs/cgroup/dmem.capacity (needs Linux 6.14+): its AMD fractions keep a soft memory share"
+    fi
+  done
+  # label the capable nodes first, then unlabel the rest, so a node that stays capable never loses its fractiond
+  for n in $hard; do kc label node "$n" oif.ai/amd-vram-cap=dmem --overwrite >> "$LOG" || die "cannot label node $n"; done
+  for n in $(kc get nodes -l oif.ai/amd-vram-cap -o name | sed 's|^node/||'); do
+    [[ " $hard " == *" $n "* ]] || kc label node "$n" oif.ai/amd-vram-cap- >> "$LOG" || die "cannot unlabel node $n"
+  done
+  if [ -z "$hard" ]; then
+    kc -n oif-system delete daemonset oif-fractiond --ignore-not-found >> "$LOG" 2>&1
+    VRAM_CAP_MSG="memory isolation is soft (no node's kernel caps VRAM)"; return 0
+  fi
+  render "$OIF_HOME/platform/gpu-amd/amd-vram-cap.yaml" | kc apply -f - >> "$LOG" || die "oif-fractiond rejected"
+  kc -n oif-system rollout status ds/oif-fractiond --timeout=300s >> "$LOG" 2>&1 \
+    || die "fractiond not ready on every node labelled oif.ai/amd-vram-cap=dmem (kubectl -n oif-system logs ds/oif-fractiond)"
+  ok "hard VRAM cap (dmem) for AMD fractions on${hard}"
+  VRAM_CAP_MSG="memory isolation is hard on${hard}${soft:+, soft on${soft}}"
+}
+amd_vram_cap_off() {   # no cap: fractiond and its node labels removed (pods keep the cap they started with until they end)
+  local n
+  kc -n oif-system delete daemonset oif-fractiond --ignore-not-found --wait=true >> "$LOG" 2>&1 || true
+  for n in $(kc get nodes -l oif.ai/amd-vram-cap -o name 2>/dev/null | sed 's|^node/||'); do
+    kc label node "$n" oif.ai/amd-vram-cap- >> "$LOG" 2>&1 || true
+  done
 }
 amd_fractions_build() {   # tag: build the four images once per tag (Job -> tarballs -> containerd on this node)
   local tag=$1 out=$STATE/build/runai c ok_=1
   for c in $KAI_COMPONENTS; do runai_image_loaded "$KAI_PATCH_REGISTRY/$c:$tag" && [ -s "$out/kai-$c.tar" ] || ok_=0; done
   runai_image_loaded "$AMD_SHARE_IMAGE" && [ -s "$out/oif-amd-share.tar" ] || ok_=0
-  [ $ok_ = 1 ] && { ok "patched KAI and oif-amd-share images already built ($tag)"; return 0; }
+  runai_image_loaded "$FRACTIOND_IMAGE" && [ -s "$out/oif-fractiond.tar" ] || ok_=0
+  [ $ok_ = 1 ] && { ok "patched KAI, oif-amd-share and fractiond images already built ($tag)"; return 0; }
   runai_fetch_resumable "https://codeload.github.com/kai-scheduler/KAI-scheduler/tar.gz/refs/tags/$KAI_VERSION" \
     "$KAI_SOURCE_SHA256" "$STATE/build/src/kai-$KAI_VERSION.tgz"
   runai_fetch_resumable "https://github.com/google/go-containerregistry/releases/download/$CRANE_VERSION/go-containerregistry_Linux_x86_64.tar.gz" \
     "$CRANE_SHA256" "$STATE/build/src/crane-$CRANE_VERSION.tgz"
+  runai_fetch_resumable "https://codeload.github.com/$GPU_FRACTIONING_REPO/tar.gz/$GPU_FRACTIONING_REF" \
+    "$GPU_FRACTIONING_SHA256" "$STATE/build/src/gpu-fractioning-$GPU_FRACTIONING_REF.tgz"
   kc create namespace oif-build --dry-run=client -o yaml | kc apply -f - >> "$LOG"
   kc -n oif-build create configmap amd-fractions-build --from-file="$OIF_HOME/patches/kai/build-amd-fractions.sh" \
     --dry-run=client -o yaml | kc apply -f - >> "$LOG"
@@ -72,12 +121,13 @@ amd_fractions_build() {   # tag: build the four images once per tag (Job -> tarb
     | kc apply -f - >> "$LOG"
   kc -n oif-build create configmap oif-amd-share-src --from-file="$OIF_HOME/images/oif-amd-share/" --dry-run=client -o yaml \
     | kc apply -f - >> "$LOG"
-  mkdir -p "$out"; for c in $KAI_COMPONENTS; do rm -f "$out/kai-$c.tar"; done; rm -f "$out/oif-amd-share.tar"
+  mkdir -p "$out"; for c in $KAI_COMPONENTS; do rm -f "$out/kai-$c.tar"; done; rm -f "$out/oif-amd-share.tar" "$out/oif-fractiond.tar"
   kc -n oif-build delete job amd-fractions-build --ignore-not-found --wait=true >> "$LOG" 2>&1
-  export KAI_VERSION KAI_SOURCE_SHA256 KAI_STOCK_REGISTRY KAI_PATCH_REGISTRY CRANE_VERSION CRANE_SHA256 AMD_SHARE_BASE_IMAGE GO_BUILD_IMAGE
+  export KAI_VERSION KAI_SOURCE_SHA256 KAI_STOCK_REGISTRY KAI_PATCH_REGISTRY CRANE_VERSION CRANE_SHA256 AMD_SHARE_BASE_IMAGE GO_BUILD_IMAGE \
+    GPU_FRACTIONING_REF GPU_FRACTIONING_SHA256
   KAI_PATCH_TAG=$tag AMD_FRACTIONS_OUT=$out RUNAI_BUILD_SRC=$STATE/build/src RUNAI_BUILD_CACHE=$STATE/build/cache BUILD_NODE=$(this_node) \
     render "$OIF_HOME/platform/gpu-amd/amd-fractions-build-job.yaml" | kc apply -f - >> "$LOG" || die "build Job for AMD GPU fractions rejected"
-  log "building KAI $KAI_VERSION with $(cd "$OIF_HOME/patches/kai/$KAI_VERSION" && ls ./*.patch | sed 's|./||' | paste -sd' ') and oif-amd-share (10-30 min; longer on a slow link)"
+  log "building KAI $KAI_VERSION with $(cd "$OIF_HOME/patches/kai/$KAI_VERSION" && ls ./*.patch | sed 's|./||' | paste -sd' '), oif-amd-share and fractiond (10-30 min; longer on a slow link)"
   wait_for "AMD GPU fractions build finished" 14400 15 bash -c \
     "kubectl --kubeconfig $KCFG -n oif-build get job amd-fractions-build -o jsonpath='{.status.conditions[*].type}' | grep -qE 'Complete|Failed'" || true
   kc -n oif-build logs job/amd-fractions-build 2>&1 | grep -E '^(==|ok|FAIL|---)' | sed 's/^/    /' | tee -a "$TLOG"
@@ -85,6 +135,7 @@ amd_fractions_build() {   # tag: build the four images once per tag (Job -> tarb
     || die "AMD GPU fractions build failed (kubectl -n oif-build logs job/amd-fractions-build)"
   for c in $KAI_COMPONENTS; do amd_fractions_import "kai-$c" "$KAI_PATCH_REGISTRY/$c:$tag"; done
   amd_fractions_import oif-amd-share "$AMD_SHARE_IMAGE"
+  amd_fractions_import oif-fractiond "$FRACTIOND_IMAGE"
 }
 amd_fractions_import() {   # tarball-name image: into containerd on this node
   [ -s "$STATE/build/runai/$1.tar" ] || die "no image file $1.tar from the build"
@@ -92,8 +143,9 @@ amd_fractions_import() {   # tarball-name image: into containerd on this node
   runai_image_loaded "$2" || die "image $2 not found after import"
   ok "image $2 loaded into containerd"
 }
-amd_fractions_off() {   # KAI's stock images back; the plugin and its policy removed (no pod is given a shared AMD GPU)
+amd_fractions_off() {   # KAI's stock images back; the plugins and the policy removed (no pod is given a shared AMD GPU)
   local p
+  amd_vram_cap_off
   for p in /spec/runai-scheduler/image /spec/binder/image /spec/binder/resourceReservation/image; do
     kc -n runai patch runaiconfig runai --type json -p "[{\"op\":\"remove\",\"path\":\"$p\"}]" >> "$LOG" 2>&1 || true
   done
