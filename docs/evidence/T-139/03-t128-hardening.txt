@@ -1,0 +1,27 @@
+# sudo tests/lab/t128-hardening.sh on cp1, 2026-11-03, with the T-139 VRAM cap on gpu-amd. Before T-139 the same
+# greedy pod took 23 GiB of a 22.5 GiB share (docs/evidence/T-128/01-sharing.txt); now it stops at 22 GiB.
+T-128 AMD GPU sharing: guard, plugin, memory isolation, whole and half GPU on one node
+  PASS  oif-amd-share on gpu-amd lists its AMD GPU at start
+  INFO  oif-amd-share: AMD GPUs on this node: 0000:03:00.0
+  PASS  the half-GPU AMD templates are offered
+  PASS  a half-GPU pod holds 20 GiB of its 22.5 GiB share
+  PASS  it can take one more GiB while alone
+  INFO  GREEDY HOLDS 22 GiB (share 0.5 of 45 GiB)
+  INFO  the first pod now: one more GiB inside my share: ok
+  PASS  hard limit: a pod that lifts PyTorch's cap is stopped at its share
+  PASS  the first pod can still take one more GiB inside its share
+  PASS  the policy allows exactly the binder's account (system:serviceaccount:runai:binder)
+  PASS  the binder named the GPU on the half-GPU pod (0000:03:00.0)
+  PASS  a new pod with oif.ai/amd-gpu is refused
+  PASS  changing the GPU on a running pod is refused
+  PASS  changing its share is refused
+  PASS  removing the GPU annotation is refused
+  PASS  adding another oif.ai/amd-gpu* annotation is refused
+  PASS  other annotations still change freely
+  PASS  a whole AMD GPU waits while a half is in use
+  INFO  t128-whole: NonPreemptibleOverQuota: Non-preemptible workload is over quota. Workload requested 1 GPUs, but team-c-amd quota is 1 GPUs, while 0.5 GPUs are already allocated
+  PASS  the whole GPU runs once the half is gone
+  PASS  a half waits while the whole GPU is in use
+  INFO  t128-half: NonPreemptibleOverQuota: Non-preemptible workload is over quota. Workload requested 0.5 GPUs, but team-c-amd quota is 1 GPUs, while 1 GPUs are already allocated
+  PASS  the half runs once the whole GPU is free
+T-128: 18/18 checks passed

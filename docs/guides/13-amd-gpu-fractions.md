@@ -1,7 +1,7 @@
 # Guide 13: GPU fractions on AMD GPUs
 
 Step T-126 (ADR-032, spike S-7), with the hard VRAM cap of T-139 (spike S-8). Tested on the lab cluster (guide 10) on
-2026-11-01; the VRAM cap on 2026-11-03 (quick test and vLLM benchmark), the installed cap with `tests/lab/t139-vram-cap.sh`.
+2026-11-01; the VRAM cap on 2026-11-03 (quick test and vLLM benchmark), the installed cap on 2026-11-03 with `tests/lab/t139-vram-cap.sh` (10/10, docs/evidence/T-139/).
 
 ## What you get
 

@@ -1,0 +1,16 @@
+# sudo tests/lab/t139-vram-cap.sh on cp1, 2026-11-03, right after 01-install.txt
+T-139 hard VRAM cap for AMD GPU fractions on gpu-amd
+  INFO  kernel 7.0.0-38-generic; drm/0000:03:00.0/vram 48301604864
+  PASS  gpu-amd labelled oif.ai/amd-vram-cap=dmem
+  PASS  fractiond ready on every labelled node
+  PASS  fractiond on gpu-amd registered with containerd's NRI
+  PASS  fractiond runs the AMD backend
+  PASS  a half-GPU pod holds 20 GiB
+  INFO  VRAM 46064 MiB; t139-polite dmem.max 23032 MiB
+  PASS  its pod cgroup is capped at half the VRAM (23032 MiB)
+  INFO  GREEDY HOLDS 22 GiB (share 0.5 of 45 GiB)
+  PASS  the greedy pod is capped too (23032 MiB)
+  PASS  hard limit: a pod that lifts PyTorch's cap is stopped at its share
+  PASS  the neighbour can still take one more GiB inside its share
+  PASS  fractiond logged both caps
+T-139: 10/10 checks passed

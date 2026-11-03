@@ -1,0 +1,50 @@
+# T-139 on the lab cluster, 2026-11-03: sudo ./oif install on branch feat/T-139-vram-cap (bda55f3), on cp1 of the
+# five-node hybrid-gpu-lab cluster (3 control nodes, gpu-amd with a Radeon PRO W7900, gpu-nvidia with an RTX A6000).
+# Only stage amd-fractions reran. The repeated ctr import lines for each image on each node are left out.
+Using the settings saved by the first run (/var/lib/oif/settings.conf); finished stages are skipped.
+Nodes
+  [ok] 192.168.120.12 (192.168.120.12, control): reachable with the cluster key
+  [ok] 192.168.120.13 (192.168.120.13, control): reachable with the cluster key
+  [ok] 192.168.120.21 (192.168.120.21, worker): reachable with the cluster key
+  [ok] 192.168.120.22 (192.168.120.22, worker): reachable with the cluster key
+2026-11-03 13:57:40 == oif 0.1.0-dev install (state in /var/lib/oif)
+2026-11-03 13:57:41 == stage: amd-fractions (8d9594b5c0cf -> aa78cc3ec9d5)
+2026-11-03 13:57:41 == downloading gpu-fractioning-e3478b2084619535a847b27ad099f7523f3122b9.tgz (resumes if the connection drops)
+  [ok] gpu-fractioning-e3478b2084619535a847b27ad099f7523f3122b9.tgz downloaded and verified
+job.batch/amd-fractions-build created
+2026-11-03 13:57:44 == building KAI v0.18.3 with 0001-common-amd-gpu-node.patch 0002-scheduler-fractions-on-amd-gpu-nodes.patch 0003-binder-fractions-on-amd-gpu-nodes.patch 0004-resourcereservation-amd-gpu-device.patch, oif-amd-share and fractiond (10-30 min; longer on a slow link)
+  [ok] AMD GPU fractions build finished
+    == source KAI-Scheduler v0.18.3
+    == patch 0001-common-amd-gpu-node.patch ... 0004-resourcereservation-amd-gpu-device.patch
+    == gofmt, vet, tests (5 packages, ok)
+    == image oif.local/kai-scheduler/{scheduler,binder,resourcereservation}:v0.18.3-oif-1e32b9437819
+    == oif-amd-share
+    ok          github.com/openinferencefabric/oif/images/oif-amd-share (cached)
+    == image oif.local/oif/oif-amd-share:v0.18.3-oif-1e32b9437819 from gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+    == fractiond (gpu-fractioning e3478b2084619535a847b27ad099f7523f3122b9)
+    ok          github.com/kai-scheduler/gpu-fractioning/fractioning-manager/fractiond/internal/amd     0.014s
+    == image oif.local/oif/oif-fractiond:v0.18.3-oif-1e32b9437819 from gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+    == done
+  [ok] image oif.local/kai-scheduler/scheduler:v0.18.3-oif-1e32b9437819 loaded into containerd
+  [ok] image oif.local/kai-scheduler/binder:v0.18.3-oif-1e32b9437819 loaded into containerd
+  [ok] image oif.local/kai-scheduler/resourcereservation:v0.18.3-oif-1e32b9437819 loaded into containerd
+  [ok] image oif.local/oif/oif-amd-share:v0.18.3-oif-1e32b9437819 loaded into containerd
+  [ok] image oif.local/oif/oif-fractiond:v0.18.3-oif-1e32b9437819 loaded into containerd
+  [ok] patched image oif.local/kai-scheduler/scheduler:v0.18.3-oif-1e32b9437819 on every node (4 loaded now)
+  [ok] patched image oif.local/kai-scheduler/binder:v0.18.3-oif-1e32b9437819 on every node (4 loaded now)
+  [ok] patched image oif.local/kai-scheduler/resourcereservation:v0.18.3-oif-1e32b9437819 on every node (4 loaded now)
+  [ok] patched image oif.local/oif/oif-amd-share:v0.18.3-oif-1e32b9437819 on every node (4 loaded now)
+  [ok] patched image oif.local/oif/oif-fractiond:v0.18.3-oif-1e32b9437819 on every node (4 loaded now)
+runaiconfig.run.ai/runai patched
+  [ok] binder runs the patched KAI image
+  [ok] runai-scheduler-amd runs the patched KAI image
+  [ok] runai-scheduler-default runs the patched KAI image
+  [ok] runai-scheduler-nvidia runs the patched KAI image
+  [ok] KAI scheduler and binder patched for AMD GPU fractions (v0.18.3-oif-1e32b9437819)
+daemon set "oif-amd-share" successfully rolled out
+node/gpu-amd labeled
+daemonset.apps/oif-fractiond created
+daemon set "oif-fractiond" successfully rolled out
+  [ok] hard VRAM cap (dmem) for AMD fractions on gpu-amd
+  [ok] AMD GPUs on gpu-amd can be shared: Run:ai GPU fractions in pool amd; memory isolation is hard on gpu-amd
+2026-11-03 14:01:19 == install finished
