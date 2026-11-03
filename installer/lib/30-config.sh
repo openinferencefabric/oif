@@ -101,7 +101,7 @@ valid_or_ask() {   # VAR question default validator [secret]: keep a valid value
 }
 
 v_ip_here() { valid_ip "$1" || { echo "not an IPv4 address"; return 1; }; [ -n "$(host_prefix "$1")" ] || { echo "$1 is not an address of this host"; return 1; }; }
-v_range() { check_range "$1" "$(host_prefix "$HOST_IP")"; }
+v_range() { [ -n "$1" ] || { echo "a range is required, e.g. ${HOST_IP%.*}.240-${HOST_IP%.*}.244"; return 1; }; check_range "$1" "$(host_prefix "$HOST_IP")"; }
 v_dir() { [[ $1 == /* && $1 != / ]] || { echo "give an absolute path (not /)"; return 1; }; }
 v_domain() { [ -z "$1" ] || [[ $1 =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || { echo "not a domain name"; return 1; }; }
 first_ip() { echo "${1%%-*}"; }   # first address of a range
@@ -140,7 +140,7 @@ config_collect() {   # all questions first; nothing on the host changes here
   echo; echo "${c_b}Network${c_0}"
   HOST_IP=${HOST_IP:-}; [ -n "$HOST_IP" ] || HOST_IP=$(host_ip)
   valid_or_ask HOST_IP "   This host's IP address (Kubernetes API)" "$(host_ip)" v_ip_here
-  echo "   MetalLB gives service addresses on $(host_prefix "$HOST_IP"); pick free ones (Run:ai, Grafana, inference endpoint)."
+  echo "   MetalLB gives service addresses on $(host_prefix "$HOST_IP"); pick free ones (Run:ai, Grafana, inference endpoint), e.g. ${HOST_IP%.*}.240-${HOST_IP%.*}.244."
   valid_or_ask METALLB_RANGE "   Free address range for MetalLB (first-last)" "" v_range
   local used ip; used=""
   for ip in $(python3 -c "import ipaddress as a,sys;f,_,l=sys.argv[1].partition('-');l=l or f;print(*[a.ip_address(i) for i in range(int(a.ip_address(f)),int(a.ip_address(l))+1)])" "$METALLB_RANGE"); do
