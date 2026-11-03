@@ -1,0 +1,50 @@
+# T-108 evidence, lab cluster, 2026-10-31 (UTC)
+
+$ kubectl get gpufractioningconfig default (conditions)
+FractiondReady=True AllPodsReady: 1 of 1 pods ready
+MpsdReady=True AllPodsReady: 1 of 1 pods ready
+Ready=True AllComponentsReady: all components are healthy
+DriverUpgradeInProgress=False NoDriverUpgrade: 
+
+$ kubectl -n runai get pods -o wide | grep fractioning
+gpu-fractioning-fractiond-w5zxl                  2/2     Running   0          59m     10.244.30.32     gpu-nvidia   <none>           <none>
+gpu-fractioning-mpsd-29drn                       1/1     Running   0          59m     10.244.30.26     gpu-nvidia   <none>           <none>
+runai-cluster-gpu-fractioning-5b7bcccc7d-m6g4h   1/1     Running   0          7h3m    10.244.155.45    cp3          <none>           <none>
+
+$ node labels (driver)
+gpu-fractioning.kai.scheduler/nvidia-driver-version.major=615
+nvidia.com/cuda.driver-version.full=615.71.09
+nvidia.com/cuda.driver-version.major=615
+
+$ kubectl -n runai-team-c get pods -o wide
+NAME                   READY   STATUS    RESTARTS   AGE     IP             NODE         NOMINATED NODE   READINESS GATES
+ui-frac-a-g6zjd        1/1     Running   0          9m23s   10.244.30.34   gpu-nvidia   <none>           <none>
+ui-frac-b-xqs69        1/1     Running   0          7m33s   10.244.30.35   gpu-nvidia   <none>           <none>
+ui-frac-c-z6wt4        0/1     Pending   0          5m13s   <none>         <none>       <none>           <none>
+ui-nvidia-test-rhtqz   0/1     Pending   0          90m     <none>         <none>       <none>           <none>
+
+$ pod/ui-frac-a-g6zjd: annotations, env, nvidia-smi
+"gpu-fraction":"0.5"
+"nvidia.com/container.ui-frac-a.gpu-memory.request":"24570Mi"
+"nvidia.com/container.ui-frac-a.gpus.devices":"k8s.device-plugin.nvidia.com/gpu=GPU-9e34fa4f-9ed0-aa5d-c5cc-c8f4b4c23df2"
+"runai-allocated-gpu-memory":"25763"
+NVIDIA_GPU_MEMORY_LIMIT=24570
+NVIDIA_GPU_MEMORY_REQUEST=24570
+NVIDIA_VISIBLE_DEVICES=k8s.device-plugin.nvidia.com/gpu=GPU-9e34fa4f-9ed0-aa5d-c5cc-c8f4b4c23df2
+name, memory.total [MiB]
+NVIDIA RTX A6000, 24570 MiB
+
+$ pod/ui-frac-b-xqs69: annotations, env, nvidia-smi
+"gpu-fraction":"0.5"
+"nvidia.com/container.ui-frac-b.gpu-memory.request":"24570Mi"
+"nvidia.com/container.ui-frac-b.gpus.devices":"k8s.device-plugin.nvidia.com/gpu=GPU-9e34fa4f-9ed0-aa5d-c5cc-c8f4b4c23df2"
+"runai-allocated-gpu-memory":"25763"
+NVIDIA_GPU_MEMORY_LIMIT=24570
+NVIDIA_GPU_MEMORY_REQUEST=24570
+NVIDIA_VISIBLE_DEVICES=k8s.device-plugin.nvidia.com/gpu=GPU-9e34fa4f-9ed0-aa5d-c5cc-c8f4b4c23df2
+name, memory.total [MiB]
+NVIDIA RTX A6000, 24570 MiB
+
+$ events for ui-frac-c
+11s Warning Unschedulable pod/ui-frac-c-z6wt4 Node-Pool 'amd': no nodes with enough resources were found: 1 node is not ready for fractional GPU scheduling. Condition gpu-fractioning.nvidia.com/Ready is Unknown. Reason: ConditionNotFound. Message: .
+10s Warning Unschedulable pod/ui-frac-c-z6wt4 Node-Pool 'default': Scheduling conditions were not met for pod runai-team-c/ui-frac-c-z6wt4:...

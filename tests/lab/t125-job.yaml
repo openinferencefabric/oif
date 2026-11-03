@@ -1,0 +1,26 @@
+# T-125: a plain Kubernetes Job with two pods of half a GPU each and no node pool named; KAI puts the Job's pods in
+# one PodGroup and the department's pool order (nvidia first) decides where it runs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: t125-two-pods
+  namespace: ${NS}
+spec:
+  parallelism: 2
+  completions: 2
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: oif-t125
+      annotations:
+        gpu-fraction: "0.5"
+    spec:
+      schedulerName: runai-scheduler
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: gpu
+          image: ${CUDA_SAMPLE_IMAGE}
+          command: ["sleep", "300"]

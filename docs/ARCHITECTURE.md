@@ -116,7 +116,9 @@ open-inference-fabric/
 ├── platform/               # Helm values and manifests per component
 │   ├── kubernetes/  gpu-nvidia/  gpu-amd/  runai/  dynamo/  observability/
 ├── images/
-│   └── dynamo-vllm-rocm/   # Containerfile: ROCm vLLM base + Dynamo runtime
+│   ├── dynamo-vllm-rocm/   # Containerfile: ROCm vLLM base + Dynamo runtime
+│   └── oif-amd-share/      # NRI plugin (Go): AMD GPU fractions (T-126)
+├── patches/                # runai/, kai/: oif's patches to upstream components, built by the installer
 ├── serving/                # DynamoGraphDeployment examples per GPU
 ├── bench/                  # AIPerf profiles, runner Job, report generator
 ├── observability/

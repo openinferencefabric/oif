@@ -1,0 +1,7 @@
+# gitleaks (CI, T-003): the default rules, plus the fake values the unit tests use for kubeadm join settings
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "unit-test examples: the kubeadm docs' sample token and a made-up certificate key (exact values only)"
+regexes = ['''^abcdef\.0123456789abcdef$''', '''^(0123456789abcdef)+$''']

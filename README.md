@@ -1,4 +1,13 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/oif-logo-dark-1200x400.png">
+    <img src="brand/oif-logo-light-1200x400.png" alt="Open Inference Fabric" width="480">
+  </picture>
+</p>
+
 # Open Inference Fabric
+
+[![ci](https://github.com/openinferencefabric/oif/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/openinferencefabric/oif/actions/workflows/ci.yml)
 
 **One open-source platform to schedule, serve, benchmark and observe LLMs on NVIDIA and AMD GPUs.**
 
@@ -33,6 +42,7 @@ sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GP
 
 | Document | Purpose |
 | --- | --- |
+| [Project brief](docs/PROJECT-BRIEF.md) | One page for partners, sponsors and new contributors |
 | [PRD](docs/PRD.md) | What we are building and why; goals and success criteria |
 | [SDLC](docs/SDLC.md) | How we build, test, document and release (process for humans and agents) |
 | [Architecture](docs/ARCHITECTURE.md) | Layers, flows, telemetry schema, repository layout |
@@ -43,6 +53,7 @@ sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GP
 | [Memory](docs/MEMORY.md) | Current project state |
 | [Test plan](docs/TEST_PLAN.md) | What "working" means |
 | [Install guides](docs/guides/README.md) | Step-by-step install and deployment |
+| [Upstream changes](docs/UPSTREAM.md) | Every patch and workaround, prepared for the Run:ai and KAI Scheduler projects |
 | [Design sketches](docs/design/) | Vendor-agnostic job model, lab acceptance checks |
 | [Presentations](presentations/) | Feature and product decks |
 | [Security](docs/SECURITY.md) | Security requirements |
@@ -51,6 +62,12 @@ sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GP
 ## Reference hardware
 
 Developed and tested on one server: AMD EPYC 9684X, 751 GiB RAM, NVIDIA RTX A6000 and AMD Radeon PRO W7900, Ubuntu 26.04. Multi-node work uses the [hybrid-gpu-lab](https://github.com/manmohanbrahma/hybrid-gpu-lab).
+
+## Contributing
+
+Testers with NVIDIA, AMD or mixed GPU servers, reviewers for the upstream Run:ai and KAI work
+([docs/UPSTREAM.md](docs/UPSTREAM.md)), and contributors are all welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and
+the [Code of Conduct](CODE_OF_CONDUCT.md). Report security problems privately ([docs/SECURITY.md](docs/SECURITY.md)).
 
 ## Licence
 

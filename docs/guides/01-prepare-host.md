@@ -26,8 +26,8 @@ Git is not needed. Download the latest code as an archive into your home folder:
 
 ```bash
 cd ~
-wget -qO oif.tar.gz https://github.com/manmohanbrahma/open-inference-fabric/archive/refs/heads/main.tar.gz
-tar -xzf oif.tar.gz && mv open-inference-fabric-main open-inference-fabric && rm oif.tar.gz
+wget -qO oif.tar.gz https://github.com/openinferencefabric/oif/archive/refs/heads/main.tar.gz
+tar -xzf oif.tar.gz && mv oif-main open-inference-fabric && rm oif.tar.gz
 cd ~/open-inference-fabric
 ./oif version
 ```
@@ -38,7 +38,7 @@ Expected output:
 oif 0.1.0-dev
 ```
 
-If you prefer Git: `git clone https://github.com/manmohanbrahma/open-inference-fabric.git`.
+If you prefer Git: `git clone https://github.com/openinferencefabric/oif.git ~/open-inference-fabric`.
 
 ### 2. Run the host check
 

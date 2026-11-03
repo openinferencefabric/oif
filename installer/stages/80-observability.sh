@@ -33,8 +33,10 @@ stage_observability() {
 OIF_GPU_SERIES="util_ratio mem_used_bytes mem_total_bytes power_watts temp_celsius sm_clock_hz"
 vendors_of() { prom_query "count by (vendor) ($1)" | sed -E 's/^vendor=([a-z]+) .*/\1/' | sort | xargs; }
 has_allocatable() { [ -n "$(vendors_of 'oif:gpu_allocatable > 0')" ]; }
-all_series_cover() {   # vendors: every oif:gpu_* series has exactly these vendors
-  local m; for m in $OIF_GPU_SERIES; do [ "$(vendors_of "oif:gpu_$m")" = "$1" ] || return 1; done; }
+all_series_cover() {   # every oif:gpu_* series has exactly the vendors with allocatable GPUs (read again on each try:
+  # a query right after the rules load can come back empty)
+  local m want; want=$(vendors_of 'oif:gpu_allocatable > 0'); [ -n "$want" ] || return 1
+  for m in $OIF_GPU_SERIES; do [ "$(vendors_of "oif:gpu_$m")" = "$want" ] || return 1; done; }
 gpu_summary() {   # one line per GPU: model, utilisation, memory, power, temperature
   local ip; ip=$(kc -n monitoring get svc kps-kube-prometheus-stack-prometheus -o jsonpath='{.spec.clusterIP}')
   python3 - "$ip" <<'PY'
@@ -52,13 +54,13 @@ PY
 
 register_stage observability-verify OBS_REV
 stage_observability_verify() {
-  local host ip vendors m netrc code
+  local host ip m netrc code
   host=grafana.$(runai_domain); ip=$(first_ip "$METALLB_RANGE")
   # rules are evaluated every 15-30 s after they are loaded
   wait_for "GPU vendors recorded (oif:gpu_allocatable)" 120 10 has_allocatable \
     || die "no oif:gpu_allocatable series (kubectl -n monitoring get prometheusrule oif-gpu; is kube-state-metrics running?)"
-  vendors=$(vendors_of 'oif:gpu_allocatable > 0')
-  wait_for "every oif:gpu_* series covers: $vendors" 180 10 all_series_cover "$vendors" || {
+  wait_for "every oif:gpu_* series covers the vendors with allocatable GPUs" 180 10 all_series_cover || {
+    echo "    oif:gpu_allocatable: $(vendors_of 'oif:gpu_allocatable > 0')" | tee -a "$TLOG"
     for m in $OIF_GPU_SERIES; do echo "    oif:gpu_$m: $(vendors_of "oif:gpu_$m")" | tee -a "$TLOG"; done
     die "some oif:gpu_* series miss a vendor (docs/guides/07-observability.md, troubleshooting)"; }
   gpu_summary | sed 's/^/    /' | tee -a "$TLOG"

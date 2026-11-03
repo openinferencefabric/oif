@@ -21,7 +21,7 @@ sudo ./oif install        # runs stages prometheus, ingress, pki, runai-dns, run
 | pki | private CA and certificate for `runai.<lb-ip>.sslip.io` and its wildcards; CA copied to `~/oif-ca.crt` |
 | runai-dns | CoreDNS answers the Run:ai domain with the ingress address |
 | runai | runai-installer 3.0.20: preflight 9/9, control plane and cluster `oif` registered |
-| runai-fractions | fractioning daemons kept off the GPU node (driver 595 is older than r615) |
+| runai-fractions | fractioning daemons on GPU nodes with driver r615 or later, kept off older ones (guide 11) |
 | runai-verify | all Run:ai pods running; UI answers over HTTPS trusted by the oif CA |
 | runai-quota | team-a (1 GPU) runs on the GPU; team-b (0 GPU) waits on a free GPU: `NonPreemptibleOverQuota` |
 

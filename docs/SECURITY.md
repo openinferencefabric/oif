@@ -1,5 +1,16 @@
 # Security
 
+## Reporting a vulnerability
+
+Please do not open a public issue for a security problem. Report it privately through GitHub:
+**Security > Report a vulnerability** on <https://github.com/openinferencefabric/oif/security>. We aim to reply within
+7 days and will credit you in the fix unless you ask us not to.
+
+Problems in Run:ai, the KAI Scheduler or another upstream project belong to that project; if you are not sure, report
+it here and we will pass it on.
+
+## Requirements
+
 Security requirements from the start, not before release.
 
 ## Secrets

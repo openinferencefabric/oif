@@ -13,7 +13,11 @@ Related: [SDLC.md](SDLC.md), [ADR-020](DECISIONS.md), [design/P1.4-Lab-Acceptanc
 - `promtool check rules` and `promtool test rules`
 - Grafana dashboards are valid JSON and use only `oif:*` series (or documented exceptions)
 - Markdown links resolve
-- gitleaks finds no secrets
+- gitleaks finds no secrets (full history; `.gitleaks.toml`)
+- `go vet` and `go test` for `images/oif-amd-share`, in `GO_BUILD_IMAGE`
+- every patch under `patches/` applies to its pinned upstream source (`tests/check-patches.sh`)
+
+Workflow: `.github/workflows/ci.yml`; local run and failure causes: [guide 15](guides/15-ci.md).
 
 ---
 

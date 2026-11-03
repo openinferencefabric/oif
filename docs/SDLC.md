@@ -61,7 +61,7 @@ Backlog → Claimed [~] → Plan agreed → Implement → Test → Guide → Doc
 
 | Gate | Requirement |
 |------|-------------|
-| **Static (every commit)** | shellcheck, yamllint, promtool (rules + unit tests), markdown link check, gitleaks (T-003) |
+| **Static (every commit)** | CI (T-003, guide 15): shellcheck, yamllint, unit tests incl. promtool and dashboards, markdown link check, Go tests, patches apply to pinned upstream, gitleaks |
 | **Installer** | Idempotent install; interrupt/resume; uninstall → verify-clean |
 | **Lab (multi-node)** | Relevant `tests/lab/t12x-*.sh` / `t13x-*.sh` pass on hybrid-gpu-lab |
 | **Regression** | Existing HA (T-121), GPU placement (T-122), dual-vendor quotas/dashboards still pass |

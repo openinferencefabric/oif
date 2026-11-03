@@ -1,0 +1,39 @@
+T-125 one job, one vendor: lab run 2026-11-01 (branch feat/T-125-one-vendor, d4c696e), 5-node lab (guide 10)
+
+== sudo ./oif install on the installed cluster (only the new stage runs)
+== stage: one-vendor
+    department default default node pools nvidia,amd,default
+  [ok] workloads without node pools try: nvidia, amd, default
+validatingadmissionpolicy.admissionregistration.k8s.io/oif-one-gpu-vendor created
+validatingadmissionpolicybinding.admissionregistration.k8s.io/oif-one-gpu-vendor created
+  [ok] a pod asking for NVIDIA and AMD GPUs at once is refused (ValidatingAdmissionPolicy oif-one-gpu-vendor)
+== install finished
+
+== sudo tests/lab/t123-runai.sh (27 earlier checks PASS, then)
+T-125 one job, one vendor
+        default nvidia,amd,default
+  PASS  every department's default node pools are nvidia,amd,default
+        job pods running on: gpu-nvidia gpu-nvidia
+  PASS  a 2-pod Job without a node pool runs both pods on the NVIDIA node (gpu-nvidia)
+  PASS  the Job is one PodGroup in pool nvidia
+        both vendors: Error from server (Forbidden): error when creating "STDIN": pods "t125-both-vendors" is forbidden: ValidatingAdmissionPolicy 'oif-one-gpu-vendor' with
+  PASS  a pod asking for NVIDIA and AMD GPUs is refused
+T-123: PASS (31 checks)
+
+First run: the department check failed (read "default -"): GET /api/v1/org-unit/departments leaves out
+defaultNodePools and description; only GET /api/v1/org-unit/departments/<id> returns them. Fixed in d4c696e.
+
+== Projects (GET /api/v1/org-unit/projects/<id>): own order and the order in effect
+team-c own: ['nvidia', 'amd', 'default'] effective: ['nvidia', 'amd', 'default']   (set by hand during T-108)
+team-b own: None effective: ['nvidia', 'amd', 'default']                           (inherited from the department)
+team-a own: None effective: ['nvidia', 'amd', 'default']
+
+== Run:ai UI: New training in team-c, 1 GPU device, GPU fractioning 50 % of device, Nodes left as shown
+Nodes section, order of priority: 1 nvidia, 2 amd, 3 default (no pool picked)
+kubectl -n runai-team-c get pods -o wide
+ui-t125-auto-dqnrl     1/1     Running   0          50s   10.244.30.49   gpu-nvidia
+PodGroup pg-ui-t125-auto-...   runai/node-pool=nvidia
+Workloads page: ui-t125-auto Training Running team-c default nvidia 1/1 0.5 0.5
+
+Before T-125 (2026-10-31): ui-nvidia-test, submitted the same way, waited 9 h in pool default
+("No node in the default node-pool has GPU resources"); deleted after this run.

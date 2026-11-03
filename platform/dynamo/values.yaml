@@ -1,0 +1,17 @@
+# T-201: values for NVIDIA's dynamo-platform chart (DYNAMO_VERSION in versions.env). Every switch below is the chart's
+# own default in 1.6.1, set here so a new chart version cannot turn one on unnoticed (S-4, guide 16).
+global:
+  kai-scheduler:
+    install: false   # Run:ai's KAI schedules Dynamo's pods under the project's quotas; a second KAI would bypass them
+    enabled: false   # no schedulerName or queue labels injected by Dynamo: Run:ai's workload integration sets them
+  grove:
+    install: false   # Grove is for multi-node gangs (PodCliqueSets); single-node deployments do not need it
+    enabled: false
+  volcano-scheduler:
+    enabled: false
+  etcd:
+    install: false   # the default request and event planes (TCP and ZMQ) need neither etcd nor NATS
+  nats:
+    install: false
+  snapshot:
+    install: false

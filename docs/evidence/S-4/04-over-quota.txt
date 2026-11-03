@@ -1,0 +1,24 @@
+S-4 over-quota test, 2026-11-02: a second copy of the run-2 DGD (name s4-qwen-2, otherwise identical) submitted
+through Run:ai > New workload > Via YAML, project team-c, while s4-qwen held team-c's 1 NVIDIA GPU (quota of
+team-c-nvidia = 1 GPU).
+
+$ kubectl -n runai-team-c get pods -o wide -L runai/node-pool
+NAME                                        READY   STATUS    RESTARTS   AGE   NODE         NODE-POOL
+s4-qwen-2-frontend-749f986697-2hj4g         1/1     Running   0          54s   gpu-nvidia   nvidia
+s4-qwen-2-worker-098d3584-74656d7cf-m2bvk   0/1     Pending   0          54s   <none>       nvidia
+s4-qwen-frontend-c4b58957-86drb             1/1     Running   0          8h    gpu-nvidia   nvidia
+s4-qwen-worker-5fa00681-6b75cdc9fb-qnjjj    1/1     Running   0          8h    gpu-nvidia   nvidia
+
+$ kubectl -n runai-team-c get events --sort-by=.lastTimestamp | grep -i s4-qwen-2   (excerpt)
+Normal   Scheduled      pod/s4-qwen-2-frontend-...   Successfully assigned pod runai-team-c/s4-qwen-2-frontend-... to node gpu-nvidia at node-pool nvidia
+Normal   Unschedulable  podgroup/pg-s4-qwen-2-worker-098d3584-...   NonPreemptibleOverQuota: Non-preemptible workload is over quota. Workload requested 1 GPUs, but team-c-nvidia quota is 1 GPUs, while 1 GPUs are already allocated for non-preemptible pods. Use a preemptible workload to go over quota..
+Warning  Unschedulable  pod/s4-qwen-2-worker-...                    (same message)
+
+Run:ai UI, Workloads (screenshot not kept: it shows the lab address): s4-qwen-2, DynamoGraphDeployment, Initializing,
+project team-c, node pool nvidia, running/requested pods 1/2, GPU compute request 1; tooltip "Resources not ready:
+s4-qwen-2-worker-098d3584: Component deployment not ready - Available condition not true". s4-qwen Running, 2/2.
+
+Result: pass. KAI enforces the per-pool quota on the Dynamo worker. A DGD is scheduled as non-preemptible, so it
+cannot borrow over-quota capacity. The GPU-less frontend is placed (pool nvidia) even though its worker cannot be:
+the deployment holds a frontend with nothing behind it until quota frees up.
+s4-qwen-2 deleted by the owner in the UI after the test.

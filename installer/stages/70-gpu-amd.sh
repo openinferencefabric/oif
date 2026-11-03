@@ -63,6 +63,10 @@ teardown_amd_gpu_operator() {   # DeviceConfig, then the chart, then host leftov
   fi
   # seen on the reference host: the exporter's health binary and gRPC socket, and its runtime folder
   rm -rf /var/lib/amd-metrics-exporter /var/run/exporter 2>/dev/null || true
+  local name addr kind   # multi-node: the exporter ran on the AMD nodes, which are still reachable at this point
+  while read -r -u 3 name addr kind _; do
+    [ "$kind" = amd ] && { on_gpu_node "$addr" "sudo rm -rf /var/lib/amd-metrics-exporter /var/run/exporter" >/dev/null 2>&1 || warn "$name: AMD exporter folders not removed"; }
+  done 3< <(multi_node && gpu_inventory || true)
   ok "AMD GPU Operator removed"
 }
 
@@ -117,15 +121,22 @@ stage_amd_quota() {   # S-2: Run:ai quotas count amd.com/gpu (team-a quota 1 run
 }
 
 # the templates stage reruns when a template file or a pinned image changes
-AMD_TEMPLATES_REV=$(cat "$OIF_HOME"/platform/runai/templates/*.json 2>/dev/null | { cat; echo "$ROCM_PYTORCH_IMAGE $JUPYTERLAB_VERSION"; } | sha256sum | cut -c1-12)
+amd_templates_rev() { cat "$OIF_HOME"/platform/runai/templates/*.json 2>/dev/null | { cat; echo "$ROCM_PYTORCH_IMAGE $JUPYTERLAB_VERSION ${AMD_FRACTIONS:-}"; } | sha256sum | cut -c1-12; }
 
-register_stage runai-amd-templates AMD_TEMPLATES_REV
+register_stage runai-amd-templates amd_templates_rev   # a function: AMD_FRACTIONS is read with the settings
 stage_runai_amd_templates() {   # T-115: Run:ai workload templates on amd.com/gpu (extendedResources), next to Run:ai's NVIDIA ones
   [ "$(gpu_count amd)" -gt 0 ] || return 0
   local f out tmp; tmp=$(mktemp)
   export ROCM_PYTORCH_IMAGE JUPYTERLAB_VERSION
   for f in "$OIF_HOME"/platform/runai/templates/*.json; do
+    # half-GPU templates (T-127) need pool amd and AMD GPU fractions: a node with AMD GPUs only (T-126)
     render "$f" > "$tmp" || { rm -f "$tmp"; die "cannot render $f"; }
+    if [[ $f == *half-gpu* ]] && { [ "${AMD_FRACTIONS:-}" = none ] || [ -z "$(amd_only_nodes)" ]; }; then
+      # one created while fractions were on is removed: a workload from it could never run (T-128)
+      out=$(runai_api template-delete "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["meta"]["name"])' < "$tmp")" 2>&1) \
+        || { rm -f "$tmp"; die "Run:ai template from ${f##*/}: $out"; }
+      ok "$out"; continue
+    fi
     out=$(runai_api template "$tmp" 2>&1) || { rm -f "$tmp"; die "Run:ai template from ${f##*/}: $out"; }
     ok "$out"
   done

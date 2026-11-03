@@ -1,0 +1,30 @@
+Run:ai UI and Grafana tests UI-07 to UI-17, 2026-11-01, lab cluster (guide 10), main after T-128
+Driven through the Run:ai 3.0.20 UI in a browser (Playwright, headless Chrome); results read from the UI, kubectl and the pods' logs.
+Project team-c: quota 1 GPU in pool nvidia, 1 in pool amd; pool order nvidia, amd, default (T-125).
+
+UI-07  PASS  Training from scratch, ui-nvidia-test, cuda-sample vectoradd, 1 GPU
+             ran on gpu-nvidia in pool nvidia, Completed; log "Test PASSED"
+UI-08  PASS  Training from template pytorch-rocm-1-gpu, ui-amd-test
+             ran on gpu-amd in pool amd, amd.com/gpu: 1; log "AMD Radeon Pro W7900"
+             (the template card shows "0 GPUs": the whole AMD GPU is an extended resource, amd.com/gpu)
+UI-09  PASS  Workspace ui-nvidia-hold, sleep 3600, 1 GPU: Running on gpu-nvidia
+UI-10  PASS  Workspace ui-nvidia-wait, same: Pending, "team-c-nvidia quota is 1 GPUs, while 1 GPUs are already allocated"
+UI-10b FAIL  Workspace ui-nvidia-spill, same, with team-c's NVIDIA quota full and the AMD GPU free:
+             "Successfully assigned pod runai-team-c/ui-nvidia-spill-mfb56 to node gpu-amd at node-pool amd"
+             A CUDA workload on the AMD GPU: the pool order lets KAI fall back across vendors. Fix: T-129 (ADR-032 amendment)
+UI-11  PART  Analytics > Overview: 2/2 GPU nodes, 2/2 GPU devices, running and pending counts right;
+             "Allocated GPU devices" stays 0 while 1.5 and later 1 GPU are allocated (T-138)
+UI-12  PASS  Grafana OIF Fleet: both GPUs side by side; during UI-17 the W7900 at 100 % utilisation, 241 W, 1.68 GHz,
+             edge 94 C, junction 106 C (peak). The NVIDIA test workloads only slept, so its panels stayed at idle
+UI-13  PART  Grafana OIF Scheduling: in use and waiting by vendor right (amd 1 in runai-reservation, nvidia 1 in
+             runai-team-c, nvidia 1 waiting). Project quotas show team-c quota 1 / allocated 1 where Run:ai has 2 / 1.5:
+             the rules take max over per-pool queues. Per-vendor caps panel empty on multi-node (T-137)
+UI-14  PASS  ui-nvidia-hold ended at 17:51:01Z (its hour was up); ui-nvidia-wait started at 17:51:05Z
+UI-15  PASS  all ui-* workloads deleted: team-c has no pods; Overview 0 running, 0 pending, 0 failed
+UI-16  PASS  Two trainings from scratch, GPU fractioning 50 %, pool nvidia only: both Running on gpu-nvidia,
+             gpu-fraction 0.5, runai-allocated-gpus 0.5, runai-allocated-gpu-memory 25763 each
+UI-17  PASS  Training from template pytorch-rocm-half-gpu, ui-amd-half: gpu-amd, pool amd, gpu-fraction 0.5; log
+             "GPU AMD Radeon Pro W7900 0000:03:00.0 | share 0.5 | GPU memory 45.0 GiB, this pod may use 22.5 GiB"
+             "fp16 matmul over 5 min: 50.7 TFLOPS"
+
+UI-01 to UI-06 passed earlier (2026-11-01): login, Clusters, Nodes, Node pools, Projects, Templates.

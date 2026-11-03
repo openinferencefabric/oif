@@ -2,7 +2,7 @@
 # Settings: read from .env (never executed), validated, missing values asked, saved to $CONF (mode 600).
 
 CONFIG_KEYS=(HOST_IP METALLB_RANGE INSTALL_DIR NVIDIA_GPUS AMD_GPUS ISOLATE_GPUS
-             HF_TOKEN RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD MODEL_ID RUNAI_PATCHES
+             HF_TOKEN RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD MODEL_ID RUNAI_PATCHES AMD_FRACTIONS DYNAMO
              OIF_NODES OIF_API_VIP OIF_NODE_USER ADMIN_KEY_ON_CONTROL)
 
 env_parse() {   # file: print KEY<TAB>VALUE for the known keys; values are data, never evaluated
@@ -101,7 +101,7 @@ valid_or_ask() {   # VAR question default validator [secret]: keep a valid value
 }
 
 v_ip_here() { valid_ip "$1" || { echo "not an IPv4 address"; return 1; }; [ -n "$(host_prefix "$1")" ] || { echo "$1 is not an address of this host"; return 1; }; }
-v_range() { check_range "$1" "$(host_prefix "$HOST_IP")"; }
+v_range() { [ -n "$1" ] || { echo "a range is required, e.g. ${HOST_IP%.*}.240-${HOST_IP%.*}.244"; return 1; }; check_range "$1" "$(host_prefix "$HOST_IP")"; }
 v_dir() { [[ $1 == /* && $1 != / ]] || { echo "give an absolute path (not /)"; return 1; }; }
 v_domain() { [ -z "$1" ] || [[ $1 =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || { echo "not a domain name"; return 1; }; }
 first_ip() { echo "${1%%-*}"; }   # first address of a range
@@ -110,7 +110,7 @@ runai_domain() { echo "${RUNAI_DOMAIN:-runai.$(first_ip "$METALLB_RANGE" | tr . 
 
 CONFIG_CHECKS=(HOST_IP:v_ip_here METALLB_RANGE:v_range INSTALL_DIR:v_dir NVIDIA_GPUS:v_nv AMD_GPUS:v_amd ISOLATE_GPUS:v_iso
                RUNAI_DOMAIN:v_domain RUNAI_ADMIN_EMAIL:check_email RUNAI_ADMIN_PASSWORD:check_runai_password GRAFANA_ADMIN_PASSWORD:check_password
-               RUNAI_PATCHES:v_patches OIF_NODES:v_nodes OIF_API_VIP:v_vip ADMIN_KEY_ON_CONTROL:v_yesno)
+               RUNAI_PATCHES:v_patches AMD_FRACTIONS:v_patches DYNAMO:v_patches OIF_NODES:v_nodes OIF_API_VIP:v_vip ADMIN_KEY_ON_CONTROL:v_yesno)
 config_validate() {   # saved settings still valid on this host (secret values are never printed)
   local kv k f why bad=0
   for kv in "${CONFIG_CHECKS[@]}"; do k=${kv%%:*}; f=${kv#*:}
@@ -140,7 +140,7 @@ config_collect() {   # all questions first; nothing on the host changes here
   echo; echo "${c_b}Network${c_0}"
   HOST_IP=${HOST_IP:-}; [ -n "$HOST_IP" ] || HOST_IP=$(host_ip)
   valid_or_ask HOST_IP "   This host's IP address (Kubernetes API)" "$(host_ip)" v_ip_here
-  echo "   MetalLB gives service addresses on $(host_prefix "$HOST_IP"); pick free ones (Run:ai, Grafana, inference endpoint)."
+  echo "   MetalLB gives service addresses on $(host_prefix "$HOST_IP"); pick free ones (Run:ai, Grafana, inference endpoint), e.g. ${HOST_IP%.*}.240-${HOST_IP%.*}.244."
   valid_or_ask METALLB_RANGE "   Free address range for MetalLB (first-last)" "" v_range
   local used ip; used=""
   for ip in $(python3 -c "import ipaddress as a,sys;f,_,l=sys.argv[1].partition('-');l=l or f;print(*[a.ip_address(i) for i in range(int(a.ip_address(f)),int(a.ip_address(l))+1)])" "$METALLB_RANGE"); do

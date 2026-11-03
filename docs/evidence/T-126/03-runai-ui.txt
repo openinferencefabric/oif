@@ -1,0 +1,22 @@
+T-126 Run:ai UI test (2026-11-01): two half-GPU trainings on the AMD GPU, submitted from the Run:ai UI.
+
+Workload manager > New workload > Training, project team-c, Start from scratch;
+image docker.io/rocm/pytorch:rocm10.1.0_ubuntu24.04_py3.12_pytorch_release_2.14.0@sha256:099f59a3...,
+command sleep 3600; GPU devices 1, GPU fractioning on, % of device 50 (0.50 GPUs); Nodes: pool amd only.
+
+== Workloads page
+ui-amd-a  Training  Running  team-c  default  amd  1/1  0.5  0.5  0 Bytes  22.5 GB
+ui-amd-b  Training  Running  team-c  default  amd  1/1  0.5  0.5  0 Bytes  22.5 GB
+== Projects page
+team-c  default  Ready  amd + 2 more  GPU quota 2.00  allocated 1.00
+== Nodes page
+gpu-amd     Ready  amd     AMD-Radeon-Pro-W7900  1/1
+gpu-nvidia  Ready  nvidia  NVIDIA-RTX-A6000      1/1
+
+== inside the pods (kubectl exec ... python3: OIF_GPU_PCI, OIF_GPU_MEMORY_FRACTION, cuda available, name, total GiB)
+ui-amd-a-f9s86  gpu-amd  0000:03:00.0 0.5 True AMD Radeon Pro W7900 45.0
+ui-amd-b-55jwg  gpu-amd  0000:03:00.0 0.5 True AMD Radeon Pro W7900 45.0
+
+Screenshots: docs/guides/img/13-form.png, 13-workloads.png, 13-projects.png.
+UI note: the form starts with the project's pool order (nvidia, amd, default; T-125); remove nvidia and default
+(the X on their rows) to keep the fraction on the AMD GPU, or it runs on NVIDIA first.

@@ -1,0 +1,78 @@
+# T-126 (ADR-032): GPU fractions on AMD GPUs. KAI's binder (patched by oif) names the shared GPU in pod annotations
+# oif.ai/amd-gpu*; the oif-amd-share NRI plugin on every AMD GPU node gives that pod the GPU's devices when containerd
+# creates its containers. The policy lets only the binder set those annotations: anyone else could otherwise give a
+# pod a GPU outside Run:ai's quotas. Rendered by stage amd-fractions; ${...} from the installer.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oif-system
+  labels: {app.kubernetes.io/managed-by: oif}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: oif-amd-share
+  namespace: oif-system
+  labels: {app.kubernetes.io/managed-by: oif, app: oif-amd-share}
+spec:
+  selector:
+    matchLabels: {app: oif-amd-share}
+  template:
+    metadata:
+      labels: {app: oif-amd-share}
+    spec:
+      nodeSelector: {oif.ai/gpu-vendor: amd}
+      priorityClassName: system-node-critical
+      automountServiceAccountToken: false
+      containers:
+        - name: plugin
+          image: ${AMD_SHARE_IMAGE}
+          imagePullPolicy: IfNotPresent   # built by oif, loaded on every node
+          command: [/oif-amd-share]
+          # root for containerd's NRI socket; reads the host's /dev (device numbers) and /sys (which GPU is which)
+          securityContext: {runAsUser: 0, readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - {name: nri, mountPath: /var/run/nri}
+            - {name: dev, mountPath: /dev, readOnly: true}
+      volumes:
+        - {name: nri, hostPath: {path: /var/run/nri, type: Directory}}
+        - {name: dev, hostPath: {path: /dev, type: Directory}}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: oif-amd-share-annotations
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  variables:
+    - name: mine
+      expression: >-
+        has(object.metadata.annotations) ?
+          object.metadata.annotations.filter(k, k.startsWith('oif.ai/amd-gpu')).map(k, k + '=' + object.metadata.annotations[k]) : []
+    - name: before
+      expression: >-
+        request.operation == 'UPDATE' && has(oldObject.metadata.annotations) ?
+          oldObject.metadata.annotations.filter(k, k.startsWith('oif.ai/amd-gpu')).map(k, k + '=' + oldObject.metadata.annotations[k]) : []
+  validations:
+    - expression: >-
+        request.userInfo.username == '${KAI_BINDER_USER}' ||
+        (size(variables.mine) == size(variables.before) && variables.mine.all(a, a in variables.before))
+      message: "oif: only KAI's binder sets the oif.ai/amd-gpu annotations (they give a pod a shared AMD GPU; ADR-032)"
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: oif-amd-share-annotations
+spec:
+  policyName: oif-amd-share-annotations
+  validationActions: [Deny]

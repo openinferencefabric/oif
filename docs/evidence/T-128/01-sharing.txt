@@ -1,0 +1,35 @@
+T-128 lab run, 2026-11-01, on the first node (cp1) of the lab cluster (guide 10), branch feat/T-128-hardening
+$ sudo tests/lab/t128-hardening.sh
+
+T-128 AMD GPU sharing: guard, plugin, soft memory isolation, whole and half GPU on one node
+  PASS  oif-amd-share on gpu-amd lists its AMD GPU at start
+  INFO  oif-amd-share: AMD GPUs on this node: 0000:03:00.0
+  PASS  the half-GPU AMD templates are offered
+  PASS  a half-GPU pod holds 20 GiB of its 22.5 GiB share
+  PASS  it can take one more GiB while alone
+  INFO  GREEDY HOLDS 23 GiB (share 0.5 of 45 GiB)
+  INFO  the first pod now: one more GiB inside my share: ok
+  PASS  soft limit shown: a pod that lifts PyTorch's cap takes more than its share
+        (expected with soft isolation: the greedy pod takes the free memory; the first may be refused inside its share)
+  PASS  the policy allows exactly the binder's account (system:serviceaccount:runai:binder)
+  PASS  the binder named the GPU on the half-GPU pod (0000:03:00.0)
+  PASS  a new pod with oif.ai/amd-gpu is refused
+  PASS  changing the GPU on a running pod is refused
+  PASS  changing its share is refused
+  PASS  removing the GPU annotation is refused
+  PASS  adding another oif.ai/amd-gpu* annotation is refused
+  PASS  other annotations still change freely
+  PASS  a whole AMD GPU waits while a half is in use
+  INFO  t128-whole: NonPreemptibleOverQuota: Non-preemptible workload is over quota. Workload requested 1 GPUs, but team-c-amd quota is 1 GPUs, while 0.5 GPUs are already allocated
+  PASS  the whole GPU runs once the half is gone
+  PASS  a half waits while the whole GPU is in use
+  INFO  t128-half: NonPreemptibleOverQuota: Non-preemptible workload is over quota. Workload requested 0.5 GPUs, but team-c-amd quota is 1 GPUs, while 1 GPUs are already allocated
+  PASS  the half runs once the whole GPU is free
+T-128: 17/17 checks passed
+
+Notes
+- Earlier runs reported 16/17: the soft-memory check required more than 23 GiB; it now compares with the share the
+  pod prints (23 GiB > 0.5 x 45 GiB). The measurement itself was the same in every run.
+- Soft isolation measured: the polite pod (PyTorch capped at its share by the plugin) holds 20 GiB; a second half that
+  calls torch.cuda.set_per_process_memory_fraction(1.0) takes 23 GiB, more than its 22.5 GiB share, limited only by the
+  free memory. The polite pod could still allocate 1 GiB more because the greedy one stopped at the free memory.

@@ -10,9 +10,15 @@ never printed. Commands:
   project-pools NAME POOL=GPUS...        create the project if missing with a GPU quota per node pool, print its namespace
   node-pool NAME LABEL_KEY LABEL_VALUE   create the node pool if missing (nodes with that label) and wait until it is Ready
   pools                                  print each node pool: name, phase, nodes and GPU count
+  departments                            print each department's default node pool order
+  pool-order POOL...                     make POOL... the departments' default node pool order (projects without an
+                                         order of their own inherit it), print each department's order
   admin EMAIL                            make EMAIL a System administrator with the password in RUNAI_NEW_PASSWORD
   template FILE                          create or update the workload template in FILE (JSON)
+  templates                              list the workload templates (name, kind)
+  template-delete NAME                   delete the workload template NAME, if there is one
   submit KIND NAME PROJECT TEMPLATE [COMMAND [ARGS]]  submit a training or workspace (KIND trainings, workspaces) from a template
+  workloads                              list the workloads as Run:ai shows them: name, type, phase, project
 """
 import json
 import os
@@ -227,6 +233,27 @@ def template(token: str, path: str) -> None:
     print(f"template {name} {verb}")
 
 
+def templates(token: str) -> list:
+    """The workload templates: [(name, kind, id)], kind as in the URL (trainings, workspaces)."""
+    status, out = call("GET", "/api/v1/workload-templates", token=token)
+    if status != 200:
+        sys.exit(f"GET templates: HTTP {status} {out}")
+    kinds = {"Training": "trainings", "Workspace": "workspaces"}
+    return [(e["meta"]["name"], kinds.get(e["meta"].get("workloadType", ""), ""), e["meta"]["id"]) for e in out.get("entries", [])]
+
+
+def template_delete(token: str, name: str) -> None:
+    """Delete the workload template of that name, if there is one (T-128: half-GPU AMD templates when fractions are off)."""
+    for n, kind, tid in templates(token):
+        if n == name:
+            status, out = call("DELETE", f"/api/v1/workload-templates/{kind}/{tid}", token=token)
+            if status not in (200, 202, 204):
+                sys.exit(f"delete template {name}: HTTP {status} {out}")
+            print(f"template {name} deleted")
+            return
+    print(f"template {name} not present")
+
+
 def submit(token: str, kind: str, name: str, project_name: str, template_name: str, command: str = "", args: str = "") -> None:
     """Submit a workload (kind: trainings or workspaces) from a template, optionally with another command."""
     status, out = call("GET", "/api/v1/org-unit/projects", token=token)
@@ -248,6 +275,43 @@ def submit(token: str, kind: str, name: str, project_name: str, template_name: s
     print(f"{kind[:-1]} {name} submitted in project {project_name} from template {template_name}")
 
 
+# read-only fields of a department as GET returns it; PUT takes the rest back unchanged
+DEPT_READ_ONLY = {"id", "name", "clusterId", "createdAt", "createdBy", "updatedAt", "updatedBy", "effective", "parent",
+                  "parentId", "status", "totalResources", "overtimeData", "children", "projectsAggregatedResources"}
+
+
+def all_departments(token: str) -> list:
+    """Each department as its own GET returns it: the list leaves out defaultNodePools and description."""
+    status, out = call("GET", "/api/v1/org-unit/departments", token=token)
+    if status != 200:
+        sys.exit(f"GET departments: HTTP {status} {out}")
+    full = []
+    for d in out.get("departments", []):
+        status, one = call("GET", f"/api/v1/org-unit/departments/{d['id']}", token=token)
+        if status != 200:
+            sys.exit(f"GET department {d.get('name')}: HTTP {status} {one}")
+        full.append(one)
+    return full
+
+
+def pool_order(token: str, order: list) -> None:
+    """Set the default node pool order on every department (T-125): a workload submitted without node pools tries them
+    in this order, so it lands where its GPU type exists instead of in a pool without GPUs."""
+    for d in all_departments(token):
+        if d.get("defaultNodePools") != order:
+            body = {k: v for k, v in d.items() if k not in DEPT_READ_ONLY}
+            body["defaultNodePools"] = order
+            status, res = call("PUT", f"/api/v1/org-unit/departments/{d['id']}", body, token)
+            if status not in (200, 202):
+                sys.exit(f"department {d.get('name')}: HTTP {status} {res}")
+        print(f"department {d.get('name')} default node pools {','.join(order)}")
+
+
+def departments(token: str) -> None:
+    for d in all_departments(token):
+        print(f"{d.get('name')} {','.join(d.get('defaultNodePools') or ['-'])}")
+
+
 def nodes(token: str) -> None:
     """Print each node as Run:ai sees it: name, GPU type, GPU count (the count last, for scripts)."""
     status, out = call("GET", "/api/v1/nodes", token=token)
@@ -256,6 +320,15 @@ def nodes(token: str) -> None:
     for n in out.get("nodes", []):
         g = n.get("gpuInfo") or {}
         print(f"{n.get('name')} type={g.get('gpuType', '-').replace(' ', '')} gpus {g.get('gpuCount', 0)}")
+
+
+def workloads(token: str) -> None:
+    """Print each workload as the Workloads page shows it: name, type, phase, project (T-201: a Dynamo deployment)."""
+    status, out = call("GET", "/api/v1/workloads", token=token)
+    if status != 200:
+        sys.exit(f"GET workloads: HTTP {status} {out}")
+    for w in out.get("workloads", []):
+        print(w.get("name"), w.get("type", "-").replace(" ", ""), w.get("phase", "-"), w.get("projectName", "-"))
 
 
 def main() -> None:
@@ -279,10 +352,21 @@ def main() -> None:
         create_node_pool(token, *sys.argv[2:])
     elif cmd == "pools":
         pools(token)
+    elif cmd == "departments":
+        departments(token)
+    elif cmd == "pool-order" and len(sys.argv) >= 3:
+        pool_order(token, sys.argv[2:])
     elif cmd == "admin" and len(sys.argv) == 3:
         admin(token, sys.argv[2])
     elif cmd == "template" and len(sys.argv) == 3:
         template(token, sys.argv[2])
+    elif cmd == "templates" and len(sys.argv) == 2:
+        for name, kind, _ in templates(token):
+            print(name, kind)
+    elif cmd == "template-delete" and len(sys.argv) == 3:
+        template_delete(token, sys.argv[2])
+    elif cmd == "workloads" and len(sys.argv) == 2:
+        workloads(token)
     elif cmd == "submit" and 6 <= len(sys.argv) <= 8:
         submit(token, *sys.argv[2:])
     else:

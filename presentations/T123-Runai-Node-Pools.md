@@ -1,7 +1,7 @@
 # T-123 — Run:ai Node Pools per Vendor on Several Nodes
 
 **Status:** Done (2026-10-28)  
-**Repo:** [manmohanbrahma/open-inference-fabric](https://github.com/manmohanbrahma/open-inference-fabric)  
+**Repo:** [openinferencefabric/oif](https://github.com/openinferencefabric/oif)  
 **Related:** ADR-015 · ADR-017 · `installer/stages/60-runai.sh` · `installer/tools/runai_api.py` · `tests/lab/t123-runai.sh` · Guide 10 · T-113 (single-node ResourceQuota)
 
 ---

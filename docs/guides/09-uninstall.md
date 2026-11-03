@@ -39,7 +39,8 @@ sudo tail -f /var/log/oif-uninstall.log
 
 What it does (from the manifest, newest first):
 
-1. Registered teardowns (Kubernetes, operators, Run:ai, observability, …).
+1. Registered teardowns (Kubernetes, operators, Run:ai, observability, …). Objects that live only in the cluster,
+   such as the Dynamo platform and its deployments (guide 16), go with Kubernetes.
 2. Stop/disable services, remove oif config blocks and lines, restore backups, re-enable swap.
 3. On multi-node: `NODE` records trigger uninstall on each other node; `NODEKEY` / `ADMINKEY` remove keys oif added.
 4. Safe purge of packages oif installed (never packages the OS already had).
