@@ -1,6 +1,6 @@
 # 7. Observability for NVIDIA and AMD GPUs
 
-**Steps:** T-112 (recording rules), T-114 (Fleet dashboard), T-106 (Scheduling dashboard). **Tested:** 2026-10-25 on the reference host, with an NVIDIA RTX A6000 and an AMD Radeon PRO W7900.
+**Steps:** T-112 (recording rules), T-114 (Fleet dashboard), T-106 (Scheduling dashboard), T-137 (several node pools). **Tested:** 2026-10-25 on the reference host, with an NVIDIA RTX A6000 and an AMD Radeon PRO W7900.
 
 Published with screenshots as a pair: [Run:ai with NVIDIA and AMD GPUs, Installation Guide](https://manmohanbrahma.github.io/ai/runai-amd/install-guide/) and [Deployment Guide](https://manmohanbrahma.github.io/ai/runai-amd/deployment-guide/).
 
@@ -8,7 +8,7 @@ Published with screenshots as a pair: [Run:ai with NVIDIA and AMD GPUs, Installa
 
 - **One metric schema for both vendors.** Recording rules turn the DCGM exporter's and the AMD exporter's metrics into `oif:gpu_*` series with the same labels and units. A panel shows both GPUs without any vendor-specific query.
 - **OIF Fleet:** utilisation, memory, power, temperature, shader clock for every GPU, and the host's CPU and memory.
-- **OIF Scheduling:** GPUs offered, in use and waiting per vendor; Run:ai project quotas; the per-vendor caps from guide 6.
+- **OIF Scheduling:** GPUs offered, in use and waiting per vendor; Run:ai project quotas, in total and per node pool; the per-vendor caps from guide 6 (single node).
 - **Grafana on HTTPS** at `https://grafana.runai.<lb-ip>.sslip.io`, with the same certificate and CA as Run:ai.
 
 Run:ai adds both vendors into one GPU number per project and node (ADR-015); with oif's patches (guide 8) its inventory names both GPUs, but it has no per-vendor figures. These dashboards are where the vendors appear side by side.
@@ -73,6 +73,8 @@ Both stages rerun by themselves when the rules, dashboards or ingress change (th
 
 **OIF Scheduling.** GPUs by vendor from Kubernetes (so the AMD GPU is counted), Run:ai project quotas, and the per-vendor caps. "In use" and "Waiting" show 0 and the time series show "No data" until GPU workloads run.
 
+On several nodes (T-137), Run:ai keeps one queue per project and node pool (`team-c-nvidia`, `team-c-amd`, and `team-c` for pool `default`). **Project quotas** shows each project's sum over its pools, the figure Run:ai shows (team-c: quota 2, allocated 1.5 with a whole NVIDIA GPU and half an AMD one); **Project quotas by node pool** shows the same per pool. A pool without a quota (`-1` in Run:ai's metrics) counts as 0. The **Per-vendor caps** table is for a single node with both vendors (ADR-015); on several nodes it says why it is empty. `sudo tests/lab/t137-scheduling.sh` checks the figures against a whole NVIDIA GPU and an AMD half.
+
 ![OIF Scheduling dashboard](img/07-scheduling.png)
 
 ## The oif:* schema
@@ -95,7 +97,8 @@ All GPU series carry `{vendor, model, gpu, node}`.
 | `oif:gpu_allocatable` | kube-state-metrics, node allocatable | vendor, node |
 | `oif:gpu_requested` | kube-state-metrics, pod requests of Running and Pending pods | vendor, namespace, phase |
 | `oif:gpu_quota` | kube-state-metrics, ResourceQuota `oif-gpu-vendor` | vendor, namespace, type (hard, used) |
-| `oif:project_gpu_deserved`, `_allocated`, `_pending` | Run:ai queue metrics (both vendors in one count) | project |
+| `oif:project_pool_gpu_deserved`, `_allocated`, `_pending` | Run:ai queue metrics, one queue per project and node pool (no quota, `-1`, counts as 0) | project, nodepool |
+| `oif:project_gpu_deserved`, `_allocated`, `_pending` | the sum over a project's node pools (both vendors in one count) | project |
 
 Query them directly in Grafana's **Explore**, for example `oif:gpu_power_watts` or `sum by (vendor) (oif:gpu_requested{phase="Running"})`.
 

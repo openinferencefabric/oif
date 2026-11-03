@@ -159,3 +159,51 @@ tests:
         exp_samples:
           - labels: 'oif:project_gpu_deserved{project="team-c"}'
             value: 2
+
+  # T-137: several node pools. Run:ai keeps one queue per project and pool; the department queues (no project, -1)
+  # are ignored; a pool with no quota (-1) counts as 0; the project's totals are the sums over its pools.
+  - interval: 15s
+    input_series:
+      - series: 'runai_deserved_gpu_count_per_queue{department="default", nodepool="nvidia", project="team-c", queue_name="team-c-nvidia"}'
+        values: '1x4'
+      - series: 'runai_deserved_gpu_count_per_queue{department="default", nodepool="amd", project="team-c", queue_name="team-c-amd"}'
+        values: '1x4'
+      - series: 'runai_deserved_gpu_count_per_queue{department="default", nodepool="default", project="team-c", queue_name="team-c"}'
+        values: '0x4'
+      - series: 'runai_deserved_gpu_count_per_queue{department="default", nodepool="nvidia", project="team-b", queue_name="team-b-nvidia"}'
+        values: '-1x4'
+      - series: 'runai_deserved_gpu_count_per_queue{department="default", nodepool="nvidia", queue_name="q-4500000-nvidia"}'
+        values: '-1x4'
+      - series: 'runai_allocated_gpu_count_per_queue{department="default", nodepool="nvidia", project="team-c", queue_name="team-c-nvidia"}'
+        values: '1x4'
+      - series: 'runai_allocated_gpu_count_per_queue{department="default", nodepool="amd", project="team-c", queue_name="team-c-amd"}'
+        values: '0.5x4'
+      - series: 'runai_pending_requested_gpu_count_per_queue{department="default", nodepool="nvidia", project="team-c", queue_name="team-c-nvidia"}'
+        values: '1x4'
+      - series: 'runai_pending_requested_gpu_count_per_queue{department="default", nodepool="amd", project="team-c", queue_name="team-c-amd"}'
+        values: '0x4'
+    promql_expr_test:
+      - expr: oif:project_gpu_deserved
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:project_gpu_deserved{project="team-c"}'
+            value: 2
+          - labels: 'oif:project_gpu_deserved{project="team-b"}'
+            value: 0
+      - expr: oif:project_gpu_allocated
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:project_gpu_allocated{project="team-c"}'
+            value: 1.5
+      - expr: oif:project_gpu_pending
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:project_gpu_pending{project="team-c"}'
+            value: 1
+      - expr: oif:project_pool_gpu_allocated{project="team-c"}
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:project_pool_gpu_allocated{project="team-c", nodepool="nvidia"}'
+            value: 1
+          - labels: 'oif:project_pool_gpu_allocated{project="team-c", nodepool="amd"}'
+            value: 0.5
