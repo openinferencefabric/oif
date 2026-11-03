@@ -46,7 +46,7 @@ say "  dmem region $REGION, VRAM $((VRAM >> 20)) MiB, $RENDER, $ARCH (code built
 ADDED=no
 if ! grep -qw dmem /sys/fs/cgroup/cgroup.subtree_control; then echo +dmem > /sys/fs/cgroup/cgroup.subtree_control || die "cannot enable dmem"; ADDED=yes; fi
 cleanup() {
-  find "$CG" -name cgroup.procs -exec cat {} + 2>/dev/null | xargs -r kill -9 2>/dev/null; sleep 1
+  find "$CG" -name cgroup.procs -exec cat {} + 2>/dev/null | while read -r p; do kill -9 "$p" 2>/dev/null; done; sleep 1
   find "$CG" -mindepth 1 -depth -type d -exec rmdir {} \; 2>/dev/null
   rmdir "$CG" 2>/dev/null
   [ $ADDED = yes ] && echo -dmem > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null
@@ -125,7 +125,7 @@ for mask in "" "0:0-3"; do
   extra=(); [ -n "$mask" ] && extra=(-e "HSA_CU_MASK=$mask")
   "${P[@]}" run --rm --cgroup-parent=/oif-s8/cu "${DEV[@]}" "${extra[@]}" "$IMAGE" /s8/busy 12 > "$WORK/d.log" 2>&1 &
   sleep 6; samples=""; pid=""
-  for p in $(find "$CG/cu" -name cgroup.procs -exec cat {} +); do [ -d "/sys/class/kfd/kfd/proc/$p" ] && pid=$p; done
+  while read -r p; do [ -d "/sys/class/kfd/kfd/proc/$p" ] && pid=$p; done < <(find "$CG/cu" -name cgroup.procs -exec cat {} +)
   for _ in 1 2 3 4 5; do samples="$samples $(cat /sys/class/kfd/kfd/proc/"$pid"/stats_*/cu_occupancy 2>/dev/null | head -1)"; sleep 0.5; done
   say "  HSA_CU_MASK=${mask:-<unset>}: KFD process $pid, cu_occupancy samples:$samples"
   say "    files the kernel offers for this process: $(ls /sys/class/kfd/kfd/proc/"$pid"/ /sys/class/kfd/kfd/proc/"$pid"/stats_* 2>/dev/null | tr '\n' ' ' | cut -c1-300)"
