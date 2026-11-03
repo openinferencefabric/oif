@@ -1,0 +1,172 @@
+# T-129 (ADR-032): one GPU vendor per workload, in Run:ai project namespaces (label runai/queue).
+# - Webhook oif-vendor-pool pins a pod to one vendor's node pool (label runai/node-pool, node selector
+#   oif.ai/gpu-vendor) when it asks for that vendor's GPU, or when the workload that owns it is in that pool. KAI counts
+#   every GPU alike: without this, a pod asking for nvidia.com/gpu could be placed in pool amd when its own pool is full.
+#   It fails open: when it does not answer, pods are created as they are.
+# - Policy oif-vendor-agnostic-gpu refuses a GPU fraction that names no vendor while its node pools allow both.
+# Rendered by stage vendor-pool; ${...} from the installer.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oif-vendor-pool
+  labels: {app.kubernetes.io/managed-by: oif}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oif-vendor-pool
+  namespace: oif-vendor-pool
+---
+# reads the owners of a new pod (ReplicaSet, Deployment, Job, Dynamo and Run:ai workloads ...) and which nodes carry
+# a vendor's GPUs; changes nothing through the API
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oif-vendor-pool
+  labels: {app.kubernetes.io/managed-by: oif}
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [list]
+  - apiGroups: [apps, batch, nvidia.com, run.ai, kubeflow.org, leaderworkerset.x-k8s.io, grove.io, ray.io]
+    resources: ["*"]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oif-vendor-pool
+  labels: {app.kubernetes.io/managed-by: oif}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: oif-vendor-pool}
+subjects:
+  - {kind: ServiceAccount, name: oif-vendor-pool, namespace: oif-vendor-pool}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oif-vendor-pool
+  namespace: oif-vendor-pool
+  labels: {app.kubernetes.io/managed-by: oif, app: oif-vendor-pool}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: oif-vendor-pool}
+  template:
+    metadata:
+      labels: {app: oif-vendor-pool}
+    spec:
+      serviceAccountName: oif-vendor-pool
+      nodeSelector:
+        ${SYSTEM_LABEL}: "true"
+      priorityClassName: system-cluster-critical
+      containers:
+        - name: webhook
+          image: ${VENDOR_POOL_IMAGE}
+          imagePullPolicy: IfNotPresent   # built by oif, loaded on every node
+          command: [/oif-vendor-pool]
+          ports: [{name: https, containerPort: 8443}]
+          securityContext: {runAsNonRoot: true, runAsUser: 65532, readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8443, scheme: HTTPS}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts: [{name: tls, mountPath: /tls, readOnly: true}]
+      volumes:
+        - {name: tls, secret: {secretName: oif-vendor-pool-tls}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oif-vendor-pool
+  namespace: oif-vendor-pool
+spec:
+  selector: {app: oif-vendor-pool}
+  ports: [{name: https, port: 443, targetPort: 8443}]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: oif-vendor-pool
+  labels: {app.kubernetes.io/managed-by: oif}
+webhooks:
+  - name: vendor-pool.oif.ai
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: Ignore
+    timeoutSeconds: 3
+    reinvocationPolicy: IfNeeded   # Run:ai's pod webhooks run again after this one sets the pool
+    namespaceSelector:
+      matchExpressions: [{key: runai/queue, operator: Exists}]
+    rules:
+      - {apiGroups: [""], apiVersions: [v1], operations: [CREATE], resources: [pods], scope: Namespaced}
+    clientConfig:
+      service: {name: oif-vendor-pool, namespace: oif-vendor-pool, path: /mutate, port: 443}
+      caBundle: ${VENDOR_POOL_CA}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: oif-vendor-agnostic-gpu
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions: [{key: runai/queue, operator: Exists}]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+  variables:
+    - name: containers
+      expression: "object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])"
+    - name: vendorGpu
+      expression: >-
+        variables.containers.exists(c, has(c.resources) &&
+          ((has(c.resources.limits) && ('nvidia.com/gpu' in c.resources.limits || 'amd.com/gpu' in c.resources.limits)) ||
+           (has(c.resources.requests) && ('nvidia.com/gpu' in c.resources.requests || 'amd.com/gpu' in c.resources.requests))))
+    - name: fraction
+      expression: >-
+        has(object.metadata.annotations) &&
+          ('gpu-fraction' in object.metadata.annotations || 'gpu-memory' in object.metadata.annotations)
+    - name: pinned
+      expression: >-
+        (has(object.spec.nodeSelector) && 'oif.ai/gpu-vendor' in object.spec.nodeSelector) ||
+        (has(object.metadata.labels) && 'runai/node-pool' in object.metadata.labels)
+    - name: terms
+      expression: >-
+        has(object.spec.affinity) && has(object.spec.affinity.nodeAffinity) &&
+        has(object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution) ?
+          object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms : []
+    # a node-affinity term allows a vendor unless it excludes that vendor's nodes (Run:ai writes one term per pool:
+    # oif.ai/gpu-vendor In [nvidia], In [amd], and runai/node-pool DoesNotExist for pool default, which has no GPU)
+    - name: nvidiaAllowed
+      expression: >-
+        size(variables.terms) == 0 || variables.terms.exists(t, !has(t.matchExpressions) ||
+          !t.matchExpressions.exists(e,
+            (e.key == 'oif.ai/gpu-vendor' && ((e.operator == 'In' && !('nvidia' in e.values)) ||
+              (e.operator == 'NotIn' && 'nvidia' in e.values) || e.operator == 'DoesNotExist')) ||
+            (e.key == 'runai/node-pool' && (e.operator == 'DoesNotExist' || (e.operator == 'In' && !('nvidia' in e.values))))))
+    - name: amdAllowed
+      expression: >-
+        size(variables.terms) == 0 || variables.terms.exists(t, !has(t.matchExpressions) ||
+          !t.matchExpressions.exists(e,
+            (e.key == 'oif.ai/gpu-vendor' && ((e.operator == 'In' && !('amd' in e.values)) ||
+              (e.operator == 'NotIn' && 'amd' in e.values) || e.operator == 'DoesNotExist')) ||
+            (e.key == 'runai/node-pool' && (e.operator == 'DoesNotExist' || (e.operator == 'In' && !('amd' in e.values))))))
+  validations:
+    - expression: "!(variables.fraction && !variables.vendorGpu && !variables.pinned && variables.nvidiaAllowed && variables.amdAllowed)"
+      message: >-
+        oif: this GPU request names no vendor and its node pools allow NVIDIA and AMD GPUs; choose one GPU vendor:
+        keep only node pool nvidia or amd (Run:ai form: Nodes) (T-129, ADR-032)
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: oif-vendor-agnostic-gpu
+spec:
+  policyName: oif-vendor-agnostic-gpu
+  validationActions: [Deny]

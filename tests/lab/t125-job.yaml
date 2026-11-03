@@ -1,10 +1,13 @@
-# T-125: a plain Kubernetes Job with two pods of half a GPU each and no node pool named; KAI puts the Job's pods in
-# one PodGroup and the department's pool order (nvidia first) decides where it runs.
+# T-125: a plain Kubernetes Job with two pods of half a GPU each; KAI puts the Job's pods in one PodGroup. A fraction
+# names no vendor, so since T-129 it must choose a pool: set on the Job only, the webhook oif-vendor-pool copies it to
+# both pods (without it, the pods would be refused by policy oif-vendor-agnostic-gpu).
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: t125-two-pods
   namespace: ${NS}
+  labels:
+    runai/node-pool: nvidia
 spec:
   parallelism: 2
   completions: 2

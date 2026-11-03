@@ -77,7 +77,7 @@ wait_for "two pods of one Job running" 300 5 bash -c "[ \"\$(kubectl --kubeconfi
 # shellcheck disable=SC2086   # JOBSEL holds several arguments
 JOBNODES=$(kc $JOBSEL --field-selector status.phase=Running -o jsonpath='{range .items[*]}{.spec.nodeName}{" "}{end}')
 echo "        job pods running on: ${JOBNODES:-none}"
-check "a 2-pod Job without a node pool runs both pods on the NVIDIA node (${HOST_nvidia:-?})" \
+check "a 2-pod half-GPU Job in pool nvidia (named on the Job only) runs both pods on the NVIDIA node (${HOST_nvidia:-?})" \
   [ "$JOBNODES" = "${HOST_nvidia:-} ${HOST_nvidia:-} " ]
 PGPOOL=$(kc -n "$NS" get podgroups -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.labels.runai/node-pool}{" "}{end}' \
   | tr ' ' '\n' | awk -F= '/^pg-t125-two-pods/ {print $2}')
