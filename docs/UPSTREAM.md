@@ -36,7 +36,7 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | K4 | KAI resource-reservation | Find the reserved AMD GPU without NVML | patch 0004 | ready |
 | K5 | KAI admission | `runtimeClassName: nvidia` set on every fraction pod, whatever the vendor | issue (oif maps the name to runc on AMD nodes) | issue + PR |
 | K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | propose as a design |
-| K7 | KAI gpu-fractioning | `fractiond --gpu-vendor=amd`: hard VRAM cap per pod with the Linux `dmem` cgroup | fork (merged to its main); installed by oif since T-139 | issue filed |
+| K7 | KAI gpu-fractioning | `fractiond --gpu-vendor=amd`: hard VRAM cap per pod with the Linux `dmem` cgroup | fork (merged to its main); installed by oif since T-139 | PR open ([gpu-fractioning#175](https://github.com/kai-scheduler/gpu-fractioning/pull/175)) |
 | A1 | AMD metrics exporter | Phantom UMC ECC errors on Radeon PRO W7900 with kernel 7.0 | issue (oif raises the threshold) | issue |
 | A2 | ROCm (clr, rocr-runtime) | `hipMemGetInfo` and the HSA pool size ignore the cgroup `dmem.max` VRAM limit (S-8) | issue (oif keeps the in-process fraction as the sizing hint) | issue |
 | A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | issue |
@@ -75,6 +75,8 @@ Follow-ups (2026-11-01): CodeRabbit's findings on #3950 (family count when the p
 | K7 | [gpu-fractioning#173](https://github.com/kai-scheduler/gpu-fractioning/issues/173) | Feature request: `fractiond --gpu-vendor=amd`, a hard VRAM cap per pod with the dmem cgroup; offers a PR with signed-off commits once the approach and annotation names are agreed |
 | K1–K4, K7 | [comment on KAI#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556#issuecomment-6598391590) | Corrects the 2026-11-01 measurement: isolation can be hard with dmem (0.25 pod stopped at 11,264 MiB by an 11,516 MiB cap; 0.5 neighbour 20,480 MiB); links #173 |
 | K7 | [run-ai Discussion #4103](https://github.com/dsx-ai-factory/run-ai/discussions/4103) | For Run:ai's developers: the implementation, the lab result on Run:ai 3.0.20, and where it touches Run:ai (AMD nodes reported without fractions, #3941; templates #3946) |
+| K7 | [gpu-fractioning#175](https://github.com/kai-scheduler/gpu-fractioning/pull/175) | PR `feat(fractiond): limit AMD GPU memory with the dmem cgroup`, reworked to the upstream contract: the existing `gpu-memory` annotations with PCI addresses in `gpus.devices`, `dmem.max`/`dmem.min` on the container through NRI (`AddLinuxUnified`), `docs/amd/README.md`; two DCO-signed commits on upstream main 5420a92 |
+| K7 | [comment on gpu-fractioning#173](https://github.com/kai-scheduler/gpu-fractioning/issues/173#issuecomment-6613757949) | Links #175; asks about the annotation prefix on AMD nodes and whether to propose the KAI side (binder writes PCI addresses, KAI#2556) next |
 
 Evidence: the lab test `test/amd/quick-dmem-cap.sh` and the vLLM benchmark `test/amd/bench-qwen3.sh` in
 [openinferencefabric/gpu-fractioning](https://github.com/openinferencefabric/gpu-fractioning); report with raw results at
@@ -187,13 +189,14 @@ half-GPU workloads share the GPU (24.2 TFLOPS each), a third waits on quota, NVI
 - **Limits to state upstream:** memory isolation is soft (no AMD driver cap; the W7900 has no partitions); compute is time-sliced.
 - **Where it could live:** KAI (next to NVIDIA's gpu-fractioning `fractiond`), AMD's GPU Operator, or the ROCm device plugin. Propose as a design discussion with the evidence.
 
-### K7. fractiond: hard VRAM cap for AMD fractions (ready)
+### K7. fractiond: hard VRAM cap for AMD fractions (PR open)
 
 - **Code:** branch `amd/dmem-cap` of <https://github.com/openinferencefabric/gpu-fractioning> (fork of `kai-scheduler/gpu-fractioning`): `fractioning-manager/fractiond/internal/amd/` with unit tests, `--gpu-vendor=amd`, `docs/amd/README.md`, lab test `test/amd/quick-dmem-cap.sh` and its 122 MB probe image (`test/amd/vram-probe/`).
 - **Problem:** K6's memory isolation is soft: a pod that lifts PyTorch's cap takes its neighbours' memory (T-128). NVIDIA's `fractiond` has the driver enforce the limit; no AMD driver does.
 - **Change:** on `CreateContainer`, `fractiond` reads the binder's `oif.ai/amd-gpu*` annotations, enables `dmem` down to the pod's parent cgroup where it is off, and writes `dmem.max = drm/<pci address>/vram <share × VRAM>` on the pod cgroup (S-8: Linux 6.14+, amdgpu). Refuses the container when the cap cannot be set, unless `--fail-open`. Retroactive enforcement stays NVIDIA-only.
 - **Tests:** unit tests on fake cgroup and sysfs trees; lab 2026-11-03 (W7900, kernel 7.0, KAI places the pods): a 0.25 pod without the plugin took 30,720 MiB; with it, stopped at 11,264 MiB by a cap of 11,516 MiB while a 0.5 neighbour got 20,480 MiB.
-- **To submit:** feature request on `kai-scheduler/gpu-fractioning` linking KAI#2556 (the annotation names follow K3's rework), then a PR with signed-off commits; tell Run:ai on its Discussions.
+- **Submitted:** issue #173, Run:ai Discussion #4103, then PR [#175](https://github.com/kai-scheduler/gpu-fractioning/pull/175) (2026-11-03) from branch `feat/fractiond-amd-dmem`. The PR reworks the backend to upstream's contract: no `oif.ai/*` annotations, the existing `<prefix><ctr>.gpu-memory.request|limit` and `.gpus.devices` (PCI addresses); `dmem.max`/`dmem.min` set on the container's cgroup by the runtime through NRI, so fractiond writes no host cgroup files. Lab on upstream main with that branch: PASS 6/6 (the 11,516 MiB container stopped at 11,264 MiB, neighbour got 20 GiB, pod cgroup uncapped).
+- **Next:** maintainer review; the binder writing PCI addresses in `gpus.devices` (K1–K4 on KAI) so the PR works on a Run:ai cluster, where only KAI's binder may write that annotation. oif keeps the fork's pod-level cap (`oif.ai/*` annotations) until then.
 
 ## AMD
 
