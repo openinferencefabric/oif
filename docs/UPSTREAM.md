@@ -4,6 +4,9 @@ Every change oif makes to the code of other projects, and every upstream problem
 maintainers: what is wrong, what oif changed, how it was tested, and what to submit. oif applies its patches at install
 time to the pinned releases; nothing here is a fork.
 
+Live status of every submitted thread (state, last activity, replies waiting on us): <https://openinferencefabric.github.io/upstream/>,
+refreshed daily from GitHub. Add each new thread to that page's `upstream/contributions.json` when it is filed.
+
 | Project | Repository | Release oif patches |
 | --- | --- | --- |
 | Run:ai (open source) | <https://github.com/dsx-ai-factory/run-ai> | 3.0.20 (`RUNAI_VERSION`) |
@@ -33,7 +36,7 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | K4 | KAI resource-reservation | Find the reserved AMD GPU without NVML | patch 0004 | ready |
 | K5 | KAI admission | `runtimeClassName: nvidia` set on every fraction pod, whatever the vendor | issue (oif maps the name to runc on AMD nodes) | issue + PR |
 | K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | propose as a design |
-| K7 | KAI gpu-fractioning | `fractiond --gpu-vendor=amd`: hard VRAM cap per pod with the Linux `dmem` cgroup | fork branch | ready (issue first) |
+| K7 | KAI gpu-fractioning | `fractiond --gpu-vendor=amd`: hard VRAM cap per pod with the Linux `dmem` cgroup | fork (merged to its main) | issue filed |
 | A1 | AMD metrics exporter | Phantom UMC ECC errors on Radeon PRO W7900 with kernel 7.0 | issue (oif raises the threshold) | issue |
 
 ## Submitted (2026-11-01)
@@ -59,6 +62,19 @@ Opened by Manmohan Brahma; PR commits signed off (DCO). Run:ai merges a PR only 
 Held: R8 (until KAI answers #2556); A1 (not reproduced on the current lab: the W7900 shows no UMC errors; report again with fresh evidence).
 
 Follow-ups (2026-11-01): CodeRabbit's findings on #3950 (family count when the product count is unusable) and #3949 (malformed daemon conditions reported unavailable) fixed in e619499f and 6ddd263e, checked on Run:ai main 1fee5ece; T-128 evidence added to [run-ai#3943](https://github.com/dsx-ai-factory/run-ai/issues/3943#issuecomment-6560336091) (one cluster-redis copy survives a restart with a workspace logged in) and [KAI#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556#issuecomment-6560342620) (soft memory isolation measured: 23 GiB taken from a 22.5 GiB share).
+
+## Submitted (2026-11-03)
+
+| # | Thread | What |
+| --- | --- | --- |
+| K7 | [gpu-fractioning#173](https://github.com/kai-scheduler/gpu-fractioning/issues/173) | Feature request: `fractiond --gpu-vendor=amd`, a hard VRAM cap per pod with the dmem cgroup; offers a PR with signed-off commits once the approach and annotation names are agreed |
+| K1–K4, K7 | [comment on KAI#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556#issuecomment-6598391590) | Corrects the 2026-11-01 measurement: isolation can be hard with dmem (0.25 pod stopped at 11,264 MiB by an 11,516 MiB cap; 0.5 neighbour 20,480 MiB); links #173 |
+| K7 | [run-ai Discussion #4103](https://github.com/dsx-ai-factory/run-ai/discussions/4103) | For Run:ai's developers: the implementation, the lab result on Run:ai 3.0.20, and where it touches Run:ai (AMD nodes reported without fractions, #3941; templates #3946) |
+
+Evidence: the lab test `test/amd/quick-dmem-cap.sh` and the vLLM benchmark `test/amd/bench-qwen3.sh` in
+[openinferencefabric/gpu-fractioning](https://github.com/openinferencefabric/gpu-fractioning); report with raw results at
+<https://manmohanbrahma.github.io/gpu-benchmark/amd-fraction-dmem-cap/> (a capped 0.5 pod within about 1% of the whole GPU
+on time per token, latency and throughput, on the W7900 and on NVIDIA's gpu-fractioning with an A6000).
 
 PRs were checked on the upstream `main` they target (Run:ai cfd9d8ac, KAI 4e6fcbd): build, vet, the service's tests, and lint with the project's own config and version. R1 for upstream parses the AMD count with `strconv.ParseInt(..., 32)` (gosec G109); oif's patch 0001 still uses `Atoi`.
 
