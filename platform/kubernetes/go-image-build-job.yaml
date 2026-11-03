@@ -1,0 +1,43 @@
+# Builds one of oif's own Go components into an image tarball in the oif state folder (images/build-go-image.sh). The
+# installer imports it into containerd on every node. Used by stage vendor-pool (T-129).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${NAME}-build
+  namespace: oif-build
+  labels:
+    app.kubernetes.io/managed-by: oif
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      # on the node that runs oif: crane, the caches and the image tarball are host folders there
+      nodeSelector: {kubernetes.io/hostname: "${BUILD_NODE}"}
+      containers:
+        - name: build
+          image: ${GO_BUILD_IMAGE}
+          command: ["sh", "/build/build-go-image.sh"]
+          env:
+            - {name: NAME, value: "${NAME}"}
+            - {name: IMAGE, value: "${IMAGE}"}
+            - {name: BASE_IMAGE, value: "${BASE_IMAGE}"}
+            - {name: CRANE_VERSION, value: "${CRANE_VERSION}"}
+            - {name: CRANE_SHA256, value: "${CRANE_SHA256}"}
+            - {name: GOCACHE, value: /cache/go-build}
+            - {name: GOMODCACHE, value: /cache/go-mod}
+          resources:
+            requests: {cpu: "1", memory: 1Gi}
+          volumeMounts:
+            - {name: script, mountPath: /build}
+            - {name: module, mountPath: /module}
+            - {name: out, mountPath: /out}
+            - {name: src, mountPath: /src, readOnly: true}
+            - {name: cache, mountPath: /cache}
+      volumes:
+        - {name: script, configMap: {name: go-image-build}}
+        - {name: module, configMap: {name: "${NAME}-src"}}
+        - {name: out, hostPath: {path: "${GO_IMAGE_OUT}", type: DirectoryOrCreate}}
+        - {name: src, hostPath: {path: "${RUNAI_BUILD_SRC}", type: Directory}}
+        - {name: cache, hostPath: {path: "${RUNAI_BUILD_CACHE}", type: DirectoryOrCreate}}

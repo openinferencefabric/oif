@@ -32,18 +32,21 @@ jobs:
         run: tests/run.sh
 
   go:
-    name: oif-amd-share (gofmt, vet, test)
+    name: oif Go components (gofmt, vet, test)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: go in GO_BUILD_IMAGE (the toolchain the installer builds with)
+      - name: go in GO_BUILD_IMAGE (the toolchain the installer builds with), each module under images/
         run: |
           . ./versions.env
-          docker run --rm -v "$PWD/images/oif-amd-share:/src" -w /src "$GO_BUILD_IMAGE" sh -euc '
-            go version
-            test -z "$(gofmt -l .)" || { gofmt -d .; exit 1; }
-            go vet ./...
-            go test -count=1 ./...'
+          for m in images/*/go.mod; do
+            d=$(dirname "$m"); echo "== $d"
+            docker run --rm -v "$PWD/$d:/src" -w /src "$GO_BUILD_IMAGE" sh -euc '
+              go version
+              test -z "$(gofmt -l .)" || { gofmt -d .; exit 1; }
+              go vet ./...
+              go test -count=1 ./...'
+          done
 
   patches:
     name: patches apply to pinned upstream source

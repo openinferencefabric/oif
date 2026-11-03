@@ -1,0 +1,28 @@
+# T-129 on the lab cluster, 2026-11-03: sudo ./oif install on branch feat/T-129-vendor-pool (d1e3de2), cp1 of the
+# five-node hybrid-gpu-lab cluster. Only stage vendor-pool ran. Repeated ctr import lines and openssl key progress left out.
+2026-11-03 18:29:02 == stage: vendor-pool
+job.batch/oif-vendor-pool-build created
+2026-11-03 18:29:07 == building oif-vendor-pool (a few minutes)
+  [ok] oif-vendor-pool build finished
+    == oif-vendor-pool
+    ok          github.com/openinferencefabric/oif/images/oif-vendor-pool       0.007s
+    == image oif.local/oif/oif-vendor-pool:1c15767bc9cc from gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+    == done
+  [ok] image oif.local/oif/oif-vendor-pool:1c15767bc9cc loaded into containerd
+  [ok] patched image oif.local/oif/oif-vendor-pool:1c15767bc9cc on every node (4 loaded now)
+subject=CN=oif-vendor-pool.oif-vendor-pool.svc
+  [ok] certificate for oif-vendor-pool.oif-vendor-pool.svc from oif's CA
+namespace/oif-vendor-pool created
+secret/oif-vendor-pool-tls created
+serviceaccount/oif-vendor-pool created
+clusterrole.rbac.authorization.k8s.io/oif-vendor-pool created
+clusterrolebinding.rbac.authorization.k8s.io/oif-vendor-pool created
+deployment.apps/oif-vendor-pool created
+service/oif-vendor-pool created
+mutatingwebhookconfiguration.admissionregistration.k8s.io/oif-vendor-pool created
+validatingadmissionpolicy.admissionregistration.k8s.io/oif-vendor-agnostic-gpu created
+validatingadmissionpolicybinding.admissionregistration.k8s.io/oif-vendor-agnostic-gpu created
+deployment "oif-vendor-pool" successfully rolled out
+  [ok] a pod asking for one vendor's GPU, or whose workload is in a vendor's pool, runs in that pool (webhook oif-vendor-pool)
+  [ok] a GPU fraction that names no vendor must choose pool nvidia or amd (ValidatingAdmissionPolicy oif-vendor-agnostic-gpu)
+2026-11-03 18:29:43 == install finished
