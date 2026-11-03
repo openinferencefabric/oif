@@ -91,7 +91,7 @@ nodes_prepare() {
     if node_ok "$addr"; then ok "$name ($addr, $role): reachable with the cluster key"; continue; fi
     if [ -S "$agent" ] && admin_ssh "$addr" "$(authorized_add "$pub")" && node_ok "$addr"; then
       rec "NODEKEY $addr $(node_user)"; ok "$name ($addr): cluster key installed through your SSH agent"; continue; fi
-    missing+=("$name=$addr")
+    if [ "$name" = "$addr" ]; then missing+=("$addr"); else missing+=("$name=$addr"); fi
   done 3< <(other_nodes)
   if [ ${#missing[@]} -gt 0 ]; then
     warn "no access yet to: ${missing[*]}"
