@@ -1,6 +1,6 @@
 # 7. Observability for NVIDIA and AMD GPUs
 
-**Steps:** T-112 (recording rules), T-114 (Fleet dashboard), T-106 (Scheduling dashboard), T-137 (several node pools). **Tested:** 2026-10-25 on the reference host, with an NVIDIA RTX A6000 and an AMD Radeon PRO W7900.
+**Steps:** T-112 (recording rules), T-114 (Fleet dashboard), T-106 (Scheduling dashboard), T-137 (several node pools; tested on the lab cluster 2026-11-03, 7/7, docs/evidence/T-137/). **Tested:** 2026-10-25 on the reference host, with an NVIDIA RTX A6000 and an AMD Radeon PRO W7900.
 
 Published with screenshots as a pair: [Run:ai with NVIDIA and AMD GPUs, Installation Guide](https://manmohanbrahma.github.io/ai/runai-amd/install-guide/) and [Deployment Guide](https://manmohanbrahma.github.io/ai/runai-amd/deployment-guide/).
 
