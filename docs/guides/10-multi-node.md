@@ -163,6 +163,24 @@ With three control-plane nodes oif installs the platform in copies on different 
 
 What makes a failover fast enough, each from a failed lab run: a silent node is declared down after 20 s; `max_connections` 400; `oif-conntrack-reaper` on every node drops connections to pods that are gone (without it Keycloak and Run:ai hung on the old database primary for about 15 minutes); the 20 s move of the singles users would miss (kube-state-metrics, the Prometheus operator, the MetalLB controller); `wal_keep_size` 4GB so a copy whose node was off for hours can catch up.
 
+### Run:ai metrics in the control plane
+
+**Step:** T-138. **Tested:** 2026-11-04 on the lab cluster, repair of an installed cluster (evidence in `docs/evidence/T-138/`).
+
+The cluster's Prometheus (`runai/runai`) sends Run:ai's metrics to the control plane's Thanos receive. Run:ai's Overview and Analytics pages read every metric number from there: allocated, idle and free GPUs, CPU and memory, and the charts. Only the node and GPU device counts come from Run:ai's database.
+
+oif runs three receivers and keeps every sample on all three (`replicationFactor` 3), so writes go on with one receiver down. For that, the receivers must list each other in their hashring. The Bitnami Thanos chart that Run:ai uses does this only with `receive.service.additionalHeadless: true`; without it each ring is `127.0.0.1` alone, and every write fails with `insufficient nodes; have 1, want 2`. That was the case on every installation with three control-plane nodes from T-124 until T-138: the Overview showed 0 allocated GPU devices whatever ran.
+
+- **New installations:** the value is set with the other HA values.
+- **Installed clusters:** `sudo ./oif install` reruns stage `runai-ha`, which puts in place what the chart renders with the value: the service `runai-backend-thanos-receive-headless`, the hashring of all receivers, and the StatefulSet on that service (re-created; its pods keep their volumes and are replaced one at a time). Metrics from before were never stored, so Run:ai's charts start then.
+- **Check:** stage `runai-verify` waits until the control plane holds the cluster's metrics. The lab test also counts what the Overview shows:
+
+  ```bash
+  sudo tests/lab/t138-overview.sh
+  ```
+
+  It checks that the hashring lists all receivers, that no write was refused in the last 5 minutes, and that the Overview's "Allocated GPU devices" shows 1 with a whole NVIDIA GPU and 1.5 with half an AMD GPU as well.
+
 ### Demonstration
 
 Power off the worst node to lose, the one holding both the database primary and the ingress address, and measure from inside and from outside the cluster.
@@ -252,6 +270,7 @@ Each node keeps its own change record in `/var/lib/oif`, the same kinds as a sin
 | `AMD GPU ... not started by amdgpu` | The firmware is installed but the driver could not reload: the stage asks for a reboot; on a node it does that itself. |
 | `kubeadm join failed` | On that node: `sudo less /var/lib/oif/kubeadm-join.log`. The token lives 30 minutes; run the install again for a new one. |
 | A pod in a vendor pool stays Pending with `NonPreemptibleOverQuota` | The project's quota in that pool is used: this is the per-vendor quota working. |
+| Run:ai Overview shows 0 allocated GPU devices, empty idle and free GPUs | The control plane has no cluster metrics. `kubectl -n runai logs prometheus-runai-0 -c prometheus \| grep 'Failed to send'`: `insufficient nodes` is the Thanos hashring (run `sudo ./oif install`, stage runai-ha repairs it); other errors are the route to `https://<Run:ai domain>/api/v1/receive`. |
 | Run:ai pods in `ImagePullBackOff` for `oif.local/runai-oss/*` | A node is missing a patched image: run the install again (the runai-patches stage loads it on every node), or check with `sudo tests/lab/t123-runai.sh`. |
 
 ## Known limits

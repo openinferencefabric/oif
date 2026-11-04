@@ -42,6 +42,8 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | issue |
 | A4 | ROCm (rocr-runtime, amdkfd) | CU mask only settable by the workload (`HSA_CU_MASK`), no node-enforced compute share (S-8) | issue | drafted, held for a measured run |
 
+Checked and not upstream: T-138, Run:ai Overview "Allocated GPU devices" at 0. oif's HA values gave Thanos receive three copies with `replicationFactor` 3 but not the chart's `receive.service.additionalHeadless`, so every remote write was refused; fixed in oif (guide 10). Run:ai's defaults (one receiver) are fine.
+
 ## Submitted (2026-11-01)
 
 Opened by Manmohan Brahma; PR commits signed off (DCO). Run:ai merges a PR only after a maintainer approves its issue.

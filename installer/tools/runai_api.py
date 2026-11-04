@@ -19,6 +19,8 @@ never printed. Commands:
   template-delete NAME                   delete the workload template NAME, if there is one
   submit KIND NAME PROJECT TEMPLATE [COMMAND [ARGS]]  submit a training or workspace (KIND trainings, workspaces) from a template
   workloads                              list the workloads as Run:ai shows them: name, type, phase, project
+  telemetry TYPE                         the cluster's node telemetry TYPE as the Overview reads it (ALLOCATED_GPUS,
+                                         TOTAL_GPUS, FREE_GPUS, ...): the sum of its values, or "none" when it has none
 """
 import json
 import os
@@ -331,6 +333,16 @@ def workloads(token: str) -> None:
         print(w.get("name"), w.get("type", "-").replace(" ", ""), w.get("phase", "-"), w.get("projectName", "-"))
 
 
+def telemetry(token: str, kind: str) -> None:
+    """Print what the Overview page shows for KIND: GET /api/v1/nodes/telemetry for the (only) cluster."""
+    cid = clusters(token)[0]["uuid"]
+    status, out = call("GET", f"/api/v1/nodes/telemetry?telemetryType={kind}&clusterId={cid}", token=token)
+    if status != 200:
+        sys.exit(f"GET /api/v1/nodes/telemetry {kind}: HTTP {status} {out}")
+    values = [float(v["value"]) for v in out.get("values") or []]
+    print(f"{sum(values):g}" if values else "none")
+
+
 def main() -> None:
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     token = login()
@@ -367,6 +379,8 @@ def main() -> None:
         template_delete(token, sys.argv[2])
     elif cmd == "workloads" and len(sys.argv) == 2:
         workloads(token)
+    elif cmd == "telemetry" and len(sys.argv) == 3:
+        telemetry(token, sys.argv[2])
     elif cmd == "submit" and 6 <= len(sys.argv) <= 8:
         submit(token, *sys.argv[2:])
     else:

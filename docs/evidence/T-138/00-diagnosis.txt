@@ -1,0 +1,34 @@
+# T-138 diagnosis on the lab cluster, 2026-11-04 (five nodes, three control-plane nodes, main after T-137).
+# Two read-only probes on cp1, each with one 1-GPU pod (t138-probe, team-c, pool nvidia) running; the pod was deleted
+# after each. Cluster ID, cluster IPs and pod names shortened. The Overview "Allocated GPU devices" tile (logged in as
+# administrator) reads node telemetry ALLOCATED_GPUS = Run:ai metric runai_allocated_gpu_count_per_cluster, queried by
+# the control plane's metrics-service from Thanos (control-plane-chart, Run:ai main 0103837).
+
+## Probe 1: the metric chain in the cluster's Prometheus: every step has the pod's GPU
+runai_scheduler_allocated_gpus_per_pod_unique{pod_name=t138-probe,pod_namespace=runai-team-c}  1
+runai_allocated_gpu_count_per_pod{node=gpu-nvidia,nodepool=nvidia,project=team-c}          1
+runai_allocated_gpu_count_per_node   gpu-nvidia 1, gpu-amd 0, cp1-3 0
+runai_allocated_gpu_count_per_nodepool   nvidia 1, amd 0, default 0
+runai_allocated_gpu_count_per_cluster  1
+rule evaluation errors: none
+
+## Probe 2: what the control plane has
+Prometheus runai/runai remoteWrite=https://<Run:ai domain>/api/v1/receive
+GET /api/v1/nodes/telemetry  ALLOCATED_GPUS 200 values []      (the tile: 0)
+                             TOTAL_GPUS     200 values [2]     (from Run:ai's database: correct)
+                             IDLE_ALLOCATED_GPUS, FREE_GPUS, ALLOCATED_CPU_CORES: values []
+Thanos query (runai-backend-thanos-query): runai_allocated_gpu_count_per_cluster, runai_gpu_count_per_cluster,
+  runai_node_nodepool, up: no series at all
+prometheus-runai-0, -1, every minute:
+  level=WARN msg="Failed to send batch, retrying" remote_name=runai
+  err="server returned HTTP status 500 Internal Server Error: insufficient nodes; have 1, want 2"
+runai-backend-thanos-receive:
+  level=error component=receive msg="failed to distribute timeseries to replicas" err="insufficient nodes; have 1, want 2"
+
+## Cause
+oif's HA values (T-124) run three receivers with replicationFactor 3. The Bitnami Thanos chart 16.0.7 that Run:ai uses
+lists the receivers in their hashring only with receive.service.additionalHeadless=true; without it the ring is
+127.0.0.1 alone (templates/_helpers.tpl "thanos.receive.config") and a write that needs 2 of 3 replicas fails.
+Every metric the Overview and Analytics pages read was missing on clusters with three control-plane nodes since T-124.
+Single-node and two-node installs (replicationFactor 1) are not affected. Not a Run:ai defect: its defaults are one
+receiver.
