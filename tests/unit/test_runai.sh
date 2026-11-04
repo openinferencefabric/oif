@@ -23,12 +23,12 @@ eq "$(python3 -c 'import json, sys; d = json.loads(sys.argv[1]); print(d["enable
 # three control-plane nodes (ADR-022): two copies of everything, spread; the database is the CloudNativePG cluster
 eq "$(python3 -c 'import json, sys; d = json.loads(sys.argv[1])
 print(len(d), d["nats.persistence.storageClass"], d["thanos.receive.persistence.storageClass"], d["postgresql.enabled"],
-      d["global.postgresql.auth.host"], d["global.replicaCount"], d["thanos.receive.replicationFactor"],
+      d["global.postgresql.auth.host"], d["global.replicaCount"], d["thanos.receive.replicationFactor"], d["thanos.receive.service.additionalHeadless"],
       d["thanos.receive.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator"],
       d["thanos.query.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchExpressions[1].values[0]"],
       "key: node-role.kubernetes.io/runai-system" in d["keycloakx.affinity"], "podAntiAffinity" in d["keycloakx.affinity"],
       any(k.startswith("postgresql.primary") for k in d), any("," in str(v) for v in d.values()))' "$RUNAI_CP_VALUES")" \
-  "41 longhorn local-path False oif-pg-rw.oif-db.svc.cluster.local 2 3 Exists query True True False False" \
+  "42 longhorn local-path False oif-pg-rw.oif-db.svc.cluster.local 2 3 True Exists query True True False False" \
   "control-plane values, three control-plane nodes (no commas: they are helm --set values):"
 OIF_NODES="cp1=192.0.2.11:control gpu=192.0.2.21:worker"; runai_placement
 eq "$(python3 -c 'import json, sys; d = json.loads(sys.argv[1]); print(len(d), d["nats.persistence.storageClass"], d["postgresql.primary.persistence.storageClass"], "global.replicaCount" in d, "podAntiAffinity" in d["keycloakx.affinity"])' "$RUNAI_CP_VALUES")" \

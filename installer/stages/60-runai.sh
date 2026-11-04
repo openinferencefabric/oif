@@ -151,8 +151,11 @@ if ha:
               "keycloakx.autoscaling.enabled": True,   # at least 3 copies
               "thanos.query.autoscaling.enabled": True, "thanos.query.autoscaling.minReplicas": 2,
               "thanos.query.autoscaling.maxReplicas": 2,
-              # every sample on all three receivers: any two of them keep metrics flowing; each keeps its own copy
+              # every sample on all three receivers: any two of them keep metrics flowing; each keeps its own copy.
+              # The chart lists the receivers in their hashring only with the headless service; without it the
+              # ring is 127.0.0.1 alone and every write fails "insufficient nodes" (T-138)
               "thanos.receive.replicaCount": 3, "thanos.receive.replicationFactor": 3,
+              "thanos.receive.service.additionalHeadless": True,
               "thanos.receive.persistence.storageClass": "local-path"})
     # the subcharts take an explicit affinity, so their copies are spread explicitly: one per node
     for p, sel in (("thanos.query", ("thanos", "query")), ("thanos.receive", ("thanos", "receive")), ("nats", ("nats", None))):
@@ -174,10 +177,11 @@ RUNAI_FRACTIONS_MIN_DRIVER=615   # Run:ai 3.0 support matrix: GPU fractions need
 # too: copies of it do not replicate, and workspace login sessions (oauth2-proxy) stored in one were missing from the
 # other, so Jupyter and other workspace URLs looped on the login (T-127). A restart only means logging in again.
 RUNAI_SINGLE="anyworkload-controller application-controller cluster-redis kai-operator karta-operator krm-operator runai-cluster-gpu-fractioning runai-operator"
-runai_ha_rev() { echo "$RUNAI_VERSION single-redis"; }
+runai_ha_rev() { echo "$RUNAI_VERSION single-redis thanos-ring"; }
 register_stage runai-ha runai_ha_rev
 stage_runai_ha() {
   platform_ha || { ok "Run:ai cluster services: one copy each ($(multi_node && echo 'fewer than 3 control-plane nodes' || echo 'single node'))"; return 0; }
+  thanos_receive_ring
   kc -n runai patch runaiconfig runai --type merge -p '{"spec":{"global":{"replicaCount":2,"requireDefaultPodAntiAffinity":true},"cluster-redis":{"replicas":1}}}' >> "$LOG" \
     || die "RunaiConfig rejected the replica settings"
   # with two copies KAI turns on leader election itself (--leader-elect=true): one scheduler decides at a time
@@ -193,6 +197,65 @@ items = json.load(sys.stdin)["items"]
 ok = all(o["status"].get("readyReplicas", 0) == o["spec"]["replicas"] for o in items)
 ok = ok and all(o["spec"]["replicas"] >= 2 for o in items if o["metadata"]["name"] not in single)
 sys.exit(0 if ok and len(items) > len(single) else 1)' && [ "$(kc -n runai get pods -l app=runai-scheduler-default -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}' | sort -u | wc -l)" -ge 2 ]; }
+
+THANOS_NS=runai-backend THANOS_RECEIVE=runai-backend-thanos-receive THANOS_QUERY=runai-backend-thanos-query
+# Clusters installed before T-138 run the three receivers with a hashring of 127.0.0.1 alone, so the control plane has
+# no cluster metrics (Overview: allocated, idle and free GPUs empty). The installer runs only on a new Run:ai version,
+# so this puts in place what the chart renders with additionalHeadless: the headless service, the ring of every
+# receiver, and the StatefulSet on that service (its serviceName cannot change: re-created, the pods and their volumes
+# stay and are then replaced one at a time).
+thanos_receive_ring() {
+  local ns=$THANOS_NS r=$THANOS_RECEIVE w rc=0; w=$(mktemp -d)
+  kc -n "$ns" get sts "$r" -o json > "$w/sts.json" || { rm -rf "$w"; die "Thanos receive $ns/$r not found"; }
+  kc -n "$ns" get svc "$r" -o json > "$w/svc.json" || { rm -rf "$w"; die "service $ns/$r not found"; }
+  kc -n "$ns" get configmap "$r" -o json > "$w/cm.json" || { rm -rf "$w"; die "configmap $ns/$r (the hashring) not found"; }
+  W=$w python3 -c '
+import json, os
+w = os.environ["W"]; ld = lambda n: json.load(open(f"{w}/{n}.json"))
+sts, svc, cm = ld("sts"), ld("svc"), ld("cm")
+r, ns = sts["metadata"]["name"], sts["metadata"]["namespace"]; hl = r + "-headless"
+spec = sts["spec"]; ctr = next(c for c in spec["template"]["spec"]["containers"] if c["name"] == "receive")
+port = {p["name"]: p["containerPort"] for p in ctr["ports"]}
+grpc, capnp = port["grpc"], port["capnproto"]
+fqdn = lambda i: "%s-%d.%s.%s.svc.cluster.local" % (r, i, hl, ns)
+ring = [{"endpoints": [{"address": "%s:%d" % (fqdn(i), grpc), "capnproto_address": "%s:%d" % (fqdn(i), capnp)}
+                       for i in range(spec["replicas"])]}]
+json.dump({"apiVersion": "v1", "kind": "Service",
+           "metadata": {"name": hl, "namespace": ns, "labels": svc["metadata"].get("labels", {})},
+           "spec": {"type": "ClusterIP", "clusterIP": "None", "selector": svc["spec"]["selector"],
+                    "ports": [{"name": n, "port": port[n], "targetPort": n, "protocol": "TCP"} for n in ("http", "grpc", "capnproto")]}},
+          open(f"{w}/headless.json", "w"))
+key = next(k for k in cm["data"] if k.endswith(".json"))
+if json.loads(cm["data"][key]) != ring:
+    json.dump({"data": {key: json.dumps(ring, indent=2)}}, open(f"{w}/cm-patch.json", "w"))
+local = "--receive.local-endpoint=$(NAME).%s.$(NAMESPACE).svc.cluster.local:%d" % (hl, grpc)
+args = [local if a.startswith("--receive.local-endpoint=") else a for a in ctr["args"]]
+if spec.get("serviceName") != hl or args != ctr["args"]:
+    spec["serviceName"] = hl; ctr["args"] = args
+    m = sts["metadata"]; sts["metadata"] = {k: m[k] for k in ("name", "namespace", "labels", "annotations") if k in m}
+    sts.pop("status", None); json.dump(sts, open(f"{w}/sts-new.json", "w"))' || { rm -rf "$w"; die "cannot read the Thanos receive objects"; }
+  kc apply -f "$w/headless.json" >> "$LOG" || rc=1
+  [ ! -s "$w/cm-patch.json" ] || kc -n "$ns" patch configmap "$r" --type merge --patch-file "$w/cm-patch.json" >> "$LOG" || rc=1
+  if [ $rc = 0 ] && [ -s "$w/sts-new.json" ]; then
+    kc -n "$ns" delete sts "$r" --cascade=orphan --wait=true >> "$LOG" || rc=1
+    if [ $rc = 0 ] && ! kc create -f "$w/sts-new.json" >> "$LOG" 2>&1; then
+      W=$w python3 -c 'import json, os
+s = json.load(open(os.environ["W"] + "/sts.json")); m = s["metadata"]
+s["metadata"] = {k: m[k] for k in ("name", "namespace", "labels", "annotations") if k in m}; s.pop("status", None)
+print(json.dumps(s))' | kc create -f - >> "$LOG" 2>&1 || warn "the original Thanos receive StatefulSet could not be restored either"
+      rc=1
+    fi
+  fi
+  rm -rf "$w"
+  [ $rc = 0 ] || die "Thanos receive hashring not fixed (see $LOG; kubectl -n $ns get sts,svc,cm | grep thanos-receive)"
+  kc -n "$ns" rollout status "sts/$r" --timeout=15m >> "$LOG" 2>&1 || die "Thanos receivers not ready (kubectl -n $ns get pods | grep thanos-receive)"
+  ok "Thanos receive: every receiver in the hashring ($(kc -n "$ns" get sts "$r" -o jsonpath='{.spec.replicas}') copies, each sample on all)"
+}
+runai_metrics_stored() {   # the cluster's Run:ai metrics are in the control plane (what Overview and Analytics read)
+  local ip; ip=$(kc -n "$THANOS_NS" get svc "$THANOS_QUERY" -o jsonpath='{.spec.clusterIP}') || return 1
+  curl -fsS -m 20 "http://$ip:9090/api/v1/query" --data-urlencode 'query=count(runai_node_nodepool)' \
+    | python3 -c 'import json, sys; r = json.load(sys.stdin)["data"]["result"]; sys.exit(0 if r and float(r[0]["value"][1]) > 0 else 1)'
+}
 
 runai_fractions_rev() { echo "$RUNAI_VERSION $NVIDIA_DRIVER_BRANCH"; }   # a new driver branch can turn fractions on (ADR-032)
 register_stage runai-fractions runai_fractions_rev
@@ -235,7 +298,8 @@ o.pop("status", None); print(json.dumps(o))' <<< "$cur")
   fi
 }
 
-register_stage runai-verify RUNAI_VERSION
+runai_verify_rev() { echo "$RUNAI_VERSION metrics"; }
+register_stage runai-verify runai_verify_rev
 stage_runai_verify() {
   local ns code; RUNAI_DOMAIN=$(runai_domain)
   for ns in runai-backend runai; do
@@ -245,6 +309,9 @@ stage_runai_verify() {
   code=$(curl -sS -o /dev/null -w '%{http_code}' --cacert "$PKI/ca.crt" -m 20 "https://$RUNAI_DOMAIN/" || true)
   [[ $code =~ ^(200|30[0-9])$ ]] || die "https://$RUNAI_DOMAIN/ answered '$code' (kubectl -n runai-backend get ingress)"
   ok "Run:ai UI answers on https://$RUNAI_DOMAIN (HTTP $code, certificate trusted by the oif CA)"
+  # the cluster's Prometheus sends Run:ai's metrics to the control plane; a refused write leaves the Overview empty
+  wait_for "Run:ai metrics stored in the control plane" 600 15 runai_metrics_stored \
+    || die "no cluster metrics in the control plane (kubectl -n runai logs prometheus-runai-0 -c prometheus | grep 'Failed to send')"
   echo "  Log in as the generated administrator (shown only to root):" | tee -a "$TLOG"
   echo "    sudo kubectl --kubeconfig $KCFG -n runai-backend get configmap runai-backend-tenants-manager -o jsonpath='{.data.ADMIN_USERNAME}'; echo" | tee -a "$TLOG"
   echo "    sudo kubectl --kubeconfig $KCFG -n runai-backend get secret runai-backend-gen-tenants-manager -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d; echo" | tee -a "$TLOG"
