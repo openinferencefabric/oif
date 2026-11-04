@@ -63,13 +63,30 @@ out=$(api refused t140-amd-devices '{"gpuDevicesRequest":1}' amd)
 sed 's/^/        /' <<< "$out"
 check "GPU devices in pool amd: no pod, refused with the vendor hint" grep -q "refused=yes" <<< "$out"
 
-sel=$(kc -n runai-backend get deploy runai-backend-frontend -o json | python3 -c 'import json, sys
-print(",".join(f"{k}={v}" for k, v in json.load(sys.stdin)["spec"]["selector"]["matchLabels"].items()))')
-pod=$(kc -n runai-backend get pods -l "$sel" --field-selector status.phase=Running -o name | head -1)
-ctr=$(kc -n runai-backend get "$pod" -o jsonpath='{.spec.containers[0].name}')
-hit=$(kc -n runai-backend exec "$pod" -c "$ctr" -- sh -c 'grep -rlF oif-gpu-vendor /usr/share/nginx/html 2>/dev/null | head -1' 2>&1)
-info "UI $pod ($ctr, $(kc -n runai-backend get "$pod" -o jsonpath='{.spec.containers[0].image}')): ${hit:-no file with oif-gpu-vendor}"
-check "the Run:ai UI serves the GPU vendor choice (patch 0005)" grep -q "/usr/share/nginx/html/" <<< "$hit"
+# the UI image has no shell: read it as a browser does, the page and the JavaScript it loads, following imports
+hit=$(python3 - "$RUNAI_URL" "$RUNAI_CA" <<'PY'
+import re, ssl, sys, urllib.request
+base, ctx = sys.argv[1].rstrip("/"), ssl.create_default_context(cafile=sys.argv[2])
+get = lambda p: urllib.request.urlopen(base + p, context=ctx, timeout=30).read().decode("utf-8", "replace")
+seen, todo = set(), re.findall(r'(/assets/[^"\']+\.js)', get("/"))
+while todo and len(seen) < 3000:
+    p = todo.pop()
+    if p in seen:
+        continue
+    seen.add(p)
+    try:
+        js = get(p)
+    except Exception:
+        continue
+    if "oif-gpu-vendor" in js:
+        print(p, f"(after {len(seen)} files)"); break
+    todo += ["/assets/" + f for f in re.findall(r'["\'/]([\w.-]+\.js)["\']', js)]
+else:
+    print(f"not found in {len(seen)} files")
+PY
+)
+info "UI $(kc -n runai-backend get deploy runai-backend-frontend -o jsonpath='{.spec.template.spec.containers[0].image}'): oif-gpu-vendor in ${hit:-?}"
+check "the Run:ai UI serves the GPU vendor choice (patch 0005)" grep -q "^/assets/" <<< "$hit"
 
 if [ "${1:-}" = --dynamo ]; then
   kc -n "$NS" delete dynamographdeployment qwen-nvidia-half-gpu --ignore-not-found --wait=true >/dev/null 2>&1

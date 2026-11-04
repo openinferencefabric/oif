@@ -22,7 +22,24 @@ diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-comp
      <compute-resource-section-layout
        :model-value="resourcesModel"
        @update:model-value="updateResourcesModel"
-@@ -206,6 +220,9 @@
+@@ -91,7 +105,7 @@
+         />
+ 
+         <extended-resources
+-          :key="`extended-resources-${renderKey}`"
++          :key="`extended-resources-${renderKey}-${gpuVendor}-${amdWholeGpus}`"
+           :extended-resources="workloadSpec.compute?.extendedResources || undefined"
+           @update:model-value="updateExtendedResources"
+           :policy-defaults="policy?.defaults?.compute?.extendedResources"
+@@ -120,6 +134,7 @@
+       <runai-folding-sub-section label="Nodes" aid="nodes-sub-section" v-if="showNodesSubSection">
+         <node-pools-resource-section
+           v-if="!hideSpecificSections?.nodes"
++          :key="`node-pools-${gpuVendor}`"
+           :node-pools-list-origin="ENodePoolsListOrigin.Project"
+           :apply-policy-defaults="false"
+           :selected-node-pools="defaultNodePools"
+@@ -206,6 +221,9 @@
  import { computeResourceUtil } from "@/utils/compute-resource.util";
  
  // Constants
@@ -32,7 +49,7 @@ diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-comp
  
  export default defineComponent({
    name: "hybrid-compute-resource-section",
-@@ -340,9 +357,39 @@
+@@ -340,9 +358,39 @@
        if (!this.clusterId) return false;
        return this.clusterStore.isClusterVersionSufficient(this.clusterId, MIN_CLUSTER_VERSION_FOR_ANY_EFFECT);
      },
@@ -73,7 +90,7 @@ diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-comp
          gpuRequestType: this.workloadSpec.compute?.gpuRequestType,
          gpuPortionRequest: this.workloadSpec.compute?.gpuPortionRequest,
          gpuPortionLimit: this.workloadSpec.compute?.gpuPortionLimit,
-@@ -459,12 +506,41 @@
+@@ -459,12 +507,41 @@
  
        this.$emit("update", {
          ...this.workloadSpec,
