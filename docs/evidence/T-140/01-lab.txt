@@ -35,5 +35,10 @@ T-140: 13/13 checks passed
 #   GPU vendor NVIDIA / AMD / No GPU above the GPU fields; AMD + GPU devices 1 -> Extended resources amd.com/gpu 1,
 #   Node pool amd only, total 1 GPU (form-amd-1-gpu.png); back to NVIDIA -> GPU devices 1, no amd.com/gpu, Node pool
 #   nvidia only (form-back-to-nvidia.png).
-# Found after the run: Run:ai still listed t140-nvidia-quarter (its pod gone); the test's cleanup now checks each
-# delete and waits until Run:ai no longer lists the workload.
+# Found after the run: Run:ai still listed t140-nvidia-quarter as Running (its pod and every cluster object gone);
+# Stop and Delete in the UI failed "Failed to get by id: c18f0865-...". The workloads service had deleted it
+# ("Successfully deleted workload <c18f0865-...>", 15 s after it was created and 5 s after the test's delete); only
+# the Workloads list kept a copy. `kubectl -n runai rollout restart deploy/cluster-sync` (a full resync) removed it.
+# A race when a workload is deleted seconds after it starts (cluster-sync runs two copies on HA installs); not filed
+# upstream unless it shows with slower deletes. The test's cleanup now checks each delete and waits until Run:ai no
+# longer lists the workload.

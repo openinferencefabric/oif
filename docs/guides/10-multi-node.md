@@ -271,6 +271,7 @@ Each node keeps its own change record in `/var/lib/oif`, the same kinds as a sin
 | `kubeadm join failed` | On that node: `sudo less /var/lib/oif/kubeadm-join.log`. The token lives 30 minutes; run the install again for a new one. |
 | A pod in a vendor pool stays Pending with `NonPreemptibleOverQuota` | The project's quota in that pool is used: this is the per-vendor quota working. |
 | Run:ai Overview shows 0 allocated GPU devices, empty idle and free GPUs | The control plane has no cluster metrics. `kubectl -n runai logs prometheus-runai-0 -c prometheus \| grep 'Failed to send'`: `insufficient nodes` is the Thanos hashring (run `sudo ./oif install`, stage runai-ha repairs it); other errors are the route to `https://<Run:ai domain>/api/v1/receive`. |
+| A workload stays listed as Running with no pods; **Stop** and **Delete** fail with `Failed to get by id: <id>` | Run:ai deleted it but its Workloads list kept a copy (seen when a workload was deleted seconds after it started, T-140). Resync the cluster: `kubectl -n runai rollout restart deploy/cluster-sync`, then **Refresh**. |
 | Run:ai pods in `ImagePullBackOff` for `oif.local/runai-oss/*` | A node is missing a patched image: run the install again (the runai-patches stage loads it on every node), or check with `sudo tests/lab/t123-runai.sh`. |
 
 ## Known limits
