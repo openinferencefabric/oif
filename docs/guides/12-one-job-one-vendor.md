@@ -28,7 +28,7 @@ In **Workload manager > Workloads > New workload** (training, workspace, inferen
 | AMD | `amd` only | **GPU devices** in the form, sent as `amd.com/gpu` | the form's fields, on oif's AMD fractions (guide 13), hard-capped where the kernel supports it |
 | No GPU | `default` only | none | none |
 
-Switching the vendor sets the pools and converts a whole-GPU count between `nvidia.com/gpu` and `amd.com/gpu`. Loading a compute resource or template shows the vendor it implies. Fractions by GPU memory (for example 12 GB) work on both vendors: on AMD nodes oif sets the GPU memory label KAI reads (guide 13).
+Switching the vendor sets the pools and converts a whole-GPU count between `nvidia.com/gpu` and `amd.com/gpu`. Loading a compute resource or template shows the vendor it implies. Fractions by GPU memory (for example 12 GB) work on both vendors: on AMD nodes oif's KAI reads AMD's own VRAM label (guide 13).
 
 **Compute presets.** oif also creates one compute resource per vendor and size, as quick picks under **Load** (and for the API and CLI): `nvidia-1-gpu`, `nvidia-half-gpu`, `nvidia-quarter-gpu`, `nvidia-12gb`, `amd-1-gpu` (as `amd.com/gpu`), `amd-half-gpu`, `amd-quarter-gpu`, `amd-12gb`. Only the vendors the cluster has are created; the AMD fractions only when AMD fractions are on. They come from [platform/runai/compute-presets.json](../../platform/runai/compute-presets.json); stage `runai-presets` keeps them in step and removes oif's own presets of a vendor that is gone (their description starts with `oif:`), never anyone else's.
 

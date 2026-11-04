@@ -33,7 +33,7 @@ out=$(RUNAI_URL=https://x PYTHONPATH="$ROOT/installer/tools" python3 - "$ROOT/pl
 import json, sys, runai_api as r
 calls = []
 have = [  # on the server: one current, one outdated, one oif preset of a vendor gone, one of the user's own
-    {"meta": {"id": "1", "name": "nvidia-1-gpu", "description": "oif: NVIDIA, 1 whole GPU (node pool nvidia)"}, "spec": {"gpuDevicesRequest": 1}},
+    {"meta": {"id": "1", "name": "nvidia-1-gpu", "description": "oif: NVIDIA, 1 whole GPU (node pool nvidia)"}, "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "portion", "gpuPortionRequest": 1}},
     {"meta": {"id": "2", "name": "nvidia-half-gpu", "description": "oif: old"}, "spec": {"gpuDevicesRequest": 1}},
     {"meta": {"id": "3", "name": "amd-1-gpu", "description": "oif: AMD"}, "spec": {}},
     {"meta": {"id": "4", "name": "my-preset", "description": "mine"}, "spec": {}},

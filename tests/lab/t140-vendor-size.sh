@@ -35,35 +35,41 @@ echo "T-140 GPU vendor and size (project team-c: 1 GPU in nvidia, 1 in amd)"
 presets=$(api presets)
 check "compute presets for both vendors and every size (8)" bash -c '[ "$(wc -w <<< "$1")" = 8 ]' _ "$presets"
 info "presets: $presets"
-mib=$(kc get node gpu-amd -o jsonpath='{.metadata.labels.nvidia\.com/gpu\.memory}' 2>/dev/null)
-check "gpu-amd carries its GPU memory for KAI (nvidia.com/gpu.memory, oif's)" \
-  bash -c '[ "$1" -gt 40000 ] && [ "$2" = set ]' _ "${mib:-0}" "$(kc get node gpu-amd -o jsonpath='{.metadata.labels.oif\.ai/gpu-memory-label}')"
-check "the NVIDIA node keeps its own GPU memory label (not oif's)" \
-  bash -c '[ -n "$1" ] && [ -z "$2" ]' _ "$(kc get node gpu-nvidia -o jsonpath='{.metadata.labels.nvidia\.com/gpu\.memory}')" \
-  "$(kc get node gpu-nvidia -o jsonpath='{.metadata.labels.oif\.ai/gpu-memory-label}')"
+labels=$(kc get node gpu-amd -o jsonpath='{.metadata.labels}')
+check "gpu-amd has AMD's VRAM label (read by KAI, patch 0005) and no NVIDIA memory label" \
+  bash -c 'grep -q "beta.amd.com/gpu.vram" <<< "$1" && ! grep -q "nvidia.com/gpu.memory" <<< "$1"' _ "$labels"
+check "the NVIDIA node keeps its own GPU memory label" \
+  bash -c '[ -n "$1" ]' _ "$(kc get node gpu-nvidia -o jsonpath='{.metadata.labels.nvidia\.com/gpu\.memory}')"
 
-# name compute-json pool expected-node expected-allocated-gpus ("-": by memory, the share is printed)
-while read -r name compute pools node gpus; do
+# name compute-json pool expected-node expected-allocated-gpus ("-": by memory, the share is printed) max-MB of the
+# GPU memory Run:ai reports for the pod ("-": not checked; a whole W7900 is 45000, 93301 was a double count)
+while read -r name compute pools node gpus maxmb; do
   out=$(api run "$name" "$compute" "$pools")
   sed 's/^/        /' <<< "$out"
   if [ "$gpus" = - ]; then check "$name: runs on $node" grep -q "phase=Running node=$node " <<< "$out"
   else check "$name: runs on $node, $gpus GPU" grep -q "phase=Running node=$node gpus=$gpus " <<< "$out"; fi
+  mb=$(sed -n 's/.* memory=\([0-9]*\) .*/\1/p' <<< "$out")
+  [ "$maxmb" = - ] || check "$name: Run:ai reports at most $maxmb MB of GPU memory (${mb:-none})" \
+    bash -c '[ -n "$1" ] && [ "$1" -le "$2" ]' _ "$mb" "$maxmb"
 done <<'CASES'
-t140-nvidia-1 {"gpuDevicesRequest":1} nvidia gpu-nvidia 1
-t140-nvidia-quarter {"gpuDevicesRequest":1,"gpuRequestType":"portion","gpuPortionRequest":0.25} nvidia gpu-nvidia 0.25
-t140-amd-1 {"gpuDevicesRequest":0,"extendedResources":[{"resource":"amd.com/gpu","quantity":"1"}]} amd gpu-amd 1
-t140-amd-half {"gpuDevicesRequest":1,"gpuRequestType":"portion","gpuPortionRequest":0.5} amd gpu-amd 0.5
-t140-amd-12g {"gpuDevicesRequest":1,"gpuRequestType":"memory","gpuMemoryRequest":"12G"} amd gpu-amd -
+t140-nvidia-1 {"gpuDevicesRequest":1} nvidia gpu-nvidia 1 -
+t140-nvidia-quarter {"gpuDevicesRequest":1,"gpuRequestType":"portion","gpuPortionRequest":0.25} nvidia gpu-nvidia 0.25 -
+t140-amd-1 {"gpuDevicesRequest":0,"extendedResources":[{"resource":"amd.com/gpu","quantity":"1"}]} amd gpu-amd 1 50000
+t140-amd-half {"gpuDevicesRequest":1,"gpuRequestType":"portion","gpuPortionRequest":0.5} amd gpu-amd 0.5 25000
+t140-amd-12g {"gpuDevicesRequest":1,"gpuRequestType":"memory","gpuMemoryRequest":"12G"} amd gpu-amd - 13000
 CASES
 
 out=$(api refused t140-amd-devices '{"gpuDevicesRequest":1}' amd)
 sed 's/^/        /' <<< "$out"
 check "GPU devices in pool amd: no pod, refused with the vendor hint" grep -q "refused=yes" <<< "$out"
 
-pod=$(kc -n runai-backend get pods -l app=runai-backend-frontend -o name 2>/dev/null | head -1)
-[ -n "$pod" ] || pod=$(kc -n runai-backend get pods -o name | grep frontend | head -1)
-check "the Run:ai UI serves the GPU vendor choice (patch 0005)" \
-  bash -c 'kubectl --kubeconfig "$1" -n runai-backend exec "$2" -- sh -c "grep -rl oif-gpu-vendor /usr/share/nginx/html/assets | head -1" | grep -q .' _ "$KCFG" "$pod"
+sel=$(kc -n runai-backend get deploy runai-backend-frontend -o json | python3 -c 'import json, sys
+print(",".join(f"{k}={v}" for k, v in json.load(sys.stdin)["spec"]["selector"]["matchLabels"].items()))')
+pod=$(kc -n runai-backend get pods -l "$sel" --field-selector status.phase=Running -o name | head -1)
+ctr=$(kc -n runai-backend get "$pod" -o jsonpath='{.spec.containers[0].name}')
+hit=$(kc -n runai-backend exec "$pod" -c "$ctr" -- sh -c 'grep -rlF oif-gpu-vendor /usr/share/nginx/html 2>/dev/null | head -1' 2>&1)
+info "UI $pod ($ctr, $(kc -n runai-backend get "$pod" -o jsonpath='{.spec.containers[0].image}')): ${hit:-no file with oif-gpu-vendor}"
+check "the Run:ai UI serves the GPU vendor choice (patch 0005)" grep -q "/usr/share/nginx/html/" <<< "$hit"
 
 if [ "${1:-}" = --dynamo ]; then
   kc -n "$NS" delete dynamographdeployment qwen-nvidia-half-gpu --ignore-not-found --wait=true >/dev/null 2>&1

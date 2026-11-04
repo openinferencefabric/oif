@@ -1,6 +1,6 @@
 [
   {"vendor": "nvidia", "meta": {"name": "nvidia-1-gpu", "description": "oif: NVIDIA, 1 whole GPU (node pool nvidia)"},
-   "spec": {"gpuDevicesRequest": 1}},
+   "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "portion", "gpuPortionRequest": 1}},
   {"vendor": "nvidia", "meta": {"name": "nvidia-half-gpu", "description": "oif: NVIDIA, 1/2 GPU (node pool nvidia)"},
    "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "portion", "gpuPortionRequest": 0.5}},
   {"vendor": "nvidia", "meta": {"name": "nvidia-quarter-gpu", "description": "oif: NVIDIA, 1/4 GPU (node pool nvidia)"},

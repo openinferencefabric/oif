@@ -1,0 +1,96 @@
+diff --git a/pkg/scheduler/api/node_info/node_info.go b/pkg/scheduler/api/node_info/node_info.go
+--- a/pkg/scheduler/api/node_info/node_info.go
++++ b/pkg/scheduler/api/node_info/node_info.go
+@@ -706,6 +706,11 @@
+ func getNodeGpuMemory(node *v1.Node) (int64, bool) {
+ 	gpuMemoryLabelValue, err := strconv.ParseInt(node.Labels[GpuMemoryLabel], 10, 64)
+ 	if err != nil {
++		// oif patch (open-inference-fabric T-140): an AMD GPU node has no nvidia.com/gpu.memory; its VRAM is in the AMD
++		// node labeller's beta.amd.com/gpu.vram.<size> label, as the pod-group controller already reads it
++		if mib, ok := oifAmdGpuMemoryMib(node); ok {
++			return mib, true
++		}
+ 		log.InfraLogger.V(6).Do(func() {
+ 			log.InfraLogger.Infof("Could not find gpu memory label %v on node %v", GpuMemoryLabel, node.Name)
+ 		})
+diff --git a/pkg/scheduler/api/node_info/oif_amd_gpu_memory.go b/pkg/scheduler/api/node_info/oif_amd_gpu_memory.go
+new file mode 100644
+--- /dev/null
++++ b/pkg/scheduler/api/node_info/oif_amd_gpu_memory.go
+@@ -0,0 +1,35 @@
++// oif patch (open-inference-fabric T-140, ADR-032): GPU fractions by memory on AMD GPU nodes. The scheduler sizes a
++// fraction asked for in GPU memory from the node's memory per GPU, which it reads only from nvidia.com/gpu.memory;
++// AMD's node labeller writes it as the key beta.amd.com/gpu.vram.<size> (for example beta.amd.com/gpu.vram.45G).
++
++package node_info
++
++import (
++	"regexp"
++	"strings"
++
++	v1 "k8s.io/api/core/v1"
++	"k8s.io/apimachinery/pkg/api/resource"
++)
++
++const oifAmdGpuMemoryLabelPrefix = "beta.amd.com/gpu.vram"
++
++var oifAmdGpuMemorySize = regexp.MustCompile(`\d+.*`)
++
++// oifAmdGpuMemoryMib: MiB of VRAM per GPU from the AMD label, as the pod-group controller parses it (the size in the
++// key, a Kubernetes quantity); false when the node has none or it cannot be read.
++func oifAmdGpuMemoryMib(node *v1.Node) (int64, bool) {
++	for label := range node.Labels {
++		if !strings.HasPrefix(label, oifAmdGpuMemoryLabelPrefix) {
++			continue
++		}
++		q, err := resource.ParseQuantity(oifAmdGpuMemorySize.FindString(strings.TrimPrefix(label, oifAmdGpuMemoryLabelPrefix)))
++		if err != nil {
++			continue
++		}
++		if b, ok := q.AsInt64(); ok && b > 0 {
++			return b / BitToMib, true
++		}
++	}
++	return 0, false
++}
+diff --git a/pkg/scheduler/api/node_info/oif_amd_gpu_memory_test.go b/pkg/scheduler/api/node_info/oif_amd_gpu_memory_test.go
+new file mode 100644
+--- /dev/null
++++ b/pkg/scheduler/api/node_info/oif_amd_gpu_memory_test.go
+@@ -0,0 +1,36 @@
++// oif patch (open-inference-fabric T-140): tests for the AMD GPU memory label.
++
++package node_info
++
++import (
++	"testing"
++
++	v1 "k8s.io/api/core/v1"
++	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
++)
++
++func oifLabelledNode(labels map[string]string) *v1.Node {
++	return &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "n", Labels: labels}}
++}
++
++func TestOifAmdGpuMemory(t *testing.T) {
++	for _, tc := range []struct {
++		name   string
++		labels map[string]string
++		mib    int64
++		synced bool
++	}{
++		{"W7900 (45G)", map[string]string{"beta.amd.com/gpu.vram.45G": "1"}, 45000000000 / BitToMib, true},
++		{"MI300X (192G)", map[string]string{"beta.amd.com/gpu.vram.192G": "1"}, 192000000000 / BitToMib, true},
++		{"NVIDIA label wins", map[string]string{GpuMemoryLabel: "49140", "beta.amd.com/gpu.vram.45G": "1"}, 49140, true},
++		{"no GPU memory label", map[string]string{"amd.com/gpu.product-name": "x"}, DefaultGpuMemory, false},
++		{"unreadable AMD size", map[string]string{"beta.amd.com/gpu.vram.big": "1"}, DefaultGpuMemory, false},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			mib, synced := getNodeGpuMemory(oifLabelledNode(tc.labels))
++			if mib != tc.mib || synced != tc.synced {
++				t.Fatalf("getNodeGpuMemory = %d, %v; want %d, %v", mib, synced, tc.mib, tc.synced)
++			}
++		})
++	}
++}

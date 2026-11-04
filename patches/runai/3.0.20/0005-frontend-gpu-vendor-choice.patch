@@ -73,7 +73,7 @@ diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-comp
          gpuRequestType: this.workloadSpec.compute?.gpuRequestType,
          gpuPortionRequest: this.workloadSpec.compute?.gpuPortionRequest,
          gpuPortionLimit: this.workloadSpec.compute?.gpuPortionLimit,
-@@ -459,12 +506,39 @@
+@@ -459,12 +506,41 @@
  
        this.$emit("update", {
          ...this.workloadSpec,
@@ -102,11 +102,13 @@ diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-comp
 +    oifVendorCompute(vendor: string, compute: IUISuperWorkloadSpec["compute"]): IUISuperWorkloadSpec["compute"] {
 +      const c = { ...compute };
 +      const others = (c.extendedResources || []).filter((e) => e.resource !== AMD_GPU);
-+      const whole = !c.gpuRequestType && (c.gpuDevicesRequest || 0) > 0;
++      // whole GPUs: no request type, or a portion of 1 (how Run:ai stores a whole GPU in a compute resource)
++      const whole = (c.gpuDevicesRequest || 0) > 0 &&
++        (!c.gpuRequestType || (c.gpuRequestType === "portion" && (c.gpuPortionRequest || 0) >= 1));
 +      if (vendor === "amd" && whole) {
 +        // Run:ai's GPU devices are nvidia.com/gpu; a whole AMD GPU is the amd.com/gpu extended resource
 +        c.extendedResources = [...others, { resource: AMD_GPU, quantity: String(c.gpuDevicesRequest) }];
-+        c.gpuDevicesRequest = 0;
++        Object.assign(c, { gpuDevicesRequest: 0, gpuRequestType: undefined, gpuPortionRequest: undefined, gpuPortionLimit: undefined });
 +      } else {
 +        c.extendedResources = others;
 +      }
@@ -118,7 +120,7 @@ diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-comp
 diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts b/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts
 --- a/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts
 +++ b/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts
-@@ -147,4 +147,57 @@
+@@ -147,4 +147,66 @@
        expect(wrapper.emitted("update")?.[0]?.[0]).toEqual({ ...workloadSpec, segmentSize: 2 });
      });
    });
@@ -140,6 +142,15 @@ diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-comp
 +      expect(last(w).nodePools).toEqual(["amd"]);
 +      expect(last(w).compute.gpuDevicesRequest).toBe(0);
 +      expect(last(w).compute.extendedResources).toEqual([{ resource: "amd.com/gpu", quantity: "2" }]);
++    });
++
++    it("AMD with a whole-GPU compute resource (portion 1): amd.com/gpu, no fraction", async () => {
++      const w = factory({ nodePoolsResources: pools,
++        workloadSpec: { nodePools: ["amd"], compute: { gpuDevicesRequest: 1, gpuRequestType: "portion", gpuPortionRequest: 1 } } });
++      await w.vm.selectVendor("amd");
++      expect(last(w).compute.extendedResources).toEqual([{ resource: "amd.com/gpu", quantity: "1" }]);
++      expect(last(w).compute.gpuDevicesRequest).toBe(0);
++      expect(last(w).compute.gpuRequestType).toBeUndefined();
 +    });
 +
 +    it("shows whole AMD GPUs in the GPU devices field and reads the vendor back", () => {
