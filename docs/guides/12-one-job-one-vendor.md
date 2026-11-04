@@ -1,7 +1,7 @@
 # Guide 12: One job, one vendor
 
 Steps T-125, T-129 and T-140 (ADR-032). T-125 tested on the lab cluster (guide 10) on 2026-11-01; T-129 on 2026-11-03 with
-`tests/lab/t129-vendor-pool.sh` (10/10, docs/evidence/T-129/); T-140: not yet tested on the lab.
+`tests/lab/t129-vendor-pool.sh` (10/10, docs/evidence/T-129/); T-140 on 2026-11-04 with `tests/lab/t140-vendor-size.sh` (13/13) and the form in a browser (docs/evidence/T-140/).
 
 ## What you get
 

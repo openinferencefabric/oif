@@ -29,7 +29,7 @@ RUNAI_PASSWORD=$(kc -n runai-backend get secret runai-backend-gen-tenants-manage
 export RUNAI_USER RUNAI_PASSWORD
 api() { PYTHONPATH="$OIF_HOME/installer/tools" python3 "$ROOT/tests/lab/t140-submit.py" "$@"; }
 trap 'api cleanup >/dev/null 2>&1' EXIT
-api cleanup >/dev/null 2>&1
+left=$(api cleanup 2>&1); [ -z "$left" ] || info "left from an earlier run: $(paste -sd' ' <<< "$left")"
 
 echo "T-140 GPU vendor and size (project team-c: 1 GPU in nvidia, 1 in amd)"
 presets=$(api presets)

@@ -38,10 +38,19 @@ def submit(t: str, proj: dict, name: str, compute: str, pool: str) -> None:
 
 
 def delete(t: str, name: str) -> None:
-    _, out = r.call("GET", "/api/v1/workloads", token=t)
-    for w in (out or {}).get("workloads", []):
-        if w["name"] == name:
-            r.call("DELETE", f"/api/v1/workloads/trainings/{w['id']}", token=t)
+    """Delete the training and wait until Run:ai no longer lists it (its pods can go before the workload does)."""
+    for _ in range(24):
+        _, out = r.call("GET", "/api/v1/workloads", token=t)
+        left = [w for w in (out or {}).get("workloads", []) if w["name"] == name]
+        if not left:
+            break
+        for w in left:
+            st, res = r.call("DELETE", f"/api/v1/workloads/trainings/{w['id']}", token=t)
+            if st not in (200, 202, 204, 404):
+                print(f"delete {name}: HTTP {st} {str(res)[:200]}")
+        time.sleep(5)
+    else:
+        print(f"delete {name}: still listed by Run:ai after 2 min")
     for _ in range(36):
         if not [p for p in kc("-n", NS, "get", "pods", "-o", "name").split() if f"/{name}-" in p]:
             return
@@ -65,7 +74,8 @@ def main() -> None:
         _, out = r.call("GET", "/api/v1/workloads", token=t)
         for w in (out or {}).get("workloads", []):
             if w["name"].startswith("t140-"):
-                r.call("DELETE", f"/api/v1/workloads/trainings/{w['id']}", token=t)
+                delete(t, w["name"])
+                print(f"deleted {w['name']}")
     elif cmd == "run":
         name, compute, pool = sys.argv[2:5]
         t, proj = token_project()
