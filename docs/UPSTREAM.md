@@ -29,6 +29,7 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | R8 | Run:ai cluster-sync | AMD GPU nodes reported "GPU fractions not supported" once KAI supports them | follow-up to K1 to K4 | after K1 to K4 |
 | R9 | Run:ai | ROCm workload templates (whole and half AMD GPU) | template JSON | offer as samples |
 | R10 | Run:ai workspaces | Parallel requests during a workspace login fail with `invalid_grant` | issue | issue |
+| R11 | Run:ai metrics | AMD GPUs missing from Run:ai's GPU metrics: its AMD rules read `amd_gpu_*` names no current exporter emits; its Prometheus does not watch `kube-amd-gpu` | feature request (oif's own `oif:gpu_*` rules map the exporter) | filed ([run-ai#4274](https://github.com/dsx-ai-factory/run-ai/issues/4274)) |
 | K1 | KAI common | Helper: is a node an AMD GPU node, which resource holds its GPU | patch 0001 | ready (rename) |
 | K2 | KAI scheduler | Skip the NvFractions readiness check on AMD GPU nodes | patch 0002 | ready |
 | K3 | KAI binder | Reserve an `amd.com/gpu` on AMD nodes; name the shared GPU for the device injector | patch 0003 | rework (annotation names) |
@@ -41,6 +42,7 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | A2 | ROCm (clr, rocr-runtime) | `hipMemGetInfo` and the HSA pool size ignore the cgroup `dmem.max` VRAM limit (S-8) | issue (oif keeps the in-process fraction as the sizing hint) | issue |
 | A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | issue |
 | A4 | ROCm (rocr-runtime, amdkfd) | CU mask only settable by the workload (`HSA_CU_MASK`), no node-enforced compute share (S-8) | issue | drafted, held for a measured run |
+| A5 | ROCm device-metrics-exporter | GPU metrics carry a pod only for device-plugin or DRA allocations, one pod per GPU: GPU-sharing pods (KAI fractions) get no per-pod metrics | candidate (needs a lab run with fraction pods) | not filed |
 
 Checked and not upstream: T-138, Run:ai Overview "Allocated GPU devices" at 0. oif's HA values gave Thanos receive three copies with `replicationFactor` 3 but not the chart's `receive.service.additionalHeadless`, so every remote write was refused; fixed in oif (guide 10). Run:ai's defaults (one receiver) are fine.
 
@@ -84,6 +86,12 @@ Evidence: the lab test `test/amd/quick-dmem-cap.sh` and the vLLM benchmark `test
 [openinferencefabric/gpu-fractioning](https://github.com/openinferencefabric/gpu-fractioning); report with raw results at
 <https://manmohanbrahma.github.io/gpu-benchmark/amd-fraction-dmem-cap/> (a capped 0.5 pod within about 1% of the whole GPU
 on time per token, latency and throughput, on the W7900 and on NVIDIA's gpu-fractioning with an A6000).
+
+## Submitted (2026-11-04)
+
+| # | Thread | What |
+| --- | --- | --- |
+| R11 | [run-ai#4274](https://github.com/dsx-ai-factory/run-ai/issues/4274) | Feature request: AMD GPU metrics from the AMD GPU Operator's Device Metrics Exporter. Name and label mapping (`gpu_total_vram`, `gpu_used_vram` MiB, `gpu_gfx_activity`; `hostname`, `card_model`, `gpu_id`), the scrape namespace, lab evidence and screenshots (Run:ai Nodes without the W7900's memory and free GPUs; OIF Fleet with it), OIF's rules offered as the basis of a PR. Framed as a feature: AMD is not a documented Run:ai configuration |
 
 PRs were checked on the upstream `main` they target (Run:ai cfd9d8ac, KAI 4e6fcbd): build, vet, the service's tests, and lint with the project's own config and version. R1 for upstream parses the AMD count with `strconv.ParseInt(..., 32)` (gosec G109); oif's patch 0001 still uses `Atoi`.
 
@@ -144,6 +152,13 @@ PRs were checked on the upstream `main` they target (Run:ai cfd9d8ac, KAI 4e6fcb
 
 - On the first visit to a workspace URL, the browser asks for dozens of files at once before the session cookie exists; each request starts its own login and all but one fail with `invalid_grant "Code not valid"`. It recovers, but on a slow link the page stays blank for minutes. Likely an oauth2-proxy setting (for example skipping the login for static assets, or serving the app's index first).
 
+
+### R11. AMD GPU metrics from the Device Metrics Exporter (filed)
+
+- **Found in T-138:** with the Thanos fix, Run:ai's metrics count one GPU on a cluster with two; the W7900 has no GPU memory and no fully free GPU device on the Nodes page.
+- **Cause:** `rulegroups.go` maps `amd_gpu_memory_total`, `amd_gpu_memory_used`, `amd_gpu_use_percent` with labels `node_id`, `productname`, `gpu_id`, `pod`; the AMD GPU Operator's exporter (v1.5.1) emits `gpu_total_vram`, `gpu_used_vram` (MiB), `gpu_gfx_activity` with `hostname`, `card_model`, `gpu_id`. Run:ai's Prometheus selects ServiceMonitors only in `runai`, `monitoring`, `kube-system`, `openshift-monitoring`, `dgxc-system` and project namespaces; the exporter's is in `kube-amd-gpu`.
+- **oif today:** its own rules (`platform/observability/rules/oif-gpu.rules.yaml`, `oif:gpu_*`) read the exporter for Grafana; Run:ai's Overview still leaves the AMD GPU out of its metric tiles.
+- **Next:** if the maintainers agree, a PR adding the exporter as a second source in the AMD rules, with promtool tests.
 ## KAI Scheduler
 
 Background: KAI's GPU sharing is written for NVIDIA at every step. On a node whose GPUs are AMD (`amd.com/gpu`), a GPU
@@ -212,3 +227,8 @@ half-GPU workloads share the GPU (24.2 TFLOPS each), a third waits on quota, NVI
 2. For **ready** items, a pull request against the project's main branch: rebase the patch from the pinned release, rename oif's names where noted, keep the tests.
 3. K1 to K4 together, with K6 described in the issue, so the maintainers see the whole AMD fraction path.
 4. Before submitting, check the patch still applies: CI runs `tests/check-patches.sh` on every push against the pinned release (Run:ai 3.0.20, KAI v0.18.3); for a newer upstream, change the version and checksum in `versions.env` and run it.
+
+### A5. Device Metrics Exporter: per-pod metrics for GPU-sharing pods (candidate)
+
+- `pkg/exporter/scheduler/k8s.go` attributes a GPU to a pod from the kubelet's PodResources: an `amd.com/*` device-plugin allocation or a `gpu.amd.com` DRA claim, one pod per device (a later pod overwrites an earlier one). Pods sharing a GPU through KAI fractions ask for no `amd.com/gpu` (the reservation pod holds it), so their usage is reported against the reservation pod or no pod. Related: ROCm/device-metrics-exporter#665 (a shared DRA claim attributed to one pod).
+- **Before filing:** a lab run with two AMD fraction pods, recording the exporter's pod labels. Ask for attribution by the processes using the GPU (the KFD process list, as for A3) and a pod UID label (Run:ai joins per-pod metrics on the UID).
