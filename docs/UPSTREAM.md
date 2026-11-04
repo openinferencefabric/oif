@@ -35,6 +35,7 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | K3 | KAI binder | Reserve an `amd.com/gpu` on AMD nodes; name the shared GPU for the device injector | patch 0003 | rework (annotation names) |
 | K3b | KAI binder | The reservation pod's resource config is changed in place on every call | part of patch 0003 | ready as its own PR |
 | K4 | KAI resource-reservation | Find the reserved AMD GPU without NVML | patch 0004 | ready |
+| K8 | KAI scheduler | GPU-memory fractions on AMD nodes: the scheduler reads only `nvidia.com/gpu.memory`; read `beta.amd.com/gpu.vram.<size>` as the pod-group controller does | patch 0005 (T-140) | proposed on KAI#2556 |
 | K5 | KAI admission | `runtimeClassName: nvidia` set on every fraction pod, whatever the vendor | issue (oif maps the name to runc on AMD nodes) | issue + PR |
 | K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | propose as a design |
 | K7 | KAI gpu-fractioning | `fractiond --gpu-vendor=amd`: hard VRAM cap per pod with the Linux `dmem` cgroup | fork (merged to its main); installed by oif since T-139 | PR open ([gpu-fractioning#175](https://github.com/kai-scheduler/gpu-fractioning/pull/175)) |
@@ -93,6 +94,7 @@ on time per token, latency and throughput, on the W7900 and on NVIDIA's gpu-frac
 | --- | --- | --- |
 | R11 | [run-ai#4274](https://github.com/dsx-ai-factory/run-ai/issues/4274) | Feature request: AMD GPU metrics from the AMD GPU Operator's Device Metrics Exporter. Name and label mapping (`gpu_total_vram`, `gpu_used_vram` MiB, `gpu_gfx_activity`; `hostname`, `card_model`, `gpu_id`), the scrape namespace, lab evidence and screenshots (Run:ai Nodes without the W7900's memory and free GPUs; OIF Fleet with it), OIF's rules offered as the basis of a PR. Framed as a feature: AMD is not a documented Run:ai configuration |
 | A5 | [device-metrics-exporter#722](https://github.com/ROCm/device-metrics-exporter/issues/722) | Feature request: per-pod metrics for pods sharing a GPU without their own `amd.com/gpu` (KAI fractions): the exporter labels the GPU with KAI's reservation pod. Lab evidence from both cases; asks for process-based attribution and a pod UID label |
+| K8 | [comment on KAI#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556#issuecomment-6639255329) | The scheduler cannot size GPU-memory fractions on AMD nodes; oif's KAI patch 0005 (one function, tests) and the T-140 lab evidence; warns against putting `nvidia.com/gpu.memory` on AMD nodes (Run:ai double-counts, the pod-group controller refuses) |
 
 PRs were checked on the upstream `main` they target (Run:ai cfd9d8ac, KAI 4e6fcbd): build, vet, the service's tests, and lint with the project's own config and version. R1 for upstream parses the AMD count with `strconv.ParseInt(..., 32)` (gosec G109); oif's patch 0001 still uses `Atoi`.
 
