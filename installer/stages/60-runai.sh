@@ -177,7 +177,7 @@ RUNAI_FRACTIONS_MIN_DRIVER=615   # Run:ai 3.0 support matrix: GPU fractions need
 # too: copies of it do not replicate, and workspace login sessions (oauth2-proxy) stored in one were missing from the
 # other, so Jupyter and other workspace URLs looped on the login (T-127). A restart only means logging in again.
 RUNAI_SINGLE="anyworkload-controller application-controller cluster-redis kai-operator karta-operator krm-operator runai-cluster-gpu-fractioning runai-operator"
-runai_ha_rev() { echo "$RUNAI_VERSION single-redis thanos-ring"; }
+runai_ha_rev() { echo "$RUNAI_VERSION single-redis thanos-ring-2"; }
 register_stage runai-ha runai_ha_rev
 stage_runai_ha() {
   platform_ha || { ok "Run:ai cluster services: one copy each ($(multi_node && echo 'fewer than 3 control-plane nodes' || echo 'single node'))"; return 0; }
@@ -248,8 +248,16 @@ print(json.dumps(s))' | kc create -f - >> "$LOG" 2>&1 || warn "the original Than
   fi
   rm -rf "$w"
   [ $rc = 0 ] || die "Thanos receive hashring not fixed (see $LOG; kubectl -n $ns get sts,svc,cm | grep thanos-receive)"
-  kc -n "$ns" rollout status "sts/$r" --timeout=15m >> "$LOG" 2>&1 || die "Thanos receivers not ready (kubectl -n $ns get pods | grep thanos-receive)"
+  # not kubectl rollout status: right after the re-creation the StatefulSet has no status and it returns at once
+  wait_for "Thanos receivers restarted on the new settings, one at a time" 900 10 thanos_receive_rolled \
+    || die "Thanos receivers not updated (kubectl -n $ns get pods | grep thanos-receive)"
   ok "Thanos receive: every receiver in the hashring ($(kc -n "$ns" get sts "$r" -o jsonpath='{.spec.replicas}') copies, each sample on all)"
+}
+thanos_receive_rolled() {   # every receiver on the StatefulSet's current revision and ready
+  local s gen seen want updated ready cur upd
+  s=$(kc -n "$THANOS_NS" get sts "$THANOS_RECEIVE" -o jsonpath='{.metadata.generation},{.status.observedGeneration},{.spec.replicas},{.status.updatedReplicas},{.status.readyReplicas},{.status.currentRevision},{.status.updateRevision}') || return 1
+  IFS=, read -r gen seen want updated ready cur upd <<< "$s"
+  [ -n "$upd" ] && [ "$gen" = "$seen" ] && [ "$updated" = "$want" ] && [ "$ready" = "$want" ] && [ "$cur" = "$upd" ]
 }
 runai_metrics_stored() {   # the cluster's Run:ai metrics are in the control plane (what Overview and Analytics read)
   local ip; ip=$(kc -n "$THANOS_NS" get svc "$THANOS_QUERY" -o jsonpath='{.spec.clusterIP}') || return 1

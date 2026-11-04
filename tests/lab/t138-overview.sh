@@ -31,12 +31,26 @@ ring_size() {   # endpoints in the Thanos receive hashring
   kc -n "$THANOS_NS" get configmap "$THANOS_RECEIVE" -o json | python3 -c 'import json, sys
 d = json.load(sys.stdin)["data"]; k = next(k for k in d if k.endswith(".json")); print(sum(len(h["endpoints"]) for h in json.loads(d[k])))'
 }
-refused_writes() {   # remote writes to the control plane refused in the last 5 minutes, over Run:ai's Prometheus copies
+refused_writes() {   # remote writes to the control plane refused in the last 2 minutes, over Run:ai's Prometheus copies
   local p n=0
   for p in $(kc -n runai get pods -l app.kubernetes.io/name=prometheus -o name); do
-    n=$((n + $(kc -n runai logs "$p" -c prometheus --since=5m 2>/dev/null | grep -c "Failed to send batch")))
+    n=$((n + $(kc -n runai logs "$p" -c prometheus --since=2m 2>/dev/null | grep -c "Failed to send batch")))
   done
   echo "$n"
+}
+writes_accepted() {   # no refused write for 2 minutes, within 6 (a run right after the repair still sees older ones)
+  local i
+  for i in $(seq 1 24); do [ "$(refused_writes)" = 0 ] && return 0; sleep 15; done
+  return 1
+}
+receivers_own_endpoint() {   # each running receiver pod (not only the StatefulSet) names itself on the headless service
+  local n
+  n=$(kc -n "$THANOS_NS" get pods -l app.kubernetes.io/component=receive,app.kubernetes.io/name=thanos -o json | python3 -c 'import json, sys
+pods = json.load(sys.stdin)["items"]
+ok = [p for p in pods if p["status"].get("phase") == "Running" and any(a.startswith("--receive.local-endpoint=$(NAME).") and "-headless." in a
+      for c in p["spec"]["containers"] if c["name"] == "receive" for a in c.get("args", []))]
+print(len(ok) if len(ok) == len(pods) else -1)')
+  [ "$n" = "$(kc -n "$THANOS_NS" get sts "$THANOS_RECEIVE" -o jsonpath='{.spec.replicas}')" ]
 }
 
 NS=$(runai_api project-pools team-c nvidia=1 amd=1)
@@ -67,10 +81,11 @@ if platform_ha; then
   check "Thanos receive hashring lists all $replicas receivers" [ "$(ring_size)" = "$replicas" ]
   check "the receivers are on their headless service" \
     [ "$(kc -n "$THANOS_NS" get sts "$THANOS_RECEIVE" -o jsonpath='{.spec.serviceName}')" = "$THANOS_RECEIVE-headless" ]
+  check "every receiver pod restarted with its own endpoint (not 127.0.0.1)" receivers_own_endpoint
 else
   info "fewer than 3 control-plane nodes: one receiver, ring checks skipped"
 fi
-check "no remote write refused by the control plane in the last 5 minutes" [ "$(refused_writes)" = 0 ]
+check "no remote write refused by the control plane for 2 minutes" writes_accepted
 check "the control plane holds the cluster's metrics" runai_metrics_stored
 
 info "before: allocated $(tele ALLOCATED_GPUS), total $(tele TOTAL_GPUS), free $(tele FREE_GPUS)"

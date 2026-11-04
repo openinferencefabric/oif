@@ -10,11 +10,13 @@ for f in "$ROOT"/installer/stages/*.sh; do
   . "$f"
 done
 CALLS=$SANDBOX/calls; FIX=$SANDBOX/fix; mkdir -p "$FIX"
+ROLLED="2,2,3,3,3,rev-new,rev-new"   # generation, observed, replicas, updated, ready, current and update revision
 kc() {
   local last=${*: -1}
   echo "kubectl $*" >> "$CALLS"
   case "$*" in
     *"jsonpath={.spec.replicas}"*) echo 3 ;;
+    *"jsonpath={.metadata.generation}"*) echo "$ROLLED" ;;
     *"get sts runai-backend-thanos-receive -o json") cat "$FIX/sts.json" ;;
     *"get svc runai-backend-thanos-receive -o json") cat "$FIX/svc.json" ;;
     *"get configmap runai-backend-thanos-receive -o json") cat "$FIX/cm.json" ;;
@@ -55,7 +57,13 @@ eq "$(q "$SANDBOX/sent-sts.json" 'd["spec"]["serviceName"], [a for a in d["spec"
   "runai-backend-thanos-receive-headless ['--receive.local-endpoint=\$(NAME).runai-backend-thanos-receive-headless.\$(NAMESPACE).svc.cluster.local:10901'] ['labels', 'name', 'namespace'] False" \
   "StatefulSet on the headless service, each receiver its own endpoint, no server fields:"
 grep -q "delete sts runai-backend-thanos-receive --cascade=orphan" "$CALLS" || fail "StatefulSet re-created without deleting its pods"
-grep -q "rollout status sts/runai-backend-thanos-receive" "$CALLS" || fail "waits for the receivers"
+grep -q "jsonpath={.metadata.generation}" "$CALLS" || fail "waits for the receivers"
+# the wait: a just re-created StatefulSet (no status yet) or one still replacing its pods is not done
+ROLLED="1,,3,,,,"; no_ thanos_receive_rolled
+ROLLED="2,2,3,1,3,rev-old,rev-new"; no_ thanos_receive_rolled
+ROLLED="2,2,3,3,2,rev-new,rev-new"; no_ thanos_receive_rolled
+ROLLED="2,1,3,3,3,rev-new,rev-new"; no_ thanos_receive_rolled
+ROLLED="2,2,3,3,3,rev-new,rev-new"; ok_ thanos_receive_rolled
 
 # a repaired cluster (or one installed with the chart value): the service is applied again, nothing else changes
 cp "$SANDBOX/sent-sts.json" "$FIX/sts.json"
