@@ -70,6 +70,15 @@ then `oif install` taking it over and `tests/lab/t201-dynamo.sh` passing 23 of 2
    s4-qwen-worker-5fa00681-6b75cdc9fb-qnjjj   1/1     Running   ...   gpu-nvidia   nvidia
    ```
 
+### Samples per GPU size (T-140)
+
+[platform/dynamo/samples/](../../platform/dynamo/samples/) has the same deployment on one whole NVIDIA GPU
+(`nvidia-1-gpu.yaml`) and on half of one (`nvidia-half-gpu.yaml`: the worker's pod template carries Run:ai's
+`gpu-fraction: "0.5"` and vLLM is told `--gpu-memory-utilization 0.45`, as it sizes its cache from the whole GPU).
+The vendor is the pool label on every component. Dynamo's vLLM runtime image is CUDA-only, so there is no AMD sample
+yet (ROCm Dynamo, S-1); the vendor and size picker for deployments comes with oif's API (T-311, T-312).
+`sudo tests/lab/t140-vendor-size.sh --dynamo` runs the half-GPU sample and checks the worker gets 0.5 GPU.
+
 ## Check it worked
 
 1. Run:ai **Workloads** shows `s4-qwen` as type DynamoGraphDeployment, project `team-c`, node pool `nvidia`,

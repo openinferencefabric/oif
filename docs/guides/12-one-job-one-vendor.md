@@ -1,7 +1,7 @@
 # Guide 12: One job, one vendor
 
-Steps T-125 and T-129 (ADR-032). T-125 tested on the lab cluster (guide 10) on 2026-11-01; T-129 on 2026-11-03 with
-`tests/lab/t129-vendor-pool.sh` (10/10, docs/evidence/T-129/).
+Steps T-125, T-129 and T-140 (ADR-032). T-125 tested on the lab cluster (guide 10) on 2026-11-01; T-129 on 2026-11-03 with
+`tests/lab/t129-vendor-pool.sh` (10/10, docs/evidence/T-129/); T-140: not yet tested on the lab.
 
 ## What you get
 
@@ -14,7 +14,37 @@ On a cluster whose GPU servers each have one vendor (guide 10: pools `nvidia` an
 - A **pod without a GPU follows its workload** (T-129). A pod with no pool of its own takes the pool of the workload that owns it, for example a Dynamo frontend next to its worker (S-4: the frontend landed in pool `amd` while the worker ran in `nvidia`). Name the pool on the workload object (`runai/node-pool: nvidia` on the Job, Deployment or DynamoGraphDeployment); its pods get it.
 - A **GPU fraction that names no vendor must choose** (T-129). A fraction is asked for by annotation (`gpu-fraction`, `gpu-memory`), not by a vendor's resource; if its pools allow both vendors it is refused (ValidatingAdmissionPolicy `oif-vendor-agnostic-gpu`) with the message to keep one pool. The oif templates already choose one.
 
+- **The vendor and the size are one choice in the form** (T-140). Run:ai's **Compute resources** section gets a **GPU vendor** choice (NVIDIA / AMD / No GPU, from oif's patch 0005; see the next section). A pod that asks for one vendor's GPU while all its node pools are the other vendor's is **refused** with a message to choose the vendor, instead of being moved: before, the form's "GPU devices 1" with pool `amd` ran on the NVIDIA GPU.
+
 On a single node with both vendors (guides 1 to 9) the stages change nothing: there is no per-vendor pool. With one GPU vendor there is nothing to choose, and the webhook and the second policy are not installed.
+
+## Choosing the GPU vendor and size (T-140)
+
+In **Workload manager > Workloads > New workload** (training, workspace, inference, and their templates), the **Compute resources** section starts with **GPU vendor**, when the project has the per-vendor pools:
+
+| Choice | Node pools | Whole GPUs | Fractions and GPU memory |
+| --- | --- | --- | --- |
+| NVIDIA | `nvidia` only | **GPU devices** (`nvidia.com/gpu`) | the form's fields, enforced by NVIDIA's fractioning (guide 11) |
+| AMD | `amd` only | **GPU devices** in the form, sent as `amd.com/gpu` | the form's fields, on oif's AMD fractions (guide 13), hard-capped where the kernel supports it |
+| No GPU | `default` only | none | none |
+
+Switching the vendor sets the pools and converts a whole-GPU count between `nvidia.com/gpu` and `amd.com/gpu`. Loading a compute resource or template shows the vendor it implies. Fractions by GPU memory (for example 12 GB) work on both vendors: on AMD nodes oif sets the GPU memory label KAI reads (guide 13).
+
+**Compute presets.** oif also creates one compute resource per vendor and size, as quick picks under **Load** (and for the API and CLI): `nvidia-1-gpu`, `nvidia-half-gpu`, `nvidia-quarter-gpu`, `nvidia-12gb`, `amd-1-gpu` (as `amd.com/gpu`), `amd-half-gpu`, `amd-quarter-gpu`, `amd-12gb`. Only the vendors the cluster has are created; the AMD fractions only when AMD fractions are on. They come from [platform/runai/compute-presets.json](../../platform/runai/compute-presets.json); stage `runai-presets` keeps them in step and removes oif's own presets of a vendor that is gone (their description starts with `oif:`), never anyone else's.
+
+**Through the API or YAML** there is no form: name one pool (`nodePools: ["amd"]`, or the label `runai/node-pool`) and ask for that vendor's GPU (`amd.com/gpu` as an extended resource for whole AMD GPUs). A pod asking for `nvidia.com/gpu` in pool `amd` (or `amd.com/gpu` in pool `nvidia`) is refused:
+
+```text
+admission webhook "vendor-pool.oif.ai" denied the request: oif-vendor-pool: this workload runs in the AMD GPU pool
+but asks for nvidia.com/gpu (Run:ai's "GPU devices"): for whole AMD GPUs choose AMD as the GPU vendor, or ask for amd.com/gpu
+```
+
+Check it on the lab:
+
+```bash
+sudo tests/lab/t140-vendor-size.sh            # presets, the AMD memory label, one workload per vendor and size, the refusal, the patched UI
+sudo tests/lab/t140-vendor-size.sh --dynamo   # also the half-GPU Dynamo sample (guide 16)
+```
 
 ## Before you start
 
@@ -120,5 +150,7 @@ Nothing on the hosts but one image; cluster changes:
 | `ValidatingAdmissionPolicy 'oif-vendor-agnostic-gpu' ... choose one GPU vendor` | Expected: a GPU fraction whose pools allow NVIDIA and AMD. Keep one pool in the form's **Nodes**, label the pod or its workload `runai/node-pool: nvidia` (or `amd`), or use an oif template. |
 | An NVIDIA workload waits on quota while the AMD GPU is free | Expected since T-129: it no longer moves to the other vendor's GPU, where it could not start. Free NVIDIA quota or give the project more. |
 | A Dynamo frontend (no GPU) runs in another pool than its worker | Its workload object has no `runai/node-pool` label: add it to the DynamoGraphDeployment (or to each component's pod template). Check the webhook's log for the pod. |
+| A workload has no pod; its events say `oif-vendor-pool: this workload runs in the AMD GPU pool but asks for nvidia.com/gpu` | Expected (T-140): it asked for NVIDIA's GPU in pool `amd`. Choose **AMD** as the GPU vendor in the form, or ask for `amd.com/gpu` (extended resource) through the API. The reverse message means `amd.com/gpu` in pool `nvidia`. |
+| No **GPU vendor** choice in the form | The project has no `nvidia` or `amd` pool (one vendor, or a single node), or the Run:ai UI is not the patched one: `sudo ./oif install` (stage runai-patches), guide 8. |
 | Pods are no longer pinned to a vendor's pool | The webhook is down and fails open (pods are created as they are): `kubectl -n oif-vendor-pool get pods`, `logs deploy/oif-vendor-pool`. |
 | A distributed (PyTorch, MPI) workload: `distributed framework PyTorch is not available` | Run:ai's distributed workloads need the Kubeflow training operator, which oif does not install. A multi-pod Kubernetes Job with `schedulerName: runai-scheduler` works and stays in one pool. |

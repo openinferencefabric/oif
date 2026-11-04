@@ -1,0 +1,18 @@
+[
+  {"vendor": "nvidia", "meta": {"name": "nvidia-1-gpu", "description": "oif: NVIDIA, 1 whole GPU (node pool nvidia)"},
+   "spec": {"gpuDevicesRequest": 1}},
+  {"vendor": "nvidia", "meta": {"name": "nvidia-half-gpu", "description": "oif: NVIDIA, 1/2 GPU (node pool nvidia)"},
+   "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "portion", "gpuPortionRequest": 0.5}},
+  {"vendor": "nvidia", "meta": {"name": "nvidia-quarter-gpu", "description": "oif: NVIDIA, 1/4 GPU (node pool nvidia)"},
+   "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "portion", "gpuPortionRequest": 0.25}},
+  {"vendor": "nvidia", "meta": {"name": "nvidia-12gb", "description": "oif: NVIDIA, 12 GB of one GPU (node pool nvidia)"},
+   "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "memory", "gpuMemoryRequest": "12G"}},
+  {"vendor": "amd", "meta": {"name": "amd-1-gpu", "description": "oif: AMD, 1 whole GPU as amd.com/gpu (node pool amd)"},
+   "spec": {"gpuDevicesRequest": 0, "extendedResources": [{"resource": "amd.com/gpu", "quantity": "1"}]}},
+  {"vendor": "amd-fractions", "meta": {"name": "amd-half-gpu", "description": "oif: AMD, 1/2 GPU (node pool amd)"},
+   "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "portion", "gpuPortionRequest": 0.5}},
+  {"vendor": "amd-fractions", "meta": {"name": "amd-quarter-gpu", "description": "oif: AMD, 1/4 GPU (node pool amd)"},
+   "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "portion", "gpuPortionRequest": 0.25}},
+  {"vendor": "amd-fractions", "meta": {"name": "amd-12gb", "description": "oif: AMD, 12 GB of one GPU (node pool amd)"},
+   "spec": {"gpuDevicesRequest": 1, "gpuRequestType": "memory", "gpuMemoryRequest": "12G"}}
+]

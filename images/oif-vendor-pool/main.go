@@ -1,7 +1,8 @@
 // oif-vendor-pool (T-129, ADR-032): a mutating admission webhook for pods in Run:ai project namespaces. It pins a
 // pod to one GPU vendor's node pool (label runai/node-pool and node selector oif.ai/gpu-vendor) when the pod asks for
-// that vendor's GPU, or when the workload that owns it is in that pool. It never refuses a pod: on any doubt it
-// leaves the pod as it is (the webhook also fails open).
+// that vendor's GPU, or when the workload that owns it is in that pool. It refuses only a pod that asks for one
+// vendor's GPU while its node pools are the other vendor's (T-140); on any other doubt it leaves the pod as it is
+// (the webhook also fails open).
 package main
 
 import (
@@ -26,10 +27,16 @@ type request struct {
 }
 
 type response struct {
-	UID       string `json:"uid"`
-	Allowed   bool   `json:"allowed"`
-	PatchType string `json:"patchType,omitempty"`
-	Patch     []byte `json:"patch,omitempty"`
+	UID       string  `json:"uid"`
+	Allowed   bool    `json:"allowed"`
+	Result    *status `json:"status,omitempty"`
+	PatchType string  `json:"patchType,omitempty"`
+	Patch     []byte  `json:"patch,omitempty"`
+}
+
+type status struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
 func main() {
@@ -62,7 +69,10 @@ func mutate(w http.ResponseWriter, r *http.Request, k *kube) {
 			ns = rv.Request.Namespace
 		}
 		owner := func() (string, string) { return ownerPool(k.get, ns, p.Metadata.OwnerReferences) }
-		if pool, why, patch := Decide(&p, owner, k.hasNodes); patch != nil {
+		if msg := Refuse(&p); msg != "" {
+			out.Allowed, out.Result = false, &status{Code: http.StatusForbidden, Message: "oif-vendor-pool: " + msg}
+			log.Printf("pod %s/%s%s refused: %s", ns, p.Metadata.Name, p.Metadata.GenerateName, msg)
+		} else if pool, why, patch := Decide(&p, owner, k.hasNodes); patch != nil {
 			if b, err := json.Marshal(patch); err == nil {
 				out.PatchType, out.Patch = "JSONPatch", b
 				name := p.Metadata.Name

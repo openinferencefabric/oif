@@ -25,6 +25,7 @@ All in `patches/runai/3.0.20/`, each with unit tests that run in the build:
 | `0002-frontend-amd-logo-for-rocm-images.patch` | frontend (web UI) | An image whose path contains a `rocm/` segment (`rocm/pytorch`, `docker.io/rocm/...`) gets the AMD icon instead of the generic one. |
 | `0003-go-operator-fractions-unavailable-without-target-nodes.patch` | go-operator | When the GPU fractioning daemons have no node to run on (both report `NoTargetNodes`), the operator reports GPU fractions unavailable instead of available. Before, every GPU node then counted as not ready (Overview: Ready 0/1 nodes). |
 | `0004-frontend-new-cluster-points-to-oif.patch` | frontend | **Resources > Clusters > New cluster** explains that clusters are added with `oif install` (guide 14) instead of generating NVIDIA's stock Helm command, which has no AMD support and would register a cluster with a bootstrap token. Editing the existing cluster is unchanged (T-127). |
+| `0005-frontend-gpu-vendor-choice.patch` | frontend | The **Compute resources** section of every workload form gets a **GPU vendor** choice (NVIDIA / AMD / No GPU) that sets the node pool to that vendor's pool and sends whole AMD GPUs as `amd.com/gpu`; its vitest cases run in the build (T-140, guide 12). |
 
 ## How oif builds and switches them
 

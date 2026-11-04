@@ -19,6 +19,8 @@ never printed. Commands:
   template-delete NAME                   delete the workload template NAME, if there is one
   submit KIND NAME PROJECT TEMPLATE [COMMAND [ARGS]]  submit a training or workspace (KIND trainings, workspaces) from a template
   workloads                              list the workloads as Run:ai shows them: name, type, phase, project
+  compute-presets FILE KIND...           create or update the compute presets in FILE whose vendor is one of KIND
+                                         (nvidia, amd, amd-fractions), delete oif's presets of the other kinds
   telemetry TYPE                         the cluster's node telemetry TYPE as the Overview reads it (ALLOCATED_GPUS,
                                          TOTAL_GPUS, FREE_GPUS, ...): the sum of its values, or "none" when it has none
 """
@@ -333,6 +335,39 @@ def workloads(token: str) -> None:
         print(w.get("name"), w.get("type", "-").replace(" ", ""), w.get("phase", "-"), w.get("projectName", "-"))
 
 
+def compute_presets(token: str, path: str, kinds: list) -> None:
+    """T-140: oif's compute presets ("compute resources" in the Run:ai UI), one per GPU vendor and size, tenant-wide.
+    oif's are the ones whose description starts with "oif:"; presets of other names are left alone."""
+    with open(path, encoding="utf-8") as f:
+        wanted = [p for p in json.load(f) if p["vendor"] in kinds]
+    status, out = call("GET", "/api/v1/asset/compute", token=token)
+    if status != 200:
+        sys.exit(f"GET compute presets: HTTP {status} {out}")
+    have = {e["meta"]["name"]: e for e in out.get("entries", [])}
+    for p in wanted:
+        meta, spec, name = p["meta"], p["spec"], p["meta"]["name"]
+        if name in have:
+            cur = have[name]
+            if cur["meta"].get("description") == meta["description"] and all(cur.get("spec", {}).get(k) == v for k, v in spec.items()):
+                print(f"compute preset {name} unchanged")
+                continue
+            status, out = call("PUT", f"/api/v1/asset/compute/{cur['meta']['id']}", {"meta": meta, "spec": spec}, token)
+            verb = "updated"
+        else:
+            status, out = call("POST", "/api/v1/asset/compute", {"meta": dict(meta, scope="tenant"), "spec": spec}, token)
+            verb = "created"
+        if status not in (200, 201, 202):
+            sys.exit(f"compute preset {name}: HTTP {status} {out}")
+        print(f"compute preset {name} {verb}")
+    keep = {p["meta"]["name"] for p in wanted}
+    for name, e in have.items():
+        if name not in keep and (e["meta"].get("description") or "").startswith("oif:"):
+            status, out = call("DELETE", f"/api/v1/asset/compute/{e['meta']['id']}", token=token)
+            if status not in (200, 202, 204):
+                sys.exit(f"delete compute preset {name}: HTTP {status} {out}")
+            print(f"compute preset {name} deleted")
+
+
 def telemetry(token: str, kind: str) -> None:
     """Print what the Overview page shows for KIND: GET /api/v1/nodes/telemetry for the (only) cluster."""
     cid = clusters(token)[0]["uuid"]
@@ -379,6 +414,8 @@ def main() -> None:
         template_delete(token, sys.argv[2])
     elif cmd == "workloads" and len(sys.argv) == 2:
         workloads(token)
+    elif cmd == "compute-presets" and len(sys.argv) >= 3:
+        compute_presets(token, sys.argv[2], sys.argv[3:])
     elif cmd == "telemetry" and len(sys.argv) == 3:
         telemetry(token, sys.argv[2])
     elif cmd == "submit" and 6 <= len(sys.argv) <= 8:

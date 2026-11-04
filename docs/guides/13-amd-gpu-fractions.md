@@ -181,6 +181,7 @@ oif-amd-share: AMD GPUs on this node: 0000:03:00.0
 | On AMD-only GPU nodes: `/etc/containerd/conf.d/90-oif-amd-fractions.toml` (runtime `nvidia` = runc), containerd restarted once | the file (and the folder, if oif created it) is removed |
 | Five images in containerd on every node: `oif.local/kai-scheduler/{scheduler,binder,resourcereservation}`, `oif.local/oif/oif-amd-share`, `oif.local/oif/oif-fractiond` | go with containerd's data |
 | On capped AMD nodes: `dmem.max` on each fraction pod's cgroup; `dmem` turned on in `cgroup.subtree_control` above the pods where the kubelet had not already (kernel 7.0's kubelet has) | the pod's cap goes with the pod; the controller setting goes with the next reboot |
+| Cluster: node labels `nvidia.com/gpu.memory=<MiB>` and `oif.ai/gpu-memory-label=set` on AMD-only GPU nodes (T-140: KAI sizes fractions by GPU memory from it; the name is NVIDIA's because that is the label KAI reads) | removed with `AMD_FRACTIONS=none`, or from a node that is no longer AMD-only; only labels carrying oif's mark are removed |
 | Cluster: node label `oif.ai/amd-vram-cap=dmem` and DaemonSet `oif-fractiond` (T-139) | `AMD_VRAM_CAP=none` (`sudo ./oif install --reconfigure`) removes both; running pods keep their cap until they end |
 | Cluster: RunaiConfig points KAI at the patched images; namespace `oif-system` (plugin DaemonSet); policy `oif-amd-share-annotations` | go with Run:ai and the cluster; `AMD_FRACTIONS=none` in `.env` (`sudo ./oif install --reconfigure`) puts KAI's stock images back and removes the plugin; `AMD_FRACTIONS=all` (an empty value keeps the saved `none`) turns them on again |
 
@@ -188,7 +189,8 @@ oif-amd-share: AMD GPUs on this node: 0000:03:00.0
 
 | Symptom | Cause and fix |
 | --- | --- |
-| A fraction meant for AMD runs on the NVIDIA GPU | The workload's pools list `nvidia` first: keep only `amd` in the form's **Nodes** section. |
+| A fraction meant for AMD runs on the NVIDIA GPU | The workload's pools list `nvidia` first: choose **AMD** as the GPU vendor in the form (T-140, guide 12), or keep only `amd` in the form's **Nodes** section. |
+| A fraction by GPU memory (for example 12 GB) on AMD waits: `node is not a gpu node or the gpu memory count on the node was not synced yet` | The AMD node has no `nvidia.com/gpu.memory` label, which KAI reads to size it: `sudo ./oif install` (stage amd-fractions sets it, T-140); the stage warns when it cannot read the GPU memory. |
 | Pod on gpu-amd stuck in ContainerCreating: `no runtime for "nvidia" is configured` | The node stage `amd-runtime` has not run there: `sudo ./oif install` again. |
 | Pod on gpu-amd runs but `torch.cuda.is_available()` is False | oif-amd-share was not running when the container was created: `kubectl -n oif-system get pods`; delete the pod so it starts again. The plugin log names every pod it gives a GPU. |
 | `forbidden: ValidatingAdmissionPolicy 'oif-amd-share-annotations'` | Expected for anyone but KAI's binder: ask for a fraction (`gpu-fraction`) instead of setting `oif.ai/amd-gpu`. |

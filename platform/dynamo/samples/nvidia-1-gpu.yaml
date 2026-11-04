@@ -1,0 +1,42 @@
+# T-140: Dynamo 1.6.1 on one whole NVIDIA GPU (frontend + one vLLM worker, Qwen3-0.6B), pool nvidia. Same as the S-4
+# deployment (tests/lab/s4-dynamo-agg.yaml). Submit in Run:ai (Workloads > New workload > Via YAML) or
+#   kubectl -n runai-<project> apply -f platform/dynamo/samples/nvidia-1-gpu.yaml
+# The pool label must be on every component's pod template: the deployment-level label does not reach the pods.
+apiVersion: nvidia.com/v1beta1
+kind: DynamoGraphDeployment
+metadata:
+  name: qwen-nvidia-1-gpu
+  labels:
+    runai/node-pool: nvidia        # Run:ai's node-pool label for the workload
+spec:
+  components:
+    - name: Frontend
+      type: frontend
+      replicas: 1
+      podTemplate:
+        metadata:
+          labels:
+            runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
+        spec:
+          containers:
+            - name: main
+              image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
+    - name: worker
+      type: worker
+      replicas: 1
+      podTemplate:
+        metadata:
+          labels:
+            runai/node-pool: nvidia  # per pod too: the frontend has no GPU and went to pool amd without it (S-4 run 1)
+        spec:
+          containers:
+            - name: main
+              image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.6.1
+              workingDir: /workspace/examples/backends/vllm
+              command: [python3, -m, dynamo.vllm]
+              args: [--model, Qwen/Qwen3-0.6B]
+              resources:
+                limits:
+                  nvidia.com/gpu: "1"
+                requests:
+                  ephemeral-storage: 2Gi

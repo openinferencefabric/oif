@@ -18,7 +18,7 @@ amd_fractions_build_rev() {   # what decides the images: their tag
     | sha256sum | cut -c1-12; }
 amd_fractions_rev() {   # the stage reruns when the images, the plugins' manifests, AMD_FRACTIONS or AMD_VRAM_CAP change
   { amd_fractions_build_rev; cat "$OIF_HOME/platform/gpu-amd/amd-share.yaml" "$OIF_HOME/platform/gpu-amd/amd-vram-cap.yaml"
-    echo "${AMD_FRACTIONS:-} ${AMD_VRAM_CAP:-}"; } | sha256sum | cut -c1-12; }
+    echo "${AMD_FRACTIONS:-} ${AMD_VRAM_CAP:-} gpu-memory-label"; } | sha256sum | cut -c1-12; }
 amd_only_nodes() {   # nodes whose GPUs are all AMD: where oif shares an AMD GPU
   kc get nodes -o json | python3 -c 'import json,sys
 for n in json.load(sys.stdin)["items"]:
@@ -58,8 +58,38 @@ PY
   render "$OIF_HOME/platform/gpu-amd/amd-share.yaml" | kc apply -f - >> "$LOG" || die "oif-amd-share rejected"
   kc -n oif-system rollout status ds/oif-amd-share --timeout=300s >> "$LOG" 2>&1 \
     || die "oif-amd-share not running on every AMD GPU node (kubectl -n oif-system get pods -o wide)"
+  amd_gpu_memory_label "$nodes"
   amd_vram_cap "$nodes"
   ok "AMD GPUs on $nodes can be shared: Run:ai GPU fractions in pool $(pool_for amd); $VRAM_CAP_MSG"
+}
+# T-140: KAI sizes a fraction asked for in GPU memory (Run:ai's "GPU memory", e.g. 12 GB) from the node label
+# nvidia.com/gpu.memory (MiB per GPU), which only NVIDIA's GPU feature discovery sets; without it a memory fraction on
+# an AMD node never schedules. oif sets it on the AMD-only nodes from the VRAM the kernel reports (dmem.capacity), or
+# from the AMD node labeller's amd.com/gpu.vram, and marks it so only the labels it set are removed.
+AMD_MEM_MARK=oif.ai/gpu-memory-label
+amd_vram_mib() {   # node: MiB of VRAM of its smallest AMD GPU, empty if unknown
+  local b v
+  b=$(amd_node_run "$1" "awk '/^drm\/.*\/vram /{print \$2}' /sys/fs/cgroup/dmem.capacity 2>/dev/null | sort -n | head -1" 2>/dev/null)
+  if [[ $b =~ ^[0-9]+$ ]] && [ "$b" -gt 0 ]; then echo $((b / 1048576)); return; fi
+  v=$(kc get node "$1" -o jsonpath='{.metadata.labels.amd\.com/gpu\.vram}' 2>/dev/null)   # e.g. 45G
+  [[ $v =~ ^([0-9]+)G$ ]] && echo $((BASH_REMATCH[1] * 1024))
+}
+amd_gpu_memory_label() {   # nodes: label each with its GPU memory for KAI; drop oif's label from nodes no longer listed
+  local n mib done_=""
+  for n in $1; do
+    mib=$(amd_vram_mib "$n")
+    if [ -z "$mib" ]; then warn "$n: AMD GPU memory unknown (no dmem.capacity, no amd.com/gpu.vram): GPU fractions by memory will not schedule there"; continue; fi
+    kc label node "$n" "nvidia.com/gpu.memory=$mib" "$AMD_MEM_MARK=set" --overwrite >> "$LOG" || die "cannot label node $n with its GPU memory"
+    done_="$done_ $n ($mib MiB)"
+  done
+  amd_gpu_memory_unlabel "$1"
+  [ -z "$done_" ] || ok "AMD GPU memory for fractions by GB:$done_"
+}
+amd_gpu_memory_unlabel() {   # [nodes to keep]: remove the labels oif set from every other node
+  local n
+  for n in $(kc get nodes -l "$AMD_MEM_MARK" -o name 2>/dev/null | sed 's|^node/||'); do
+    [[ " ${1:-} " == *" $n "* ]] || kc label node "$n" nvidia.com/gpu.memory- "$AMD_MEM_MARK-" >> "$LOG" 2>&1 || true
+  done
 }
 amd_node_run() {   # node-name command: run the command on that Kubernetes node (this host, or over SSH with the cluster key)
   local name addr role
@@ -146,6 +176,7 @@ amd_fractions_import() {   # tarball-name image: into containerd on this node
 amd_fractions_off() {   # KAI's stock images back; the plugins and the policy removed (no pod is given a shared AMD GPU)
   local p
   amd_vram_cap_off
+  amd_gpu_memory_unlabel ""
   for p in /spec/runai-scheduler/image /spec/binder/image /spec/binder/resourceReservation/image; do
     kc -n runai patch runaiconfig runai --type json -p "[{\"op\":\"remove\",\"path\":\"$p\"}]" >> "$LOG" 2>&1 || true
   done
