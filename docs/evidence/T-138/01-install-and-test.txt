@@ -1,0 +1,56 @@
+# T-138 on the lab cluster, 2026-11-04: branch feat/T-138-thanos-receive on cp1 of the five-node hybrid-gpu-lab
+# cluster (three control-plane nodes). Run 1 (41bed33) repaired the receivers; its stage wait returned at once and the
+# test counted refused writes from before the repair (6/7). Run 2 (36796e4) waits for the receivers and reads the pods.
+
+## Run 1: sudo ./oif install (41bed33)
+2026-11-04 09:51:45 == stage: runai-ha (3.0.20 single-redis -> 3.0.20 single-redis thanos-ring)
+service/runai-backend-thanos-receive-headless created
+configmap/runai-backend-thanos-receive patched
+statefulset.apps "runai-backend-thanos-receive" deleted from runai-backend namespace
+statefulset.apps/runai-backend-thanos-receive created
+statefulset rolling update complete 0 pods at revision runai-backend-thanos-receive-5cd96c7f4d...
+  [ok] Thanos receive: every receiver in the hashring (3 copies, each sample on all)
+  [ok] Run:ai cluster services in two copies on different nodes
+2026-11-04 09:51:46 == stage: runai-verify (3.0.20 -> 3.0.20 metrics)
+  [ok] Run:ai pods running in runai-backend
+  [ok] Run:ai pods running in runai
+  [ok] Run:ai UI answers on https://<Run:ai domain> (HTTP 200, certificate trusted by the oif CA)
+  [ok] Run:ai metrics stored in the control plane
+2026-11-04 09:53:19 == install finished
+
+## Run 1: sudo tests/lab/t138-overview.sh
+  PASS  Thanos receive hashring lists all 3 receivers
+  PASS  the receivers are on their headless service
+  FAIL  no remote write refused by the control plane in the last 5 minutes
+  PASS  the control plane holds the cluster's metrics
+  INFO  before: allocated none, total 2, free none
+  PASS  Overview: 1 allocated GPU device with a whole NVIDIA GPU
+  PASS  Overview: 1.5 with half an AMD GPU as well
+  PASS  Overview: free GPUs reported
+  INFO  with both pods: allocated 1.5, total 2, free 0, idle none
+T-138: 6/7 checks passed
+
+## Run 2: sudo ./oif install (36796e4)
+2026-11-04 10:00:52 == stage: runai-ha (3.0.20 single-redis thanos-ring -> 3.0.20 single-redis thanos-ring-2)
+service/runai-backend-thanos-receive-headless unchanged
+  [ok] Thanos receivers restarted on the new settings, one at a time
+  [ok] Thanos receive: every receiver in the hashring (3 copies, each sample on all)
+  [ok] Run:ai cluster services in two copies on different nodes
+2026-11-04 10:00:54 == install finished
+
+## Run 2: sudo tests/lab/t138-overview.sh
+T-138 Run:ai Overview counts allocated GPUs (project team-c: 1 GPU in nvidia, 1 in amd)
+  PASS  Thanos receive hashring lists all 3 receivers
+  PASS  the receivers are on their headless service
+  PASS  every receiver pod restarted with its own endpoint (not 127.0.0.1)
+  PASS  no remote write refused by the control plane for 2 minutes
+  PASS  the control plane holds the cluster's metrics
+  INFO  before: allocated 0, total 2, free 1
+  PASS  Overview: 1 allocated GPU device with a whole NVIDIA GPU
+  PASS  Overview: 1.5 with half an AMD GPU as well
+  PASS  Overview: free GPUs reported
+  INFO  with both pods: allocated 1.5, total 2, free 1, idle none
+T-138: 8/8 checks passed
+
+# Free GPUs is Run:ai's metric over the GPUs it counts in Prometheus, where the AMD GPU is missing (run-ai#3939, PR
+# #3950): it is checked for a value only.

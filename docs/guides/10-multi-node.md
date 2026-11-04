@@ -165,7 +165,7 @@ What makes a failover fast enough, each from a failed lab run: a silent node is 
 
 ### Run:ai metrics in the control plane
 
-**Step:** T-138. **Tested:** pending (lab).
+**Step:** T-138. **Tested:** 2026-11-04 on the lab cluster, repair of an installed cluster (evidence in `docs/evidence/T-138/`).
 
 The cluster's Prometheus (`runai/runai`) sends Run:ai's metrics to the control plane's Thanos receive. Run:ai's Overview and Analytics pages read every metric number from there: allocated, idle and free GPUs, CPU and memory, and the charts. Only the node and GPU device counts come from Run:ai's database.
 
