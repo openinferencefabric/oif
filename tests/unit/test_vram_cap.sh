@@ -60,6 +60,16 @@ GPU_FRACTIONING_REF=0000000000000000000000000000000000000000; c=$(amd_fractions_
 [ "$a" != "$b" ] || fail "changing AMD_VRAM_CAP reruns the stage"
 [ "$b" != "$c" ] || fail "a new gpu-fractioning commit rebuilds the images"
 
+# T-140: the GPU memory label of the first version is removed, only where oif set it (marked)
+MARKED=""
+kc() {
+  echo "kubectl $*" >> "$CALLS"
+  case "$*" in *"get nodes -l oif.ai/gpu-memory-label -o name"*) for n in $MARKED; do echo "node/$n"; done ;; esac
+  return 0
+}
+rm -f "$CALLS"; MARKED="amd-1"; amd_gpu_memory_unlabel "" > /dev/null
+grep -q "kubectl label node amd-1 nvidia.com/gpu.memory- oif.ai/gpu-memory-label-" "$CALLS" || fail "fractions off: label removed"
+
 out=$(render "$ROOT/platform/gpu-amd/amd-vram-cap.yaml")
 grep -q "image: $FRACTIOND_IMAGE" <<< "$out" || fail "DaemonSet runs the built fractiond image"
 grep -q -- "--gpu-vendor=amd" <<< "$out" || fail "fractiond runs the AMD backend"

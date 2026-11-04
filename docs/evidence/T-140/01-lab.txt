@@ -1,0 +1,44 @@
+# T-140 on the lab cluster, 2026-11-04: branch feat/T-140-vendor-size-picker, sudo ./oif install then
+# sudo tests/lab/t140-vendor-size.sh on cp1 (five nodes, A6000 and W7900). Three rounds:
+#   e95bad6  8/10  runai-presets failed (Run:ai's API wants a request type for 1 GPU); the nvidia.com/gpu.memory label
+#                  set on gpu-amd made Run:ai report 93301 MB for the W7900 (its status-updater adds AMD's label to it)
+#   c12a177 12/13  KAI patch 0005 (AMD memory from beta.amd.com/gpu.vram), label removed, presets created; UI check
+#                  failed: the frontend image has no shell
+#   80bfcf0 13/13  below; the form's node pool and extended resources redraw with the vendor choice
+
+T-140 GPU vendor and size (project team-c: 1 GPU in nvidia, 1 in amd)
+  PASS  compute presets for both vendors and every size (8)
+  INFO  presets: amd-1-gpu amd-12gb amd-half-gpu amd-quarter-gpu nvidia-1-gpu nvidia-12gb nvidia-half-gpu nvidia-quarter-gpu
+  PASS  gpu-amd has AMD's VRAM label (read by KAI, patch 0005) and no NVIDIA memory label
+  PASS  the NVIDIA node keeps its own GPU memory label
+        phase=Running node=gpu-nvidia gpus=1 memory=51527 limits=[{'nvidia.com/gpu': '1'}]
+  PASS  t140-nvidia-1: runs on gpu-nvidia, 1 GPU
+        phase=Running node=gpu-nvidia gpus=0.25 memory=12881 limits=[None]
+  PASS  t140-nvidia-quarter: runs on gpu-nvidia, 0.25 GPU
+        phase=Running node=gpu-amd gpus=1 memory=45000 limits=[{'amd.com/gpu': '1'}]
+  PASS  t140-amd-1: runs on gpu-amd, 1 GPU
+  PASS  t140-amd-1: Run:ai reports at most 50000 MB of GPU memory (45000)
+        phase=Running node=gpu-amd gpus=0.5 memory=22500 limits=[None]
+  PASS  t140-amd-half: runs on gpu-amd, 0.5 GPU
+  PASS  t140-amd-half: Run:ai reports at most 25000 MB of GPU memory (22500)
+        phase=Running node=gpu-amd gpus=0.27 memory=12000 limits=[None]
+  PASS  t140-amd-12g: runs on gpu-amd
+  PASS  t140-amd-12g: Run:ai reports at most 13000 MB of GPU memory (12000)
+        pod=none refused=yes
+        Error creating: admission webhook "vendor-pool.oif.ai" denied the request: oif-vendor-pool: this workload runs in the AMD GPU pool but asks for nvidia.com/gpu (Run:ai's "GPU devices"): for whole AMD GPUs choose AMD as the GPU vendor, or ask for amd.com/gpu
+  PASS  GPU devices in pool amd: no pod, refused with the vendor hint
+  INFO  UI oif.local/runai-oss/frontend:3.0.20-oif1: oif-gpu-vendor in /assets/index-*.js (after 17 files)
+  PASS  the Run:ai UI serves the GPU vendor choice (patch 0005)
+T-140: 13/13 checks passed
+
+# Browser check of the form (Run:ai 3.0.20 UI, new training in team-c; nothing submitted):
+#   GPU vendor NVIDIA / AMD / No GPU above the GPU fields; AMD + GPU devices 1 -> Extended resources amd.com/gpu 1,
+#   Node pool amd only, total 1 GPU (form-amd-1-gpu.png); back to NVIDIA -> GPU devices 1, no amd.com/gpu, Node pool
+#   nvidia only (form-back-to-nvidia.png).
+# Found after the run: Run:ai still listed t140-nvidia-quarter as Running (its pod and every cluster object gone);
+# Stop and Delete in the UI failed "Failed to get by id: c18f0865-...". The workloads service had deleted it
+# ("Successfully deleted workload <c18f0865-...>", 15 s after it was created and 5 s after the test's delete); only
+# the Workloads list kept a copy. `kubectl -n runai rollout restart deploy/cluster-sync` (a full resync) removed it.
+# A race when a workload is deleted seconds after it starts (cluster-sync runs two copies on HA installs); not filed
+# upstream unless it shows with slower deletes. The test's cleanup now checks each delete and waits until Run:ai no
+# longer lists the workload.

@@ -12,8 +12,8 @@ cd "run-ai-$RUNAI_VERSION"
 for p in /patches/*frontend*.patch; do echo "== patch ${p##*/}"; git apply -v "$p"; done
 cd control-plane/frontend
 echo "== npm ci"; npm ci --no-audit --no-fund --loglevel=error > /tmp/npm.log 2>&1 || { tail -40 /tmp/npm.log; exit 1; }
-echo "== tests (icons)"
-npx vitest run --environment jsdom src/common/icon.util > /tmp/test.log 2>&1 || { tail -40 /tmp/test.log; exit 1; }
+echo "== tests (icons; the compute section patched by 0005)"
+npx vitest run --environment jsdom src/common/icon.util src/components/workload-creation/hybrid-compute-resource-section > /tmp/test.log 2>&1 || { tail -40 /tmp/test.log; exit 1; }
 grep -E "Tests|passed|failed" /tmp/test.log | tail -2
 echo "== build (type check and bundle)"
 NODE_OPTIONS=--max-old-space-size=8192 npm run build > /tmp/build.log 2>&1 || { tail -40 /tmp/build.log; exit 1; }

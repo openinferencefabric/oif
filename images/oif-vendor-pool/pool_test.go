@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -71,5 +72,42 @@ func TestOwnerPool(t *testing.T) {
 	}
 	if pool, _ := ownerPool(get, "ns", []OwnerRef{{APIVersion: "apps/v1", Kind: "ReplicaSet", Name: "gone", Controller: true}}); pool != "" {
 		t.Fatalf("missing owner: got %q", pool)
+	}
+}
+
+func TestRefuse(t *testing.T) {
+	// Run:ai writes a workload's node pools as OR'd required terms; pool default is runai/node-pool DoesNotExist
+	aff := func(terms ...string) string {
+		return `"affinity":{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[` + strings.Join(terms, ",") + `]}}}`
+	}
+	vendor := func(v string) string {
+		return `{"matchExpressions":[{"key":"oif.ai/gpu-vendor","operator":"In","values":["` + v + `"]}]}`
+	}
+	dflt := `{"matchExpressions":[{"key":"runai/node-pool","operator":"DoesNotExist"}]}`
+	nv := `"containers":[{"resources":{"limits":{"nvidia.com/gpu":"1"}}}]`
+	amd := `"containers":[{"resources":{"limits":{"amd.com/gpu":"1"}}}]`
+	for _, tc := range []struct {
+		name, spec string
+		refused    bool
+	}{
+		{"GPU devices in pool amd only (the T-140 spike)", aff(vendor("amd")) + `,` + nv, true},
+		{"amd.com/gpu in pool nvidia only", aff(vendor("nvidia")) + `,` + amd, true},
+		{"GPU devices in pool nvidia", aff(vendor("nvidia")) + `,` + nv, false},
+		{"amd.com/gpu in pool amd", aff(vendor("amd")) + `,` + amd, false},
+		{"GPU devices, pools amd and nvidia", aff(vendor("amd"), vendor("nvidia")) + `,` + nv, false},
+		{"GPU devices, pools amd and default (default does not limit the vendor)", aff(vendor("amd"), dflt) + `,` + nv, false},
+		{"GPU devices, no affinity", nv, false},
+		{"fraction (no GPU resource) in pool amd", aff(vendor("amd")) + `,"containers":[{}]`, false},
+		{"both vendors' GPUs (oif-one-gpu-vendor refuses it)", aff(vendor("amd")) + `,"containers":[{"resources":{"limits":{"nvidia.com/gpu":"1","amd.com/gpu":"1"}}}]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			msg := Refuse(pod(t, `{"spec":{`+tc.spec+`}}`))
+			if (msg != "") != tc.refused {
+				t.Fatalf("refused = %q, want refused %v", msg, tc.refused)
+			}
+			if tc.refused && !strings.Contains(msg, "GPU vendor") {
+				t.Fatalf("message does not say what to choose: %q", msg)
+			}
+		})
 	}
 }

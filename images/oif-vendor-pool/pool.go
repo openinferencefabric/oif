@@ -22,9 +22,25 @@ type Pod struct {
 	} `json:"metadata"`
 	Spec struct {
 		NodeSelector   map[string]string `json:"nodeSelector"`
+		Affinity       *Affinity         `json:"affinity"`
 		Containers     []Container       `json:"containers"`
 		InitContainers []Container       `json:"initContainers"`
 	} `json:"spec"`
+}
+
+// Affinity: the required node affinity, where Run:ai writes a workload's node pools (one term per pool).
+type Affinity struct {
+	NodeAffinity *struct {
+		Required *struct {
+			Terms []struct {
+				MatchExpressions []struct {
+					Key      string   `json:"key"`
+					Operator string   `json:"operator"`
+					Values   []string `json:"values"`
+				} `json:"matchExpressions"`
+			} `json:"nodeSelectorTerms"`
+		} `json:"requiredDuringSchedulingIgnoredDuringExecution"`
+	} `json:"nodeAffinity"`
 }
 
 type OwnerRef struct {
@@ -67,6 +83,52 @@ func ResourceVendor(p *Pod) string {
 		return v
 	}
 	return ""
+}
+
+// AllowedVendors: the GPU vendors the pod's required node affinity allows, nil when it does not limit them (no
+// affinity, or a term without an oif.ai/gpu-vendor In expression).
+func AllowedVendors(p *Pod) map[string]bool {
+	a := p.Spec.Affinity
+	if a == nil || a.NodeAffinity == nil || a.NodeAffinity.Required == nil || len(a.NodeAffinity.Required.Terms) == 0 {
+		return nil
+	}
+	allowed := map[string]bool{}
+	for _, t := range a.NodeAffinity.Required.Terms {
+		limited := false
+		for _, e := range t.MatchExpressions {
+			if e.Key == vendorLabel && e.Operator == "In" {
+				limited = true
+				for _, v := range e.Values {
+					allowed[v] = true
+				}
+			}
+		}
+		if !limited {
+			return nil
+		}
+	}
+	return allowed
+}
+
+// Refuse: why the pod cannot be admitted, "" if it can. T-140 (ADR-032 amendment 2026-11-04): a pod asking for one
+// vendor's GPU in a workload limited to the other vendor's pools is refused rather than moved to its vendor's pool,
+// so the user's vendor choice is never switched silently (Run:ai's "GPU devices" is always nvidia.com/gpu).
+func Refuse(p *Pod) string {
+	v, allowed := ResourceVendor(p), AllowedVendors(p)
+	if v == "" || allowed == nil || allowed[v] {
+		return ""
+	}
+	other := "nvidia"
+	if v == "nvidia" {
+		other = "amd"
+	}
+	if !allowed[other] {
+		return ""
+	}
+	if v == "nvidia" {
+		return "this workload runs in the AMD GPU pool but asks for nvidia.com/gpu (Run:ai's \"GPU devices\"): for whole AMD GPUs choose AMD as the GPU vendor, or ask for amd.com/gpu"
+	}
+	return "this workload runs in the NVIDIA GPU pool but asks for amd.com/gpu: choose NVIDIA as the GPU vendor, or run it in the AMD GPU pool"
 }
 
 // OwnPool: the pool the pod already chose (a vendor node selector or a pool label), "" if none.

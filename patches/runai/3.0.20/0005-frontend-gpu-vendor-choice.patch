@@ -1,0 +1,206 @@
+diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.vue b/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.vue
+--- a/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.vue
++++ b/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.vue
+@@ -23,6 +23,20 @@
+       <span>{{ computeSummary }}</span>
+     </template>
+ 
++    <!-- oif patch (open-inference-fabric T-140): GPU vendor and size as one choice; the vendor sets the node pool -->
++    <div v-if="vendorOptions.length > 1 && !hideGpuResources" class="q-pa-sm q-mb-md" aid="oif-gpu-vendor">
++      <div class="q-mb-xs">GPU vendor</div>
++      <q-option-group
++        inline
++        type="radio"
++        :options="vendorOptions"
++        :model-value="gpuVendor"
++        @update:model-value="selectVendor"
++        :disable="sectionDisabled || isLinked"
++      />
++      <div class="text-caption text-grey-8 q-mt-xs">{{ vendorHint }}</div>
++    </div>
++
+     <compute-resource-section-layout
+       :model-value="resourcesModel"
+       @update:model-value="updateResourcesModel"
+@@ -91,7 +105,7 @@
+         />
+ 
+         <extended-resources
+-          :key="`extended-resources-${renderKey}`"
++          :key="`extended-resources-${renderKey}-${gpuVendor}-${amdWholeGpus}`"
+           :extended-resources="workloadSpec.compute?.extendedResources || undefined"
+           @update:model-value="updateExtendedResources"
+           :policy-defaults="policy?.defaults?.compute?.extendedResources"
+@@ -120,6 +134,7 @@
+       <runai-folding-sub-section label="Nodes" aid="nodes-sub-section" v-if="showNodesSubSection">
+         <node-pools-resource-section
+           v-if="!hideSpecificSections?.nodes"
++          :key="`node-pools-${gpuVendor}`"
+           :node-pools-list-origin="ENodePoolsListOrigin.Project"
+           :apply-policy-defaults="false"
+           :selected-node-pools="defaultNodePools"
+@@ -206,6 +221,9 @@
+ import { computeResourceUtil } from "@/utils/compute-resource.util";
+ 
+ // Constants
++// oif (T-140): its node pools, one per GPU vendor, and the extended resource of a whole AMD GPU
++const OIF_VENDOR_POOLS: Record<string, string> = { nvidia: "nvidia", amd: "amd", none: "default" };
++const AMD_GPU = "amd.com/gpu";
+ 
+ export default defineComponent({
+   name: "hybrid-compute-resource-section",
+@@ -340,9 +358,39 @@
+       if (!this.clusterId) return false;
+       return this.clusterStore.isClusterVersionSufficient(this.clusterId, MIN_CLUSTER_VERSION_FOR_ANY_EFFECT);
+     },
++    // oif (T-140): the vendor the form is set to, read back from the spec (also after loading a preset or template)
++    amdWholeGpus(): number {
++      const r = (this.workloadSpec.compute?.extendedResources || []).find((e) => e.resource === AMD_GPU && !e.exclude);
++      return r ? parseInt(r.quantity || "0") || 0 : 0;
++    },
++    gpuVendor(): string {
++      const pools = this.workloadSpec.nodePools || [];
++      if (this.amdWholeGpus > 0) return "amd";
++      if (pools.length === 1) {
++        const v = Object.keys(OIF_VENDOR_POOLS).find((k) => OIF_VENDOR_POOLS[k] === pools[0]);
++        if (v) return v;
++      }
++      return "";
++    },
++    vendorOptions(): Array<{ label: string; value: string }> {
++      const have = this.allNodePoolsNames;
++      if (!have.includes(OIF_VENDOR_POOLS.nvidia) && !have.includes(OIF_VENDOR_POOLS.amd)) return [];
++      return [
++        { label: "NVIDIA", value: "nvidia" },
++        { label: "AMD", value: "amd" },
++        { label: "No GPU", value: "none" },
++      ].filter((o) => have.includes(OIF_VENDOR_POOLS[o.value]));
++    },
++    vendorHint(): string {
++      if (this.gpuVendor === "amd") return "Runs in node pool amd. Whole GPUs are requested as amd.com/gpu; fractions and GPU memory as set below.";
++      if (this.gpuVendor === "nvidia") return "Runs in node pool nvidia.";
++      if (this.gpuVendor === "none") return "No GPU: runs in node pool default.";
++      return "Choose the GPU vendor: it sets the node pool, so the workload never runs on the other vendor's GPU.";
++    },
+     resourcesModel(): IResourcesSectionModel {
+       return {
+-        gpuDevicesRequest: this.workloadSpec.compute?.gpuDevicesRequest || 0,
++        // oif (T-140): whole AMD GPUs live in extendedResources (amd.com/gpu) but show in the GPU devices field
++        gpuDevicesRequest: this.amdWholeGpus || this.workloadSpec.compute?.gpuDevicesRequest || 0,
+         gpuRequestType: this.workloadSpec.compute?.gpuRequestType,
+         gpuPortionRequest: this.workloadSpec.compute?.gpuPortionRequest,
+         gpuPortionLimit: this.workloadSpec.compute?.gpuPortionLimit,
+@@ -459,12 +507,41 @@
+ 
+       this.$emit("update", {
+         ...this.workloadSpec,
+-        compute: {
++        compute: this.oifVendorCompute(this.gpuVendor, {
+           ...this.workloadSpec.compute,
+           ...computeFields,
+-        },
++        }),
++      });
++    },
++    // oif (T-140): the vendor's pool, and the GPU request in the form that vendor's GPUs take
++    selectVendor(vendor: string): void {
++      const compute = { ...this.workloadSpec.compute };
++      if (vendor !== "amd" && this.amdWholeGpus > 0) compute.gpuDevicesRequest = this.amdWholeGpus;
++      if (vendor === "none") {
++        Object.assign(compute, { gpuDevicesRequest: 0, gpuRequestType: undefined, gpuPortionRequest: undefined,
++          gpuPortionLimit: undefined, gpuMemoryRequest: undefined, gpuMemoryLimit: undefined });
++      }
++      this.$emit("update", {
++        ...this.workloadSpec,
++        nodePools: [OIF_VENDOR_POOLS[vendor]],
++        compute: this.oifVendorCompute(vendor, compute),
+       });
+     },
++    oifVendorCompute(vendor: string, compute: IUISuperWorkloadSpec["compute"]): IUISuperWorkloadSpec["compute"] {
++      const c = { ...compute };
++      const others = (c.extendedResources || []).filter((e) => e.resource !== AMD_GPU);
++      // whole GPUs: no request type, or a portion of 1 (how Run:ai stores a whole GPU in a compute resource)
++      const whole = (c.gpuDevicesRequest || 0) > 0 &&
++        (!c.gpuRequestType || (c.gpuRequestType === "portion" && (c.gpuPortionRequest || 0) >= 1));
++      if (vendor === "amd" && whole) {
++        // Run:ai's GPU devices are nvidia.com/gpu; a whole AMD GPU is the amd.com/gpu extended resource
++        c.extendedResources = [...others, { resource: AMD_GPU, quantity: String(c.gpuDevicesRequest) }];
++        Object.assign(c, { gpuDevicesRequest: 0, gpuRequestType: undefined, gpuPortionRequest: undefined, gpuPortionLimit: undefined });
++      } else {
++        c.extendedResources = others;
++      }
++      return c;
++    },
+     updateExtendedResources(extendedResources: ExtendedResource[]) {
+       this.$emit("update", { ...this.workloadSpec, compute: { ...this.workloadSpec.compute, extendedResources } });
+     },
+diff --git a/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts b/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts
+--- a/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts
++++ b/control-plane/frontend/src/components/workload-creation/hybrid-compute-resource-section/hybrid-compute-resource-section.test.ts
+@@ -147,4 +147,66 @@
+       expect(wrapper.emitted("update")?.[0]?.[0]).toEqual({ ...workloadSpec, segmentSize: 2 });
+     });
+   });
++  // oif patch (open-inference-fabric T-140): GPU vendor choice
++  describe("oif GPU vendor", () => {
++    const pools = [{ value: "nvidia" }, { value: "amd" }, { value: "default" }];
++    const cpu = { request: 1, limit: null };
++    const mem = { request: "1G", limit: null };
++    const last = (w: ReturnType<typeof factory>) => w.emitted("update")?.slice(-1)[0]?.[0] as Record<string, any>;
++
++    it("offers the vendors whose pools the project has", () => {
++      expect(factory({ nodePoolsResources: pools }).vm.vendorOptions.map((o: { value: string }) => o.value)).toEqual(["nvidia", "amd", "none"]);
++      expect(factory({ nodePoolsResources: [{ value: "default" }] }).vm.vendorOptions).toEqual([]);
++    });
++
++    it("AMD with whole GPUs: pool amd and amd.com/gpu instead of GPU devices", async () => {
++      const w = factory({ nodePoolsResources: pools, workloadSpec: { nodePools: ["nvidia", "amd"], compute: { gpuDevicesRequest: 2 } } });
++      await w.vm.selectVendor("amd");
++      expect(last(w).nodePools).toEqual(["amd"]);
++      expect(last(w).compute.gpuDevicesRequest).toBe(0);
++      expect(last(w).compute.extendedResources).toEqual([{ resource: "amd.com/gpu", quantity: "2" }]);
++    });
++
++    it("AMD with a whole-GPU compute resource (portion 1): amd.com/gpu, no fraction", async () => {
++      const w = factory({ nodePoolsResources: pools,
++        workloadSpec: { nodePools: ["amd"], compute: { gpuDevicesRequest: 1, gpuRequestType: "portion", gpuPortionRequest: 1 } } });
++      await w.vm.selectVendor("amd");
++      expect(last(w).compute.extendedResources).toEqual([{ resource: "amd.com/gpu", quantity: "1" }]);
++      expect(last(w).compute.gpuDevicesRequest).toBe(0);
++      expect(last(w).compute.gpuRequestType).toBeUndefined();
++    });
++
++    it("shows whole AMD GPUs in the GPU devices field and reads the vendor back", () => {
++      const w = factory({ nodePoolsResources: pools,
++        workloadSpec: { nodePools: ["amd"], compute: { gpuDevicesRequest: 0, extendedResources: [{ resource: "amd.com/gpu", quantity: "1" }] } } });
++      expect(w.vm.resourcesModel.gpuDevicesRequest).toBe(1);
++      expect(w.vm.gpuVendor).toBe("amd");
++    });
++
++    it("AMD fraction: GPU devices and portion kept, no amd.com/gpu", async () => {
++      const w = factory({ nodePoolsResources: pools,
++        workloadSpec: { nodePools: ["amd"], compute: { gpuDevicesRequest: 0, extendedResources: [{ resource: "amd.com/gpu", quantity: "1" }] } } });
++      await w.vm.updateResourcesModel({ gpuDevicesRequest: 1, gpuRequestType: "portion", gpuPortionRequest: 0.5, cpuCore: cpu, cpuMemory: mem });
++      expect(last(w).compute.gpuDevicesRequest).toBe(1);
++      expect(last(w).compute.gpuPortionRequest).toBe(0.5);
++      expect(last(w).compute.extendedResources).toEqual([]);
++    });
++
++    it("back to NVIDIA: whole AMD GPUs become GPU devices, other extended resources stay", async () => {
++      const w = factory({ nodePoolsResources: pools, workloadSpec: { nodePools: ["amd"],
++        compute: { gpuDevicesRequest: 0, extendedResources: [{ resource: "amd.com/gpu", quantity: "1" }, { resource: "example.com/x", quantity: "1" }] } } });
++      await w.vm.selectVendor("nvidia");
++      expect(last(w).nodePools).toEqual(["nvidia"]);
++      expect(last(w).compute.gpuDevicesRequest).toBe(1);
++      expect(last(w).compute.extendedResources).toEqual([{ resource: "example.com/x", quantity: "1" }]);
++    });
++
++    it("No GPU: pool default, GPU request cleared", async () => {
++      const w = factory({ nodePoolsResources: pools, workloadSpec: { nodePools: ["nvidia"], compute: { gpuDevicesRequest: 1, gpuRequestType: "portion", gpuPortionRequest: 0.5 } } });
++      await w.vm.selectVendor("none");
++      expect(last(w).nodePools).toEqual(["default"]);
++      expect(last(w).compute.gpuDevicesRequest).toBe(0);
++      expect(last(w).compute.gpuPortionRequest).toBeUndefined();
++    });
++  });
+ });

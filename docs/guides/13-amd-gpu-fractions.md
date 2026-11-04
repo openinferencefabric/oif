@@ -26,7 +26,7 @@ How it works:
 
 | Piece | What it does |
 | --- | --- |
-| KAI Scheduler v0.18.3, rebuilt with oif's patches (`patches/kai/`) | the scheduler skips NVIDIA's readiness check on AMD GPU nodes; the binder reserves the GPU with a reservation pod that holds an `amd.com/gpu`, and writes the GPU's PCI address into the pod (`oif.ai/amd-gpu`) |
+| KAI Scheduler v0.18.3, rebuilt with oif's patches (`patches/kai/`) | the scheduler skips NVIDIA's readiness check on AMD GPU nodes; the binder reserves the GPU with a reservation pod that holds an `amd.com/gpu`, and writes the GPU's PCI address into the pod (`oif.ai/amd-gpu`); the scheduler reads an AMD node's GPU memory from AMD's label `beta.amd.com/gpu.vram.<size>`, so fractions by GPU memory (12 GB) schedule there (0005, T-140) |
 | oif-amd-share, an NRI plugin (`images/oif-amd-share/`), on every AMD GPU node | when containerd creates the pod's container, gives it `/dev/kfd` and that GPU's `/dev/dri` nodes, and sets `OIF_GPU_MEMORY_FRACTION` |
 | fractiond from KAI's gpu-fractioning with oif's AMD backend (`--gpu-vendor=amd`, built from `GPU_FRACTIONING_REF` in `versions.env`), DaemonSet `oif-fractiond` on AMD nodes labelled `oif.ai/amd-vram-cap=dmem` | when containerd creates a fraction pod's container, writes `dmem.max` = share × VRAM on the pod's cgroup (T-139); refuses the container if it cannot |
 | ValidatingAdmissionPolicy `oif-amd-share-annotations` | only KAI's binder may set the `oif.ai/amd-gpu` annotations, so no one gets a GPU outside Run:ai's quotas |
@@ -52,7 +52,7 @@ How it works:
    ```text
    [192.168.120.21]   [ok] runtime class nvidia runs runc on this AMD GPU node (GPU fractions)
    == stage: amd-fractions
-       == patch 0001-common-amd-gpu-node.patch ... 0004-resourcereservation-amd-gpu-device.patch
+       == patch 0001-common-amd-gpu-node.patch ... 0005-scheduler-amd-gpu-memory.patch
        ok  .../pkg/binder/plugins/nvfractions   ok  .../pkg/scheduler/plugins/gpusharingnodevalidation   ...
        == image oif.local/kai-scheduler/scheduler:v0.18.3-oif-216ce155df72 from ghcr.io/kai-scheduler/kai-scheduler/scheduler:v0.18.3
      [ok] patched image oif.local/kai-scheduler/binder:v0.18.3-oif-216ce155df72 on every node (4 loaded now)
@@ -188,7 +188,8 @@ oif-amd-share: AMD GPUs on this node: 0000:03:00.0
 
 | Symptom | Cause and fix |
 | --- | --- |
-| A fraction meant for AMD runs on the NVIDIA GPU | The workload's pools list `nvidia` first: keep only `amd` in the form's **Nodes** section. |
+| A fraction meant for AMD runs on the NVIDIA GPU | The workload's pools list `nvidia` first: choose **AMD** as the GPU vendor in the form (T-140, guide 12), or keep only `amd` in the form's **Nodes** section. |
+| A fraction by GPU memory (for example 12 GB) on AMD waits: `node is not a gpu node or the gpu memory count on the node was not synced yet` | KAI's scheduler could not read the node's GPU memory. oif's KAI (patch 0005, T-140) reads AMD's label `beta.amd.com/gpu.vram.<size>`, set by the AMD GPU Operator's node labeller: check `kubectl get node <node> --show-labels \| grep gpu.vram`, and `sudo ./oif install` if KAI runs older images. |
 | Pod on gpu-amd stuck in ContainerCreating: `no runtime for "nvidia" is configured` | The node stage `amd-runtime` has not run there: `sudo ./oif install` again. |
 | Pod on gpu-amd runs but `torch.cuda.is_available()` is False | oif-amd-share was not running when the container was created: `kubectl -n oif-system get pods`; delete the pod so it starts again. The plugin log names every pod it gives a GPU. |
 | `forbidden: ValidatingAdmissionPolicy 'oif-amd-share-annotations'` | Expected for anyone but KAI's binder: ask for a fraction (`gpu-fraction`) instead of setting `oif.ai/amd-gpu`. |

@@ -143,6 +143,25 @@ stage_runai_amd_templates() {   # T-115: Run:ai workload templates on amd.com/gp
   rm -f "$tmp"
 }
 
+preset_kinds() {   # which compute presets this cluster can run: nvidia, amd (whole), amd-fractions
+  local k=""
+  [ "$(gpu_count nvidia)" -gt 0 ] && k="$k nvidia"
+  if [ "$(gpu_count amd)" -gt 0 ]; then
+    k="$k amd"
+    [ "${AMD_FRACTIONS:-}" != none ] && [ -n "$(amd_only_nodes)" ] && k="$k amd-fractions"
+  fi
+  echo "${k# }"
+}
+runai_presets_rev() { { cat "$OIF_HOME/platform/runai/compute-presets.json"; preset_kinds; } | sha256sum | cut -c1-12; }
+register_stage runai-presets runai_presets_rev
+stage_runai_presets() {   # T-140: one compute preset per GPU vendor and size ("compute resources" in the Run:ai UI)
+  local kinds out; kinds=$(preset_kinds)
+  # shellcheck disable=SC2086  # one argument per kind
+  out=$(runai_api compute-presets "$OIF_HOME/platform/runai/compute-presets.json" $kinds 2>&1) || die "Run:ai compute presets: $out"
+  echo "$out" >> "$LOG"
+  ok "Run:ai compute presets for ${kinds:-no GPU vendor} ($(grep -c -E 'created|updated|unchanged' <<< "$out") in place$(grep -q deleted <<< "$out" && echo ", $(grep -c deleted <<< "$out") removed"))"
+}
+
 register_stage vendor-quota
 stage_vendor_quota() {   # T-113 (ADR-015): team-c, Run:ai quota 2 GPUs, capped at 1 NVIDIA + 1 AMD by a Kubernetes ResourceQuota
   local alloc c out

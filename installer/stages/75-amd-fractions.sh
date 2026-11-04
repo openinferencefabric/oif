@@ -18,7 +18,7 @@ amd_fractions_build_rev() {   # what decides the images: their tag
     | sha256sum | cut -c1-12; }
 amd_fractions_rev() {   # the stage reruns when the images, the plugins' manifests, AMD_FRACTIONS or AMD_VRAM_CAP change
   { amd_fractions_build_rev; cat "$OIF_HOME/platform/gpu-amd/amd-share.yaml" "$OIF_HOME/platform/gpu-amd/amd-vram-cap.yaml"
-    echo "${AMD_FRACTIONS:-} ${AMD_VRAM_CAP:-}"; } | sha256sum | cut -c1-12; }
+    echo "${AMD_FRACTIONS:-} ${AMD_VRAM_CAP:-} no-gpu-memory-label"; } | sha256sum | cut -c1-12; }
 amd_only_nodes() {   # nodes whose GPUs are all AMD: where oif shares an AMD GPU
   kc get nodes -o json | python3 -c 'import json,sys
 for n in json.load(sys.stdin)["items"]:
@@ -58,8 +58,19 @@ PY
   render "$OIF_HOME/platform/gpu-amd/amd-share.yaml" | kc apply -f - >> "$LOG" || die "oif-amd-share rejected"
   kc -n oif-system rollout status ds/oif-amd-share --timeout=300s >> "$LOG" 2>&1 \
     || die "oif-amd-share not running on every AMD GPU node (kubectl -n oif-system get pods -o wide)"
+  amd_gpu_memory_unlabel ""
   amd_vram_cap "$nodes"
   ok "AMD GPUs on $nodes can be shared: Run:ai GPU fractions in pool $(pool_for amd); $VRAM_CAP_MSG"
+}
+# T-140: a first version set KAI's GPU memory label nvidia.com/gpu.memory on AMD nodes. Run:ai's status-updater adds
+# it to AMD's own beta.amd.com/gpu.vram (93 GB reported for a 48 GB W7900) and KAI's pod-group controller refuses nodes
+# with both, so KAI now reads the AMD label itself (patches/kai, 0005); the stage removes the label it set before.
+AMD_MEM_MARK=oif.ai/gpu-memory-label
+amd_gpu_memory_unlabel() {   # [nodes to keep]: remove the GPU memory label oif set (T-140, first version) from every other node
+  local n
+  for n in $(kc get nodes -l "$AMD_MEM_MARK" -o name 2>/dev/null | sed 's|^node/||'); do
+    [[ " ${1:-} " == *" $n "* ]] || kc label node "$n" nvidia.com/gpu.memory- "$AMD_MEM_MARK-" >> "$LOG" 2>&1 || true
+  done
 }
 amd_node_run() {   # node-name command: run the command on that Kubernetes node (this host, or over SSH with the cluster key)
   local name addr role
@@ -146,6 +157,7 @@ amd_fractions_import() {   # tarball-name image: into containerd on this node
 amd_fractions_off() {   # KAI's stock images back; the plugins and the policy removed (no pod is given a shared AMD GPU)
   local p
   amd_vram_cap_off
+  amd_gpu_memory_unlabel ""
   for p in /spec/runai-scheduler/image /spec/binder/image /spec/binder/resourceReservation/image; do
     kc -n runai patch runaiconfig runai --type json -p "[{\"op\":\"remove\",\"path\":\"$p\"}]" >> "$LOG" 2>&1 || true
   done

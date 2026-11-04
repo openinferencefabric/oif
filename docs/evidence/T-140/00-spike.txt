@@ -1,0 +1,30 @@
+# T-140 spike, 2026-11-04: how Run:ai 3.0.20 places each GPU vendor/size choice on the lab cluster (main after T-138).
+# Trainings submitted through the Run:ai REST API as the form does (compute + nodePools), one at a time, in team-c.
+
+## Source (Run:ai 3.0.20 frontend)
+- Trainings, workspaces, inference, distributed and templates use components/workload-creation/
+  hybrid-compute-resource-section: GPU devices / portion / memory typed in the form, node pools in the same section;
+  compute presets ("compute resources") only fill those fields when loaded.
+- A compute preset has name and description only (no labels); its spec takes extendedResources (amd.com/gpu).
+- The form's "GPU devices = N" becomes nvidia.com/gpu: N.
+
+## Run 1 (all cases at once; only the whole-GPU results count, the others competed for the two GPUs)
+t140-nv-whole   gpuDevicesRequest 1, pools [nvidia]        Running gpu-nvidia, nvidia.com/gpu 1
+t140-amd-ext    extendedResources amd.com/gpu 1, [amd]     Running gpu-amd, amd.com/gpu 1, runai-allocated-gpus 1 (45000 MB)
+preset with extendedResources amd.com/gpu 1                HTTP 202, saved as given; deleted
+
+## Run 2 (one case at a time)
+t140-amd-dev1   gpuDevicesRequest 1, pools [amd]           Running on gpu-nvidia: nvidia.com/gpu 1, oif-vendor-pool set
+                pool nvidia (T-129 pins by resource); required affinity oif.ai/gpu-vendor In [nvidia]. The AMD choice
+                was switched to NVIDIA without a message.
+t140-amd-half   portion 0.5, pools [amd]                   Running gpu-amd, gpu-fraction 0.5, oif.ai/amd-gpu 0000:03:00.0,
+                runai-allocated-gpus 0.5, 22500 MB
+t140-amd-12g    memory 12G, pools [amd]                    Pending: "node is not a gpu node or the gpu memory count on the
+                node was not synced yet". KAI reads a node's GPU memory from label nvidia.com/gpu.memory
+                (pkg/scheduler/api/node_info, GpuMemoryLabel); NVIDIA's GPU feature discovery sets it, nothing on AMD.
+t140-nv-quarter portion 0.25, pools [nvidia]               Running gpu-nvidia, 0.25, gpu-memory.request 12285Mi
+
+## Conclusions
+- A whole AMD GPU must be requested as amd.com/gpu (extended resource); the form's GPU devices field cannot express it.
+- AMD fractions by portion work; by memory they need the node's GPU memory label on AMD nodes.
+- A workload limited to pool amd that asks for nvidia.com/gpu should be refused with a message, not moved.
