@@ -42,7 +42,7 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | A2 | ROCm (clr, rocr-runtime) | `hipMemGetInfo` and the HSA pool size ignore the cgroup `dmem.max` VRAM limit (S-8) | issue (oif keeps the in-process fraction as the sizing hint) | issue |
 | A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | issue |
 | A4 | ROCm (rocr-runtime, amdkfd) | CU mask only settable by the workload (`HSA_CU_MASK`), no node-enforced compute share (S-8) | issue | drafted, held for a measured run |
-| A5 | ROCm device-metrics-exporter | GPU metrics carry a pod only for device-plugin or DRA allocations, one pod per GPU: GPU-sharing pods (KAI fractions) get no per-pod metrics | candidate (needs a lab run with fraction pods) | not filed |
+| A5 | ROCm device-metrics-exporter | GPU metrics carry a pod only for device-plugin or DRA allocations, one pod per GPU: GPU-sharing pods (KAI fractions) get no per-pod metrics | issue | filed ([device-metrics-exporter#722](https://github.com/ROCm/device-metrics-exporter/issues/722)) |
 
 Checked and not upstream: T-138, Run:ai Overview "Allocated GPU devices" at 0. oif's HA values gave Thanos receive three copies with `replicationFactor` 3 but not the chart's `receive.service.additionalHeadless`, so every remote write was refused; fixed in oif (guide 10). Run:ai's defaults (one receiver) are fine.
 
@@ -92,6 +92,7 @@ on time per token, latency and throughput, on the W7900 and on NVIDIA's gpu-frac
 | # | Thread | What |
 | --- | --- | --- |
 | R11 | [run-ai#4274](https://github.com/dsx-ai-factory/run-ai/issues/4274) | Feature request: AMD GPU metrics from the AMD GPU Operator's Device Metrics Exporter. Name and label mapping (`gpu_total_vram`, `gpu_used_vram` MiB, `gpu_gfx_activity`; `hostname`, `card_model`, `gpu_id`), the scrape namespace, lab evidence and screenshots (Run:ai Nodes without the W7900's memory and free GPUs; OIF Fleet with it), OIF's rules offered as the basis of a PR. Framed as a feature: AMD is not a documented Run:ai configuration |
+| A5 | [device-metrics-exporter#722](https://github.com/ROCm/device-metrics-exporter/issues/722) | Feature request: per-pod metrics for pods sharing a GPU without their own `amd.com/gpu` (KAI fractions): the exporter labels the GPU with KAI's reservation pod. Lab evidence from both cases; asks for process-based attribution and a pod UID label |
 
 PRs were checked on the upstream `main` they target (Run:ai cfd9d8ac, KAI 4e6fcbd): build, vet, the service's tests, and lint with the project's own config and version. R1 for upstream parses the AMD count with `strconv.ParseInt(..., 32)` (gosec G109); oif's patch 0001 still uses `Atoi`.
 
@@ -228,7 +229,8 @@ half-GPU workloads share the GPU (24.2 TFLOPS each), a third waits on quota, NVI
 3. K1 to K4 together, with K6 described in the issue, so the maintainers see the whole AMD fraction path.
 4. Before submitting, check the patch still applies: CI runs `tests/check-patches.sh` on every push against the pinned release (Run:ai 3.0.20, KAI v0.18.3); for a newer upstream, change the version and checksum in `versions.env` and run it.
 
-### A5. Device Metrics Exporter: per-pod metrics for GPU-sharing pods (candidate)
+### A5. Device Metrics Exporter: per-pod metrics for GPU-sharing pods (filed)
 
 - `pkg/exporter/scheduler/k8s.go` attributes a GPU to a pod from the kubelet's PodResources: an `amd.com/*` device-plugin allocation or a `gpu.amd.com` DRA claim, one pod per device (a later pod overwrites an earlier one). Pods sharing a GPU through KAI fractions ask for no `amd.com/gpu` (the reservation pod holds it), so their usage is reported against the reservation pod or no pod. Related: ROCm/device-metrics-exporter#665 (a shared DRA claim attributed to one pod).
-- **Before filing:** a lab run with two AMD fraction pods, recording the exporter's pod labels. Ask for attribution by the processes using the GPU (the KFD process list, as for A3) and a pod UID label (Run:ai joins per-pod metrics on the UID).
+- **Lab, 2026-11-04 (exporter v1.5.1):** with two 0.5 fraction pods on the W7900, every series carries `pod=gpu-reservation-...`, `namespace=runai-reservation`, `container=resource-reservation`; neither workload pod appears. A pod with `amd.com/gpu: 1` is labelled correctly. No pod UID label.
+- **Filed:** [ROCm/device-metrics-exporter#722](https://github.com/ROCm/device-metrics-exporter/issues/722): attribution by the processes using the GPU (KFD process list, `dmem.current` per container) and an opt-in pod UID label.
