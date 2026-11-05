@@ -69,6 +69,7 @@ Slice: NVIDIA and AMD GPUs in separate nodes, as in production (one vendor per s
 
 Slice: the platform discovers high-bandwidth domains and accepts jobs that do not name a vendor, while still preferring GPU Direct domains when available (ADR-019, docs/design/Vendor-Agnostic-Job-Model.md).
 
+- [~] S-9 **P1.4 step 0 spike** (owner, 2026-11-05): does KAI's topology-aware scheduling (Topology resource, levels of node labels) carry `AcceleratorDomain` and same-domain packing, so T-132 is labels and configuration rather than a new scheduler plugin; and fake multi-GPU nodes (both vendors, KWOK or a fake device plugin) in the lab as an extra, non-gating environment for packing and policy logic (ADR-020 amendment 2026-11-05). NVIDIA DSX Air: owner is requesting access, for real NVLink topology signals (not a gate)
 - [ ] T-130 Topology discovery: controller (or stage) that labels nodes with vendor, interconnect class and provisional domain membership from NFD + GPU operator labels; publishes `AcceleratorDomain` objects for single-node and multi-node same-vendor groups
 - [ ] T-131 `AcceleratorDomain` CRD + status (capacity, allocatable, conditions); basic unit and lab tests on hybrid-gpu-lab
 - [ ] T-132 Domain-aware packing: scheduler filter/score (or KAI integration) that prefers packing multi-GPU requests inside one domain; records chosen domain on the workload
@@ -141,6 +142,6 @@ One OpenAI-compatible API in front of every model on both vendors, with API keys
 
 ## Release
 
-- [ ] T-901 End-to-end test on the reference host from a clean OS (TEST_PLAN.md)
+- [ ] T-901 End-to-end test on the reference host from a clean OS (TEST_PLAN.md). **Parked** (owner, 2026-11-05) until P1.4 is further along; it also carries the hardware proof of T-116 and the mixed-node case of P1.4
 - [ ] T-902 Install and comparison guides with screenshots on the guides site
 - [ ] T-903 Tag v0.1.0 after Project 1, v0.2.0 after Project 2
