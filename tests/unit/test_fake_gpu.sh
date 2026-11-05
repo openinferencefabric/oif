@@ -28,8 +28,15 @@ ok_ python3 "$GEN" --profile mi300x --partition qpx_nps1
 no_ python3 "$GEN" --profile mi300x --partition qpx_nps2
 no_ python3 "$GEN" --profile mi300x --partition spx_nps4
 no_ python3 "$GEN" --profile mi300x --partition cpx_nps2
-no_ python3 "$GEN" --profile mi355x --partition dpx_nps2
+ok_ python3 "$GEN" --profile mi355x --partition dpx_nps2
+no_ python3 "$GEN" --profile mi325x --partition dpx_nps2
 ok_ python3 "$GEN" --profile mi355x --partition cpx_nps4
+eq "$(q 'R["amd.com/gpu"], L["amd.com/gpu.product-name"], L["amd.com/gpu.device-id"], L["amd.com/gpu.vram"], L["oif.ai/accelerator-fabric"]' --profile mi350p)" \
+  "8 AMD_Instinct_MI350P 75a8 144G pcie" "MI350P server: 8 PCIe cards of 144 GB, no xGMI:"
+eq "$(q 'R["amd.com/gpu"], L["amd.com/gpu.vram"], L["amd.com/gpu.cu-count"], R.get("amd.com/gpu-mi350p-cpx-nps1")' --profile mi350p --partition cpx_nps1)" "32 36G 32 None" "MI350P in CPX: 4 partitions of 36 GB and 32 CUs per card:"
+eq "$(q 'R["amd.com/gpu-mi350p-dpx-nps1"]' --profile mi350p --partition dpx_nps1 --naming product)" "16" "MI350P DPX, product naming:"
+no_ python3 "$GEN" --profile mi350p --partition qpx_nps1
+no_ python3 "$GEN" --profile mi350p --partition cpx_nps4
 no_ python3 "$GEN" --profile w7900 --partition cpx_nps1
 no_ python3 "$GEN" --profile mi455x --partition dpx_nps1
 ok_ python3 "$GEN" --list

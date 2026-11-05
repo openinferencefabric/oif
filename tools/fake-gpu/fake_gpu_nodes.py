@@ -14,8 +14,8 @@ Standard library only; output is a v1 List (JSON, which kubectl reads as YAML).
   fake_gpu_nodes.py --list                                           the profiles
 
 Topology labels (OIF's, not the AMD GPU Operator's: AMD publishes no xGMI or UALink domain label yet):
-  oif.ai/accelerator-domain  the GPUs a job can use over the scale-up fabric: the server for 8-GPU xGMI boards, the
-                             rack for Helios (UALink over Ethernet)
+  oif.ai/accelerator-domain  the GPUs a job can use over the scale-up fabric: the server for 8-GPU xGMI boards (and
+                             for PCIe cards, whose GPUs talk over PCIe only), the rack for Helios (UALink over Ethernet)
   oif.ai/accelerator-fabric  xgmi, ualoe or pcie
   oif.ai/scaleout-zone       the Ethernet scale-out group the node is in
 """
@@ -31,11 +31,15 @@ PROFILES = {
     "mi300x": dict(name="AMD Instinct MI300X", device_id="74A1", vram_gb=192, cus=304, gpus=8, fabric="xgmi",
                    domain="node", partitions=True, nps=("nps1", "nps2", "nps4"), family="AI"),
     "mi325x": dict(name="AMD Instinct MI325X", device_id="74A5", vram_gb=256, cus=304, gpus=8, fabric="xgmi",
-                   domain="node", partitions=True, nps=("nps1", "nps2", "nps4"), family="AI"),
+                   domain="node", partitions=True, nps=("nps1", "nps4"), family="AI"),
     "mi350x": dict(name="AMD Instinct MI350X", device_id="75A0", vram_gb=288, cus=256, gpus=8, fabric="xgmi",
-                   domain="node", partitions=True, nps=("nps1", "nps4"), family="AI"),
+                   domain="node", partitions=True, nps=("nps1", "nps2", "nps4"), family="AI"),
     "mi355x": dict(name="AMD Instinct MI355X", device_id="75A3", vram_gb=288, cus=256, gpus=8, fabric="xgmi",
-                   domain="node", partitions=True, nps=("nps1", "nps4"), family="AI"),
+                   domain="node", partitions=True, nps=("nps1", "nps2", "nps4"), family="AI"),
+    # PCIe card, half an MI350X (one IOD, 4 XCDs); up to 8 per server, no Infinity Fabric between cards
+    "mi350p": dict(name="AMD Instinct MI350P", device_id="75A8", vram_gb=144, cus=128, gpus=8, fabric="pcie",
+                   domain="node", partitions=True, modes={"spx": 1, "dpx": 2, "cpx": 4}, nps=("nps1",), family="AI",
+                   assumed="memory partition modes: not published, NPS1 only"),
     "mi455x": dict(name="AMD Instinct MI455X", device_id="", vram_gb=432, cus=256, gpus=4, fabric="ualoe",
                    domain="rack", rack_nodes=18, partitions=False, family="AI",
                    assumed="device id and product name: not in amdgpu.ids yet"),
@@ -45,8 +49,9 @@ PROFILES = {
 # Compute partitions per GPU, from AMD SMI's partitioning guide (rocm.docs.amd.com, amdsmi, conceptual/partition) and
 # AMD's MI300X partitioning overview: SPX the whole GPU, DPX 2 devices of 4 XCDs, QPX 4 of 2 XCDs, CPX one device per
 # XCD (8). Memory partitions (NPS), MI300X matrix: NPS1 with any compute mode, NPS2 with DPX, NPS4 with QPX or CPX;
-# never more memory than compute partitions. Which NPS modes a GPU has is per profile (MI350 series: 1 or 4 memory
-# partitions, its datasheet). TPX (3 partitions) exists only on the 6-XCD MI300A APU, which is not modelled.
+# never more memory than compute partitions. Which NPS modes a GPU has is per profile (AMD's partitioning index:
+# DPX + NPS2 on MI300X, MI350 and MI355, not on MI325). A GPU with fewer XCDs has its own modes (MI350P, 4 XCDs: SPX,
+# DPX, CPX of 4). TPX (3 partitions) exists only on the 6-XCD MI300A APU, which is not modelled.
 COMPUTE_PARTITIONS = {"spx": 1, "dpx": 2, "qpx": 4, "cpx": 8}
 MEMORY_PARTITIONS = ("nps1", "nps2", "nps4")
 NPS_WITH = {"nps1": ("spx", "dpx", "qpx", "cpx"), "nps2": ("dpx",), "nps4": ("qpx", "cpx")}
@@ -74,10 +79,12 @@ def node(profile: str, name: str, partition: str, naming: str, domain: str, zone
     cp, mp = partition.split("_")
     if (cp, mp) != ("spx", "nps1") and not p["partitions"]:
         raise SystemExit(f"{profile} does not support partitioning")
-    if p["partitions"] and (mp not in p["nps"] or cp not in NPS_WITH[mp]):
-        raise SystemExit(f"{profile}: {cp.upper()} with {mp.upper()} is not a valid mode (memory modes {', '.join(p['nps']).upper()}; "
+    modes = p.get("modes", COMPUTE_PARTITIONS)
+    if p["partitions"] and (cp not in modes or mp not in p["nps"] or cp not in NPS_WITH[mp]):
+        raise SystemExit(f"{profile}: {cp.upper()} with {mp.upper()} is not a valid mode (compute modes "
+                         f"{', '.join(modes).upper()}; memory modes {', '.join(p['nps']).upper()}; "
                          "NPS1 with any, NPS2 with DPX, NPS4 with QPX or CPX)")
-    per_gpu = COMPUTE_PARTITIONS[cp]
+    per_gpu = modes[cp]
     devices = p["gpus"] * per_gpu
     labels = {"type": "kwok", "kubernetes.io/hostname": name, "kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64",
               "feature.node.kubernetes.io/amd-gpu": "true", "oif.ai/gpu-vendor": "amd", "oif.ai/fake-gpu-profile": profile,
@@ -128,7 +135,7 @@ def nodes(args: argparse.Namespace) -> list:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--profile", choices=sorted(PROFILES))
-    ap.add_argument("--count", type=int, default=1, help="servers (8-GPU boards)")
+    ap.add_argument("--count", type=int, default=1, help="servers")
     ap.add_argument("--racks", type=int, default=1, help="racks (rack-scale profiles)")
     ap.add_argument("--partition", default="spx_nps1",
                     choices=[f"{c}_{m}" for c in COMPUTE_PARTITIONS for m in MEMORY_PARTITIONS])
