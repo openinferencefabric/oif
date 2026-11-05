@@ -1,0 +1,170 @@
+diff --git a/pkg/scheduler/api/node_info/node_info.go b/pkg/scheduler/api/node_info/node_info.go
+--- a/pkg/scheduler/api/node_info/node_info.go
++++ b/pkg/scheduler/api/node_info/node_info.go
+@@ -322,6 +322,11 @@
+ 		return nil
+ 	}
+ 
++	// oif patch (open-inference-fabric T-116): on a node with GPUs of both vendors, whole GPUs of one vendor
++	if err := ni.oifVendorGpuFitError(task); err != nil {
++		return err
++	}
++
+ 	if ni.HasDRAGPUs && task.IsSharedGPURequest() {
+ 		return common_info.NewFitError(task.Name, task.Namespace, ni.Name,
+ 			"fractional/shared GPU pods are not yet supported on DRA-only nodes")
+diff --git a/pkg/scheduler/api/node_info/oif_vendor_gpu.go b/pkg/scheduler/api/node_info/oif_vendor_gpu.go
+new file mode 100644
+--- /dev/null
++++ b/pkg/scheduler/api/node_info/oif_vendor_gpu.go
+@@ -0,0 +1,70 @@
++// oif patch (open-inference-fabric T-116, ADR-032): KAI counts nvidia.com/gpu and amd.com/gpu in one GPU slot, so on
++// a node with GPUs of both vendors a pod asking for one vendor's GPU can be placed while only the other vendor's GPU
++// is free, and the kubelet then refuses it. This checks the vendor's own resource on such nodes.
++
++package node_info
++
++import (
++	"fmt"
++
++	v1 "k8s.io/api/core/v1"
++
++	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/common_info"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/pod_info"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/pod_status"
++)
++
++var oifVendorGpus = []v1.ResourceName{"nvidia.com/gpu", "amd.com/gpu"}
++
++// oifVendorGpuFitError: why the task's whole GPUs of one vendor do not fit this node, nil when they do or when the node
++// has GPUs of one vendor only (the GPU slot is then exact).
++func (ni *NodeInfo) oifVendorGpuFitError(task *pod_info.PodInfo) error {
++	if ni.Node == nil || task.Pod == nil {
++		return nil
++	}
++	alloc := ni.Node.Status.Allocatable
++	for _, r := range oifVendorGpus {
++		if q := alloc[r]; q.Value() == 0 {
++			return nil
++		}
++	}
++	for _, r := range oifVendorGpus {
++		want := oifPodResource(task.Pod, r)
++		if want == 0 {
++			continue
++		}
++		var used int64
++		for _, p := range ni.PodInfos {
++			if p.Pod == nil || p.Pod.UID == task.Pod.UID || !pod_status.IsActiveUsedStatus(p.Status) {
++				continue
++			}
++			used += oifPodResource(p.Pod, r)
++		}
++		total := alloc[r]
++		if free := total.Value() - used; want > free {
++			return common_info.NewFitError(task.Name, task.Namespace, ni.Name, fmt.Sprintf(
++				"node %s has %d free %s of the %d requested; its other free GPUs are another vendor's", ni.Name, max(free, 0), r, want))
++		}
++	}
++	return nil
++}
++
++// oifPodResource: what the pod asks of an extended resource, as the kubelet counts it (the containers' sum, or the
++// largest init container if that is more).
++func oifPodResource(pod *v1.Pod, r v1.ResourceName) int64 {
++	get := func(c v1.Container) int64 {
++		if q, ok := c.Resources.Limits[r]; ok {
++			return q.Value()
++		}
++		q := c.Resources.Requests[r]
++		return q.Value()
++	}
++	var sum, initMax int64
++	for _, c := range pod.Spec.Containers {
++		sum += get(c)
++	}
++	for _, c := range pod.Spec.InitContainers {
++		initMax = max(initMax, get(c))
++	}
++	return max(sum, initMax)
++}
+diff --git a/pkg/scheduler/api/node_info/oif_vendor_gpu_test.go b/pkg/scheduler/api/node_info/oif_vendor_gpu_test.go
+new file mode 100644
+--- /dev/null
++++ b/pkg/scheduler/api/node_info/oif_vendor_gpu_test.go
+@@ -0,0 +1,75 @@
++// oif patch (open-inference-fabric T-116): tests for whole GPUs of one vendor on a node with both vendors.
++
++package node_info
++
++import (
++	"testing"
++
++	v1 "k8s.io/api/core/v1"
++	"k8s.io/apimachinery/pkg/api/resource"
++	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
++	"k8s.io/apimachinery/pkg/types"
++
++	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/common_info"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/pod_info"
++	"github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/pod_status"
++)
++
++func oifGpuPod(name string, gpus map[v1.ResourceName]string) *v1.Pod {
++	lim := v1.ResourceList{}
++	for r, q := range gpus {
++		lim[r] = resource.MustParse(q)
++	}
++	return &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns", UID: types.UID(name)},
++		Spec: v1.PodSpec{Containers: []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Limits: lim}}}}}
++}
++
++func oifNodeWith(alloc map[v1.ResourceName]string, running ...*v1.Pod) *NodeInfo {
++	a := v1.ResourceList{}
++	for r, q := range alloc {
++		a[r] = resource.MustParse(q)
++	}
++	ni := &NodeInfo{Name: "n", Node: &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "n"}, Status: v1.NodeStatus{Allocatable: a}},
++		PodInfos: map[common_info.PodID]*pod_info.PodInfo{}}
++	for _, p := range running {
++		ni.PodInfos[common_info.PodID(p.UID)] = &pod_info.PodInfo{Name: p.Name, Namespace: p.Namespace, Pod: p, Status: pod_status.Running}
++	}
++	return ni
++}
++
++func TestOifVendorGpuFitError(t *testing.T) {
++	both := map[v1.ResourceName]string{"nvidia.com/gpu": "1", "amd.com/gpu": "1"}
++	nv := map[v1.ResourceName]string{"nvidia.com/gpu": "1"}
++	amd := map[v1.ResourceName]string{"amd.com/gpu": "1"}
++	task := func(gpus map[v1.ResourceName]string) *pod_info.PodInfo {
++		p := oifGpuPod("new", gpus)
++		return &pod_info.PodInfo{Name: p.Name, Namespace: p.Namespace, Pod: p}
++	}
++	for _, tc := range []struct {
++		name    string
++		node    *NodeInfo
++		task    *pod_info.PodInfo
++		refused bool
++	}{
++		{"mixed node, NVIDIA GPU taken: NVIDIA pod refused", oifNodeWith(both, oifGpuPod("a", nv)), task(nv), true},
++		{"mixed node, NVIDIA GPU taken: AMD pod fits", oifNodeWith(both, oifGpuPod("a", nv)), task(amd), false},
++		{"mixed node, AMD GPU taken: AMD pod refused", oifNodeWith(both, oifGpuPod("a", amd)), task(amd), true},
++		{"mixed node, both free: NVIDIA pod fits", oifNodeWith(both), task(nv), false},
++		{"mixed node, both free: AMD pod fits", oifNodeWith(both), task(amd), false},
++		{"mixed node: 2 NVIDIA GPUs asked, 1 present", oifNodeWith(both), task(map[v1.ResourceName]string{"nvidia.com/gpu": "2"}), true},
++		{"NVIDIA-only node: left to KAI's GPU slot", oifNodeWith(map[v1.ResourceName]string{"nvidia.com/gpu": "1"}, oifGpuPod("a", nv)), task(nv), false},
++		{"mixed node: a finished pod frees its GPU", func() *NodeInfo {
++			ni := oifNodeWith(both, oifGpuPod("a", nv))
++			ni.PodInfos["a"].Status = pod_status.Succeeded
++			return ni
++		}(), task(nv), false},
++		{"mixed node: CPU pod", oifNodeWith(both, oifGpuPod("a", nv), oifGpuPod("b", amd)), task(nil), false},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			err := tc.node.oifVendorGpuFitError(tc.task)
++			if (err != nil) != tc.refused {
++				t.Fatalf("error = %v, want refused %v", err, tc.refused)
++			}
++		})
++	}
++}
