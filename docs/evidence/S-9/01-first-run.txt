@@ -1,0 +1,24 @@
+# S-9 first run, 2026-11-05 (main 9e9d7da): sudo tests/lab/s9-fake-topology.sh on cp1. KWOK v0.8.0; five fake 8-GPU
+# nodes: s9-nv-a1, s9-nv-a2 (domain nv-a), s9-nv-b1 (nv-b), s9-amd-a1, s9-amd-a2 (amd-a); Topology oif-s9 (levels
+# oif.ai/accelerator-domain, kubernetes.io/hostname); Jobs in team-c through Run:ai's KAI (v0.18.3 + oif 0001-0006).
+S-9 fake multi-GPU nodes and KAI topology (KWOK v0.8.0)
+  PASS  KWOK controller running
+  PASS  five fake GPU nodes Ready (2 in domain nv-a, 1 in nv-b, 2 in amd-a)
+  PASS  Topology oif-s9 (levels: domain, host)
+  INFO  s9-pack: s9-nv-b1 nv-b,s9-nv-b1 nv-b,s9-nv-b1 nv-b
+  FAIL  3 x 4 GPUs, required same domain: all in one domain
+  INFO  s9-toolarge: s9-nv-b1 nv-b,s9-nv-b1 nv-b,s9-nv-b1 nv-b
+  FAIL  3 x 8 GPUs, required same domain, no domain big enough: nothing placed
+  INFO  why: Pod bound successfully to node s9-nv-b1
+  INFO  without topology: s9-nv-a1 nv-a,s9-nv-a2 nv-a,s9-nv-a1 nv-a -> domains: nv-a
+  INFO  s9-amd: s9-amd-a1 amd-a,s9-amd-a1 amd-a
+  PASS  AMD 2 x 8 GPUs, required same domain: both in amd-a
+  PASS  no test pod on a real node
+S-9: 5/7 checks passed (cleanup follows)
+
+# Reading: with a required topology placement, every pod of the Job went to one node beyond its GPUs (12 and 24 GPUs
+# on an 8-GPU node; AMD 16 on 8; the AMD check passed only because both pods were in amd-a). The same Job without the
+# annotation respected node capacity (8 + 4). Fake nodes have no kubelet, so the over-commit is not refused as it
+# would be on real hardware. Not yet known whether this is KAI's topology path, oif's patches, Run:ai's pod grouping
+# or the fake nodes; next: the --debug run (pod groups, scheduler and binder logs). No matching KAI issue; v0.18.4-7
+# release notes have no fix for it.

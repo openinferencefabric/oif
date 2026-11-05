@@ -5,7 +5,8 @@
 # schedules Jobs through Run:ai's KAI and reads where they land. Everything is removed at the end (also on Ctrl+C).
 # Changes while it runs: KWOK controller in kube-system, five fake nodes (tainted, in pools nvidia and amd), one
 # Topology, Jobs in team-c, team-c's quota raised in pools nvidia and amd (put back to 1 and 1).
-#   sudo tests/lab/s9-fake-topology.sh
+#   sudo tests/lab/s9-fake-topology.sh           all cases
+#   sudo tests/lab/s9-fake-topology.sh --debug   the first case only, with what KAI saw and did
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); OIF_HOME=$ROOT
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 2; }
@@ -121,6 +122,21 @@ domains() { placed "$1" | awk '$1 != "Pending" {print $2}' | sort -u | paste -sd
 # 1. 3 pods x 4 NVIDIA GPUs, required in one domain: nv-a (16 GPUs) is the only one large enough
 job s9-pack 3 4 nvidia "$DOMAIN_LABEL"
 wait_placed s9-pack 3 120; info "s9-pack: $(placed s9-pack | paste -sd',')"
+if [ "${1:-}" = --debug ]; then   # what KAI saw and did for s9-pack, then clean up
+  echo "== fake nodes: allocatable GPUs, pool labels"
+  kc get node -l app.kubernetes.io/part-of=oif-s9 -o jsonpath='{range .items[*]}{.metadata.name} gpu={.status.allocatable.nvidia\.com/gpu}{.status.allocatable.amd\.com/gpu} pool={.metadata.labels.runai/node-pool} vendor={.metadata.labels.oif\.ai/gpu-vendor} domain={.metadata.labels.oif\.ai/accelerator-domain}{"\n"}{end}'
+  echo "== pods: node, GPU limits, pod group"
+  kc -n "$NS" get pods -l job-name=s9-pack -o jsonpath='{range .items[*]}{.metadata.name} {.spec.nodeName} {.spec.containers[0].resources.limits} pg={.metadata.annotations.pod-group-name}{"\n"}{end}'
+  echo "== pod groups"
+  for pg in $(kc -n "$NS" get podgroups.scheduling.run.ai -o name 2>/dev/null | grep -i s9-pack); do
+    kc -n "$NS" get "$pg" -o yaml | grep -E "^  (minMember|topologyConstraint|queue)|^    (preferredTopologyLevel|requiredTopologyLevel|topology)|subGroups|minSubGroup|^  annotations" -A1 | head -30
+  done
+  echo "== scheduler (pool nvidia) log for s9-pack"
+  kc -n runai logs deploy/runai-scheduler-nvidia --since=5m 2>/dev/null | grep -i -E "s9-pack|s9-nv|topolog" | tail -40 | cut -c1-400
+  echo "== binder log for s9-pack"
+  kc -n runai logs deploy/binder --since=5m 2>/dev/null | grep -i "s9-pack" | tail -10 | cut -c1-300
+  exit 0
+fi
 check "3 x 4 GPUs, required same domain: all in one domain" bash -c '[ "$1" = nv-a ]' _ "$(domains s9-pack)"
 kc -n "$NS" delete job s9-pack --wait=true >/dev/null
 
