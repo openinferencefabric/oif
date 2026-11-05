@@ -20,6 +20,7 @@ One guide per step of the plan in [TASKS.md](../../TASKS.md). Each guide is writ
 | 14 | [How oif builds the cluster](14-build-the-cluster.md): from bare machines to Run:ai, stage by stage across all nodes; why Run:ai's New cluster page is not used | T-101 – T-127 | Reference |
 | 15 | [Continuous integration](15-ci.md): shellcheck, yamllint, unit tests, Go tests, patch check and secret scan on every push; run them locally | T-003 | Tested (CI) |
 | 16 | [Dynamo under Run:ai](16-dynamo-under-runai.md): Dynamo 1.6.1 with Grove and its own KAI off, a DynamoGraphDeployment submitted through the Run:ai UI, the worker on the project's NVIDIA quota, chat through the frontend, a deployment over quota waits; installed by `oif install` | S-4, T-201 | Tested (lab) |
+| 17 | [Accelerator domains](17-accelerator-domains.md): GPU nodes labelled with their scale-up domain (NVLink clique or NVSwitch, AMD xGMI hive, PCIe), fabric and scale-out zone by agent oif-topology; annotations for rack-scale domains; the agent limited to its own node and labels | T-130 | Built, lab check pending |
 
 Multi-node (P1.3) workflow decks live under [presentations/](../../presentations/) (T-120–T-122). Full multi-node install guides come with T-124.
 
