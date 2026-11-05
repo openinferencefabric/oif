@@ -1,0 +1,20 @@
+S-9 fidelity check, 2026-11-05 (owner, cp1, main e346bb7): amd.com/gpu labels of the real W7900 node (<) against
+tools/fake-gpu --profile w7900 (>), read only.
+
+3d2
+< amd.com/gpu.driver-version=
+6c5
+< amd.com/gpu.simd-count=192
+---
+> amd.com/gpu.simd-count=384
+16,17c15,16
+< beta.amd.com/gpu.simd-count=192
+< beta.amd.com/gpu.simd-count.192=1
+---
+> beta.amd.com/gpu.simd-count=384
+> beta.amd.com/gpu.simd-count.384=1
+
+All other labels (family, device-id, product-name, vram, cu-count, in three forms) are identical.
+- simd-count: the generator used 4 SIMDs per CU for every GPU; RDNA (W7900) has 2. Fixed (simds_per_cu=2 on w7900,
+  CDNA Instinct profiles keep 4); unit test checks 192 for the W7900 and 1216 for the MI300X.
+- driver-version is empty on the real node (in-kernel amdgpu reports no version); host-specific, not modelled.
