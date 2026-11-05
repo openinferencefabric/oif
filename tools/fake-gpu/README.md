@@ -23,6 +23,7 @@ KWOK must be running and manage nodes annotated `kwok.x-k8s.io/node=fake` (its d
 | --- | --- | --- | --- | --- |
 | `mi300x`, `mi325x` | 8 (universal baseboard) | 192 / 256 GB | xGMI: each GPU linked to its 7 peers | the server |
 | `mi350x`, `mi355x` | 8 | 288 GB | xGMI, 7 links of 144 GB/s per GPU | the server |
+| `mi350p` | up to 8 PCIe cards per server | 144 GB | none: PCIe only (no Infinity Fabric between cards) | the server |
 | `mi455x` | 4 per compute tray, 18 trays per Helios rack | 432 GB | UALink over Ethernet, 72 GPUs | the rack |
 | `w7900` | 1 (PCIe card) | 45 GB | none | the server |
 
@@ -33,7 +34,8 @@ KWOK must be running and manage nodes annotated `kwok.x-k8s.io/node=fake` (its d
 - **Resources as the device plugin names them** (`--naming`, its `resource_naming_strategy`): `single`
   (`amd.com/gpu`), `mixed` (`amd.com/cpx_nps4`) and `product` (`amd.com/gpu-mi300x-spx-nps1`).
 - **Partitions** (`--partition`): SPX, DPX, QPX and CPX (1, 2, 4 and 8 devices per GPU) with NPS1, NPS2 or NPS4, only in
-  the combinations AMD documents (NPS2 with DPX, NPS4 with QPX or CPX; MI350 series: NPS1 or NPS4). A partition's
+  the combinations AMD documents (NPS2 with DPX, NPS4 with QPX or CPX; DPX + NPS2 not on MI325X). The MI350P (4 XCDs)
+  has SPX, DPX and CPX of 4 partitions (36 GB, 32 CUs each); its NPS modes are not published, so NPS1 only. A partition's
   VRAM and CU labels are the GPU's divided by the partitions, as the labeller reports them (ROCm/gpu-operator#555).
 - **Topology** (OIF's own labels; the AMD GPU Operator publishes no xGMI or UALink domain yet):
   `oif.ai/accelerator-domain` (the GPUs a job can use over the scale-up fabric), `oif.ai/accelerator-fabric`
