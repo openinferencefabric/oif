@@ -1,7 +1,7 @@
 # Guide 17: Accelerator domains
 
-Step T-130 (ADR-019, amendment 2026-11-05). Built and unit-tested on 2026-11-05; lab check `tests/lab/t130-topology-labels.sh`
-pending its first run.
+Step T-130 (ADR-019, amendment 2026-11-05). Tested on the lab cluster (guide 10) on 2026-11-05 with
+`tests/lab/t130-topology-labels.sh` (12/12, docs/evidence/T-130/).
 
 ## What you get
 

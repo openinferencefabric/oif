@@ -1,0 +1,40 @@
+T-130 on the lab cluster, 2026-11-05 (owner, cp1). Install: main 11a925e, `sudo ./oif install` ran stage topology only.
+
+  [ok] oif-topology build finished
+    ok          github.com/openinferencefabric/oif/images/oif-topology  0.013s
+    == image oif.local/oif/oif-topology:7dcc5a135442 from gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872...
+  [ok] patched image oif.local/oif/oif-topology:7dcc5a135442 on every node (4 loaded now)
+validatingadmissionpolicy.admissionregistration.k8s.io/oif-topology-own-node created
+daemon set "oif-topology" successfully rolled out
+  [ok] every GPU node has an accelerator domain
+    gpu-amd: domain gpu-amd, fabric pcie, zone default
+    gpu-nvidia: domain gpu-nvidia, fabric pcie, zone default
+
+Lab check, main 25c4d28: sudo tests/lab/t130-topology-labels.sh
+(The first run at 11a925e was 11/11, but its other-node check tried a joined, non-existent name; fixed in PR #22.)
+
+T-130 accelerator domains as node labels (agent oif-topology)
+  PASS  agent running on every real node
+  PASS  the lab has GPU nodes (gpu-amd gpu-nvidia)
+  INFO  gpu-amd: domain gpu-amd, fabric pcie, zone default
+  PASS  gpu-amd: its own domain over PCIe (one GPU), zone default
+  INFO  gpu-nvidia: domain gpu-nvidia, fabric pcie, zone default
+  PASS  gpu-nvidia: its own domain over PCIe (one GPU), zone default
+  PASS  nodes without GPUs carry no domain (cp1 cp2 cp3)
+  PASS  annotation on gpu-amd: domain t130-rack, fabric ualoe (within 2 min)
+  PASS  annotation removed: gpu-amd is its own domain again (within 2 min)
+  PASS  the agent may set its labels on its own node
+  PASS  another real node to try: gpu-nvidia
+  PASS  the agent may not change another node (gpu-nvidia)
+  PASS  the agent may not change other labels of its node
+  PASS  the agent may not taint its node
+  INFO  agent log on gpu-amd: node gpu-amd: labelled: oif.ai/accelerator-domain=gpu-amd oif.ai/accelerator-fabric=pcie oif.ai/scaleout-zone=default (no scale-up fabric found: the node)
+T-130: 12/12 checks passed
+
+Agent log on gpu-amd during the override:
+12:22:45 labelled: domain=gpu-amd fabric=pcie zone=default (no scale-up fabric found: the node)
+12:23:45 labelled: domain=t130-rack fabric=ualoe zone=default (...; oif.ai/accelerator-domain set by annotation; oif.ai/accelerator-fabric set by annotation)
+12:24:45 labelled: domain=gpu-amd fabric=pcie zone=default (no scale-up fabric found: the node)
+
+Not proven here (one PCIe GPU per node): NVSwitch, NVLink clique and xGMI hive detection; unit tests in
+images/oif-topology cover them, and tests/lab/s9-fake-topology.sh covers KAI packing on such domains.
