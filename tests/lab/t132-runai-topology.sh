@@ -43,8 +43,8 @@ check "KAI Topology $RUNAI_TOPOLOGY in the cluster ($levels)" \
 check "every GPU node carries all three levels" bash -c '[ -z "$1" ]' _ \
   "$(kc get nodes -l 'type notin (kwok)' -o jsonpath='{range .items[*]}{.metadata.name} {.status.allocatable.nvidia\.com/gpu}{.status.allocatable.amd\.com/gpu} {.metadata.labels.oif\.ai/scaleout-zone} {.metadata.labels.oif\.ai/accelerator-domain}{"\n"}{end}' | awk '$2 != "" && $2 != "0" && NF < 4')"
 
-# name pool compute node required-level ("-": none, Run:ai's preferred placement only)
-while read -r name pool compute node req; do
+# name compute pool node required-level ("-": none, Run:ai's preferred placement only)
+while read -r name compute pool node req; do
   if [ "$req" = - ]; then out=$(api run "$name" "$pool" "$compute"); else out=$(api run "$name" "$pool" "$compute" "$req"); fi
   sed 's/^/        /' <<< "$out"
   check "$name: runs on $node" grep -q "phase=Running node=$node " <<< "$out"
