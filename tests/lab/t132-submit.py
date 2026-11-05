@@ -2,7 +2,10 @@
 KAI got (pod annotations and the pod group's topologyConstraint), delete it. Uses installer/tools/runai_api.py
 (credentials in the environment, never printed).
   run NAME POOL COMPUTE-JSON [REQUIRED-LEVEL]   submit (with kai.scheduler/topology-required-placement=REQUIRED-LEVEL
-                                                when given), wait up to 4 min for Running, print, delete
+                                                and kai.scheduler/topology=oif-accelerator when given: Run:ai adds
+                                                its topology only to workloads without kai.scheduler/ annotations, and
+                                                KAI ignores a required level without a topology), wait up to 4 min for
+                                                Running, print, delete
   cleanup                                       delete every t132-* training
 """
 import json
@@ -57,7 +60,8 @@ def main() -> None:
         proj = next(p for p in projs["projects"] if p["name"] == "team-c")
         spec = {"image": os.environ["BUSYBOX"], "command": "sleep", "args": "900", "compute": json.loads(compute), "nodePools": [pool]}
         if len(sys.argv) == 6:
-            spec["annotations"] = [{"name": REQUIRED, "value": sys.argv[5]}]
+            spec["annotations"] = [{"name": "kai.scheduler/topology", "value": "oif-accelerator"},
+                                   {"name": REQUIRED, "value": sys.argv[5]}]
         body = {"name": name, "projectId": str(proj["id"]), "clusterId": proj["clusterId"], "spec": spec}
         st, out = r.call("POST", "/api/v1/workloads/trainings", body, token=t)
         if st not in (200, 201, 202):
