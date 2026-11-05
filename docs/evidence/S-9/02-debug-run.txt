@@ -1,0 +1,35 @@
+S-9 --debug run, 2026-11-05 (owner, cp1): sudo tests/lab/s9-fake-topology.sh --debug
+Stopped at the first failing case (s9-pack); output as printed, binder lines cut.
+
+  PASS  KWOK controller running
+  PASS  five fake GPU nodes Ready (2 in domain nv-a, 1 in nv-b, 2 in amd-a)
+  PASS  Topology oif-s9 (levels: domain, host)
+  INFO  s9-pack: s9-nv-b1 nv-b,s9-nv-b1 nv-b,s9-nv-b1 nv-b
+== fake nodes: allocatable GPUs, pool labels
+s9-amd-a1 gpu=8 pool=amd vendor=amd domain=amd-a
+s9-amd-a2 gpu=8 pool=amd vendor=amd domain=amd-a
+s9-nv-a1 gpu=8 pool=nvidia vendor=nvidia domain=nv-a
+s9-nv-a2 gpu=8 pool=nvidia vendor=nvidia domain=nv-a
+s9-nv-b1 gpu=8 pool=nvidia vendor=nvidia domain=nv-b
+== pods: node, GPU limits, pod group
+s9-pack-s88n7 s9-nv-b1 {"nvidia.com/gpu":"4"} pg=pg-s9-pack-df90db65-ceda-4634-a0cf-ff5c61753d90
+s9-pack-szml9 s9-nv-b1 {"nvidia.com/gpu":"4"} pg=pg-s9-pack-df90db65-ceda-4634-a0cf-ff5c61753d90
+s9-pack-w2ksw s9-nv-b1 {"nvidia.com/gpu":"4"} pg=pg-s9-pack-df90db65-ceda-4634-a0cf-ff5c61753d90
+== pod groups (excerpt)
+  minMember: 1
+  preemptibility: preemptible
+  queue: team-c-nvidia
+  topologyConstraint:
+    requiredTopologyLevel: oif.ai/accelerator-domain
+    topology: oif-s9
+== scheduler (pool nvidia) log for s9-pack
+(no lines)
+== binder log for s9-pack
+07:02:40.071Z Pod bound successfully to node s9-nv-b1 (s9-pack-w2ksw)
+07:02:40.079Z Pod bound successfully to node s9-nv-b1 (s9-pack-s88n7)
+07:02:41.089Z Pod bound successfully to node s9-nv-b1 (s9-pack-szml9)
+
+Reading: one pod group of three 4-GPU pods (minMember 1) with a required domain; KAI's scheduler issued bind requests
+for all three on one 8-GPU node, two in one second and the third a second later. The topology plugin only narrows the
+node sets (subSetNodesFn); the node's GPU fit is checked elsewhere, so the next step is a KAI allocate-test reproduction.
+The scheduler log grep found nothing: the log level or deployment name needs checking before the next --debug run.
