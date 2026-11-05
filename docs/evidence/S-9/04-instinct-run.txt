@@ -1,0 +1,31 @@
+S-9 run with the AMD Instinct cases, 2026-11-05 (owner, cp1, main 9f27073): sudo tests/lab/s9-fake-topology.sh
+Instinct nodes from tools/fake-gpu: 2 MI355X servers, one Helios rack (18 trays x 4 MI455X), one MI300X in CPX + NPS4.
+
+  PASS  KWOK controller running
+  PASS  five fake GPU nodes Ready (2 in domain nv-a, 1 in nv-b, 2 in amd-a)
+  PASS  Topology oif-s9 (levels: domain, host)
+  INFO  s9-pack: s9-nv-a1 nv-a,s9-nv-a2 nv-a,s9-nv-a1 nv-a
+  PASS  3 x 4 GPUs, required same domain: all in one domain
+  INFO  s9-pack1: s9-nv-b1 nv-b,Pending,s9-nv-b1 nv-b
+  PASS  3 x 4 GPUs, minimum 1 pod: 2 in one domain, the 3rd waits, no node above 8 GPUs
+  INFO  s9-toolarge: Pending,Pending,Pending
+  PASS  3 x 8 GPUs, required same domain, no domain big enough: nothing placed
+  INFO  why: Unable to schedule podgroup: node-group nv-a can allocate only 2 of 3 required pods.
+node-group nv-b can allocate only 1 of 3 required pods.
+topology oif-s9, requirement oif.ai/accelerator-domain couldn't be satisfied
+  INFO  without topology: s9-nv-a1 nv-a,s9-nv-a1 nv-a,s9-nv-a2 nv-a -> domains: nv-a
+  INFO  s9-amd: s9-amd-a2 amd-a,s9-amd-a1 amd-a
+  PASS  AMD 2 x 8 GPUs, required same domain: both in amd-a
+  PASS  Instinct fake nodes Ready (2 MI355X, 18 Helios trays, 1 MI300X in CPX)
+  INFO  s9-mi355:       8 s9-mi355x-01 s9-mi355x-01
+  PASS  MI355X: 8 x 1 GPU together, one server (xGMI domain)
+  INFO  s9-mi355-2: Pending,Pending
+  PASS  MI355X: 2 x 8 GPUs, required one domain (a server holds 8): waits, never split
+  INFO  s9-helios: 1 pod (4 GPUs) on each of s9-mi455x-r1-t01 .. t16, domain s9-mi455x-r1 (line shortened)
+  PASS  Helios: 16 x 4 = 64 GPUs together, all in one rack (UALink domain)
+  INFO  s9-helios-80:      20 Pending
+  PASS  Helios: 20 x 4 = 80 GPUs (a rack holds 72): waits, never split
+  INFO  s9-cpx:      64 s9-mi300x-01 s9-mi300x-01
+  PASS  MI300X CPX + NPS4: 64 x 1 partition together, on the one server
+  PASS  no test pod on a real node
+S-9: 14/14 checks passed (cleanup follows)
