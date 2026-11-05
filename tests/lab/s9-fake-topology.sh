@@ -3,8 +3,11 @@
 # inside one accelerator domain? The lab has one GPU per node, so this adds fake 8-GPU nodes (KWOK v0.8.0: nodes and
 # pods that exist only in the API, kept Running by the KWOK controller) in two NVIDIA domains and one AMD domain,
 # schedules Jobs through Run:ai's KAI and reads where they land. Everything is removed at the end (also on Ctrl+C).
-# Changes while it runs: KWOK controller in kube-system, five fake nodes (tainted, in pools nvidia and amd), one
-# Topology, Jobs in team-c, team-c's quota raised in pools nvidia and amd (put back to 1 and 1).
+# Then AMD Instinct nodes from tools/fake-gpu (as the AMD GPU Operator labels them): two MI355X servers (xGMI, the
+# server is the domain), one Helios rack (18 trays x 4 MI455X, UALink, the rack is the domain) and one MI300X server in
+# CPX + NPS4 (64 partitions).
+# Changes while it runs: KWOK controller in kube-system, fake nodes (tainted, in pools nvidia and amd), one Topology,
+# Jobs in team-c, team-c's quota raised in pools nvidia and amd (put back to 1 and 1).
 #   sudo tests/lab/s9-fake-topology.sh           all cases
 #   sudo tests/lab/s9-fake-topology.sh --debug   the first case only, with what KAI saw and did
 set -uo pipefail
@@ -29,11 +32,12 @@ FAILS=0; N=0
 check() { N=$((N + 1)); if "${@:2}" >/dev/null 2>&1; then echo "  PASS  $1"; else echo "  FAIL  $1"; FAILS=$((FAILS + 1)); fi; }
 info() { echo "  INFO  $*"; }
 
-NS=$(runai_api project-pools team-c nvidia=40 amd=24)
+NS=$(runai_api project-pools team-c nvidia=40 amd=200)
 cleanup() {
   kc -n "$NS" delete job -l app.kubernetes.io/part-of=oif-s9 --ignore-not-found --wait=true >/dev/null 2>&1
   kc delete topologies.kai.scheduler "$TOPO" --ignore-not-found >/dev/null 2>&1
   kc delete node -l app.kubernetes.io/part-of=oif-s9 --ignore-not-found >/dev/null 2>&1
+  kc delete node -l oif.ai/fake-gpu-profile --ignore-not-found >/dev/null 2>&1
   [ -s "$W/stage-fast.yaml" ] && kc delete -f "$W/stage-fast.yaml" --ignore-not-found >/dev/null 2>&1
   [ -s "$W/kwok.yaml" ] && kc delete -f "$W/kwok.yaml" --ignore-not-found >/dev/null 2>&1
   runai_api project-pools team-c nvidia=1 amd=1 >/dev/null 2>&1
@@ -83,7 +87,7 @@ EOF
 check "Topology $TOPO (levels: domain, host)" kc get topologies.kai.scheduler "$TOPO"
 sleep 20   # the schedulers pick up the new nodes and the Topology
 
-job() {   # name pods gpus-each vendor [required-level [min-member]]
+job() {   # name pods gpus-each vendor [required-level [min-member [fake-gpu-profile]]]
   local ann=""   # min-member: pods KAI must place together (the Job grouper's default is 1)
   [ -n "${5:-}" ] && ann="kai.scheduler/topology: $TOPO, kai.scheduler/topology-required-placement: $5"
   [ -n "${6:-}" ] && ann="$ann, kai.scheduler/batch-min-member: \"$6\""
@@ -106,15 +110,16 @@ spec:
       schedulerName: runai-scheduler
       restartPolicy: Never
       tolerations: [{key: kwok.x-k8s.io/node, operator: Exists, effect: NoSchedule}]
-      nodeSelector: {type: kwok}
+      nodeSelector: {type: kwok${7:+, oif.ai/fake-gpu-profile: $7}}
       containers: [{name: main, image: busybox, command: [sleep, "600"], resources: {limits: {$4.com/gpu: "$3"}}}]
 EOF
 }
 placed() {   # job: "node domain" per live pod (not finished), or "Pending" for unplaced pods
-  local p n
-  for p in $(kc -n "$NS" get pods -l job-name="$1" --field-selector=status.phase!=Succeeded,status.phase!=Failed -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}'); do
-    n=$(kc -n "$NS" get pod "$p" -o jsonpath='{.spec.nodeName}')
-    if [ -n "$n" ]; then echo "$n $(kc get node "$n" -o jsonpath="{.metadata.labels.oif\.ai/accelerator-domain}")"; else echo Pending; fi
+  local nodes n   # two API calls, not two per pod (the CPX case has 64 pods)
+  nodes=$(kc get node -l app.kubernetes.io/part-of=oif-s9 -o jsonpath='{range .items[*]}{.metadata.name} {.metadata.labels.oif\.ai/accelerator-domain}{"\n"}{end}')
+  kc -n "$NS" get pods -l job-name="$1" --field-selector=status.phase!=Succeeded,status.phase!=Failed \
+    -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}' | while read -r n; do
+    if [ -n "$n" ]; then grep -m1 "^$n " <<< "$nodes" || echo "$n ?"; else echo Pending; fi
   done
 }
 wait_placed() {   # job pods seconds
@@ -174,7 +179,39 @@ wait_placed s9-amd 2 120; info "s9-amd: $(placed s9-amd | paste -sd',')"
 check "AMD 2 x 8 GPUs, required same domain: both in amd-a" bash -c '[ "$1" = amd-a ]' _ "$(domains s9-amd)"
 kc -n "$NS" delete job s9-amd --wait=true >/dev/null
 
-# 5. the real GPU nodes were not used by any test pod
+# 5. AMD Instinct nodes from tools/fake-gpu: the scale-up domain is the server on MI355X (xGMI) and the rack on Helios
+gen() { python3 "$ROOT/tools/fake-gpu/fake_gpu_nodes.py" --prefix s9- "$@" | kc apply -f - >/dev/null; }
+gen --profile mi355x --count 2 && gen --profile mi455x --racks 1 && gen --profile mi300x --partition cpx_nps4
+kc label node -l oif.ai/fake-gpu-profile app.kubernetes.io/part-of=oif-s9 >/dev/null
+check "Instinct fake nodes Ready (2 MI355X, 18 Helios trays, 1 MI300X in CPX)" \
+  kc wait node -l oif.ai/fake-gpu-profile --for=condition=Ready --timeout=120s
+sleep 20
+inst() {   # name pods gpus-each profile: required same domain, placed together; prints the domains used
+  job "$1" "$2" "$3" amd "$DOMAIN_LABEL" "$2" "$4"
+  wait_placed "$1" "$2" 180; info "$1: $(placed "$1" | sort | uniq -c | paste -sd',')"
+}
+inst s9-mi355 8 1 mi355x
+check "MI355X: 8 x 1 GPU together, one server (xGMI domain)" bash -c '[ "$(wc -w <<< "$1")" = 1 ]' _ "$(domains s9-mi355)"
+kc -n "$NS" delete job s9-mi355 --wait=true >/dev/null
+job s9-mi355-2 2 8 amd "$DOMAIN_LABEL" 2 mi355x
+sleep 45; info "s9-mi355-2: $(placed s9-mi355-2 | paste -sd',')"
+check "MI355X: 2 x 8 GPUs, required one domain (a server holds 8): waits, never split" \
+  bash -c '[ "$(grep -vc Pending <<< "$1")" = 0 ]' _ "$(placed s9-mi355-2)"
+kc -n "$NS" delete job s9-mi355-2 --wait=true >/dev/null
+inst s9-helios 16 4 mi455x
+check "Helios: 16 x 4 = 64 GPUs together, all in one rack (UALink domain)" bash -c '[ "$1" = s9-mi455x-r1 ]' _ "$(domains s9-helios)"
+kc -n "$NS" delete job s9-helios --wait=true >/dev/null
+job s9-helios-80 20 4 amd "$DOMAIN_LABEL" 20 mi455x
+sleep 45; info "s9-helios-80: $(placed s9-helios-80 | sort | uniq -c | paste -sd',')"
+check "Helios: 20 x 4 = 80 GPUs (a rack holds 72): waits, never split" \
+  bash -c '[ "$(grep -vc Pending <<< "$1")" = 0 ]' _ "$(placed s9-helios-80)"
+kc -n "$NS" delete job s9-helios-80 --wait=true >/dev/null
+inst s9-cpx 64 1 mi300x
+check "MI300X CPX + NPS4: 64 x 1 partition together, on the one server" \
+  bash -c '[ "$2" = 64 ] && [ "$1" = s9-mi300x-01 ]' _ "$(domains s9-cpx)" "$(placed s9-cpx | grep -vc Pending)"
+kc -n "$NS" delete job s9-cpx --wait=true >/dev/null
+
+# 6. the real GPU nodes were not used by any test pod
 check "no test pod on a real node" bash -c '! kubectl --kubeconfig "$1" -n "$2" get pods -l app.kubernetes.io/part-of=oif-s9 -o wide 2>/dev/null | grep -E "gpu-(nvidia|amd) "' _ "$KCFG" "$NS"
 
 echo "S-9: $((N - FAILS))/$N checks passed (cleanup follows)"
