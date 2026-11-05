@@ -1,0 +1,115 @@
+# T-130 (ADR-019 amendment 2026-11-05): accelerator domains as node labels, for KAI's topology-aware scheduling.
+# - DaemonSet oif-topology on every real node labels its own node with oif.ai/accelerator-domain (the GPUs a job can
+#   use over one scale-up fabric), oif.ai/accelerator-fabric and oif.ai/scaleout-zone: NVIDIA clique label or NVSwitch,
+#   AMD xGMI hive from the driver's sysfs (read only), else the node; node annotations with the same keys win (a Helios
+#   rack's UALink domain, which no driver reports yet). Nodes without GPUs get none.
+# - Policy oif-topology-own-node: the agent may change only the node it runs on, and only those three labels.
+# Rendered by stage topology; ${...} from the installer.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oif-topology
+  labels: {app.kubernetes.io/managed-by: oif}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oif-topology
+  namespace: oif-topology
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oif-topology
+  labels: {app.kubernetes.io/managed-by: oif}
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, patch]   # narrowed to its own node and its labels by oif-topology-own-node
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oif-topology
+  labels: {app.kubernetes.io/managed-by: oif}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: oif-topology}
+subjects:
+  - {kind: ServiceAccount, name: oif-topology, namespace: oif-topology}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: oif-topology-own-node
+  labels: {app.kubernetes.io/managed-by: oif}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - {apiGroups: [""], apiVersions: [v1], operations: [UPDATE], resources: [nodes]}
+  matchConditions:
+    - name: oif-topology-agent
+      expression: request.userInfo.username == 'system:serviceaccount:oif-topology:oif-topology'
+  variables:
+    - name: ours
+      expression: "['oif.ai/accelerator-domain', 'oif.ai/accelerator-fabric', 'oif.ai/scaleout-zone']"
+  validations:
+    - expression: >-
+        'authentication.kubernetes.io/node-name' in request.userInfo.extra &&
+        request.userInfo.extra['authentication.kubernetes.io/node-name'][0] == object.metadata.name
+      message: oif-topology may change only the node it runs on
+    - expression: >-
+        (!has(object.metadata.labels) || object.metadata.labels.all(k, k in variables.ours ||
+          (has(oldObject.metadata.labels) && k in oldObject.metadata.labels && oldObject.metadata.labels[k] == object.metadata.labels[k]))) &&
+        (!has(oldObject.metadata.labels) || oldObject.metadata.labels.all(k, k in variables.ours ||
+          (has(object.metadata.labels) && k in object.metadata.labels)))
+      message: oif-topology may change only the labels oif.ai/accelerator-domain, oif.ai/accelerator-fabric and oif.ai/scaleout-zone
+    - expression: >-
+        object.spec == oldObject.spec && has(object.metadata.annotations) == has(oldObject.metadata.annotations) &&
+        (!has(object.metadata.annotations) || object.metadata.annotations == oldObject.metadata.annotations)
+      message: oif-topology may not change a node's spec (taints) or annotations
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: oif-topology-own-node
+  labels: {app.kubernetes.io/managed-by: oif}
+spec:
+  policyName: oif-topology-own-node
+  validationActions: [Deny]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: oif-topology
+  namespace: oif-topology
+  labels: {app.kubernetes.io/managed-by: oif, app: oif-topology}
+spec:
+  selector:
+    matchLabels: {app: oif-topology}
+  template:
+    metadata:
+      labels: {app: oif-topology}
+    spec:
+      serviceAccountName: oif-topology
+      priorityClassName: system-node-critical
+      affinity:
+        nodeAffinity:   # real nodes only: simulated (KWOK) nodes are labelled by whoever creates them
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions: [{key: type, operator: NotIn, values: [kwok]}]
+      tolerations: [{operator: Exists}]   # GPU nodes may be tainted
+      containers:
+        - name: agent
+          image: ${TOPOLOGY_IMAGE}
+          imagePullPolicy: IfNotPresent   # built by oif, loaded on every node
+          command: [/oif-topology, --sys=/host/sys, --interval=60s]
+          env:
+            - name: NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          securityContext: {runAsNonRoot: true, runAsUser: 65532, readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {memory: 48Mi}
+          volumeMounts: [{name: sys, mountPath: /host/sys, readOnly: true}]
+      volumes:
+        - {name: sys, hostPath: {path: /sys, type: Directory}}
