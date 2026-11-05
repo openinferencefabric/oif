@@ -1,0 +1,25 @@
+S-9 run after the fix, 2026-11-05 (owner, cp1, main cccffc0): sudo tests/lab/s9-fake-topology.sh
+KWOK v0.8.0 without the pod-complete Stage; Jobs through Run:ai's KAI (v0.18.3 + oif 0001-0006).
+
+S-9 fake multi-GPU nodes and KAI topology (KWOK v0.8.0)
+  PASS  KWOK controller running
+  PASS  five fake GPU nodes Ready (2 in domain nv-a, 1 in nv-b, 2 in amd-a)
+  PASS  Topology oif-s9 (levels: domain, host)
+  INFO  s9-pack: s9-nv-a1 nv-a,s9-nv-a2 nv-a,s9-nv-a1 nv-a
+  PASS  3 x 4 GPUs, required same domain: all in one domain
+  INFO  s9-pack1: Pending,s9-nv-b1 nv-b,s9-nv-b1 nv-b
+  PASS  3 x 4 GPUs, minimum 1 pod: 2 in one domain, the 3rd waits, no node above 8 GPUs
+  INFO  s9-toolarge: Pending,Pending,Pending
+  PASS  3 x 8 GPUs, required same domain, no domain big enough: nothing placed
+  INFO  why: Unable to schedule podgroup: node-group nv-a can allocate only 2 of 3 required pods.
+node-group nv-b can allocate only 1 of 3 required pods.
+topology oif-s9, requirement oif.ai/accelerator-domain couldn't be satisfied
+  INFO  without topology: s9-nv-a1 nv-a,s9-nv-a1 nv-a,s9-nv-a2 nv-a -> domains: nv-a
+  INFO  s9-amd: s9-amd-a1 amd-a,s9-amd-a2 amd-a
+  PASS  AMD 2 x 8 GPUs, required same domain: both in amd-a
+  PASS  no test pod on a real node
+S-9: 8/8 checks passed (cleanup follows)
+
+Reading: Run:ai's pod grouper honours kai.scheduler/batch-min-member (s9-pack and s9-toolarge are placed as a gang).
+KAI keeps a gang inside one accelerator domain, refuses to split one that fits no domain (with a clear reason), never
+exceeds a node's GPUs, and does the same for AMD. With the default minimum of 1 the domain is chosen for one pod.
