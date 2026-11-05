@@ -48,9 +48,13 @@ while read -r name compute pool node req; do
   if [ "$req" = - ]; then out=$(api run "$name" "$pool" "$compute"); else out=$(api run "$name" "$pool" "$compute" "$req"); fi
   sed 's/^/        /' <<< "$out"
   check "$name: runs on $node" grep -q "phase=Running node=$node " <<< "$out"
-  check "$name: KAI got topology $RUNAI_TOPOLOGY, preferred one host (set by Run:ai)" \
-    grep -q "pg-topology=$RUNAI_TOPOLOGY pg-preferred=kubernetes.io/hostname " <<< "$out"
-  [ "$req" = - ] || check "$name: KAI got the required level $req" grep -q "pg-required=$req$" <<< "$out"
+  if [ "$req" = - ]; then
+    check "$name: KAI got topology $RUNAI_TOPOLOGY, preferred one host (set by Run:ai)" \
+      grep -q "pg-topology=$RUNAI_TOPOLOGY pg-preferred=kubernetes.io/hostname " <<< "$out"
+  else   # the workload names the topology itself: Run:ai then adds nothing, and KAI ignores a level without a topology
+    check "$name: KAI got topology $RUNAI_TOPOLOGY with the required level $req" \
+      grep -q "pg-topology=$RUNAI_TOPOLOGY .*pg-required=$req$" <<< "$out"
+  fi
 done <<'CASES'
 t132-nvidia {"gpuDevicesRequest":1} nvidia gpu-nvidia -
 t132-amd-domain {"gpuDevicesRequest":0,"extendedResources":[{"resource":"amd.com/gpu","quantity":"1"}]} amd gpu-amd oif.ai/accelerator-domain

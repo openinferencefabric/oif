@@ -88,11 +88,16 @@ Stage `runai-topology` (after `topology`) creates Run:ai **network topology** `o
   oif-accelerator` and `kai.scheduler/topology-preferred-placement: kubernetes.io/hostname` from Run:ai itself: KAI puts
   its pods on as few hosts as it can, then inside one domain, then one zone. Preferred means it still runs when no
   single host or domain has room.
-- **A workload that must stay in one domain** (tensor parallelism over NVLink or xGMI) adds the annotation
-  `kai.scheduler/topology-required-placement: oif.ai/accelerator-domain`: in the form under the workload's
-  annotations, in the API as `spec.annotations: [{"name": "kai.scheduler/topology-required-placement", "value":
-  "oif.ai/accelerator-domain"}]`, or on a Job or other object as a metadata annotation. It waits until one domain has
-  room for all of it, and KAI's reason says so ("requirement oif.ai/accelerator-domain couldn't be satisfied").
+- **A workload that must stay in one domain** (tensor parallelism over NVLink or xGMI) adds **two** annotations:
+  `kai.scheduler/topology: oif-accelerator` and `kai.scheduler/topology-required-placement: oif.ai/accelerator-domain`
+  (in the form under the workload's annotations; in the API as `spec.annotations: [{"name": "kai.scheduler/topology",
+  "value": "oif-accelerator"}, {"name": "kai.scheduler/topology-required-placement", "value":
+  "oif.ai/accelerator-domain"}]`; on a Job or other object as metadata annotations). Both are needed: Run:ai adds its
+  topology only to workloads that carry no `kai.scheduler/` annotation of their own, and KAI **silently ignores** a
+  required level without a topology (lab, T-132: such a pod ran unconstrained). The workload then waits until one
+  domain has room for all of it, and KAI's reason says so ("requirement oif.ai/accelerator-domain couldn't be
+  satisfied"). Run:ai's preferred placement is not added in that case; add
+  `kai.scheduler/topology-preferred-placement: kubernetes.io/hostname` too if you want it.
 - **A plain Kubernetes Job** is one gang only when it says so: add `kai.scheduler/batch-min-member: "<pods>"`, or KAI
   places it one pod at a time and picks the domain for the first pod (spike S-9). Run:ai's distributed workloads are
   gangs already.
