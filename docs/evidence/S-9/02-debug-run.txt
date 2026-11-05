@@ -33,3 +33,11 @@ Reading: one pod group of three 4-GPU pods (minMember 1) with a required domain;
 for all three on one 8-GPU node, two in one second and the third a second later. The topology plugin only narrows the
 node sets (subSetNodesFn); the node's GPU fit is checked elsewhere, so the next step is a KAI allocate-test reproduction.
 The scheduler log grep found nothing: the log level or deployment name needs checking before the next --debug run.
+
+Root cause (2026-11-05), not KAI: KWOK v0.8.0 stage-fast.yaml has a Stage pod-complete that moves every Running pod
+owned by a Job to phase Succeeded with no delay. On s9-nv-b1 the first two pods (8 GPUs) finished at once, their GPUs
+were free again, and KAI placed the third pod there in the next cycle; the test listed finished pods too. KAI
+v0.18.3's own scheduler tests with this topology (vanilla and with oif patches 0001-0006) never place more than
+8 GPUs on a node: with minMember 1, 2 pods go to nv-b (the smallest domain that fits the minimum) and the 3rd waits;
+with minMember 3 the Job goes to nv-a. Fix in tests/lab/s9-fake-topology.sh: the pod-complete Stage is deleted, only
+live pods are counted, kai.scheduler/batch-min-member on the packing cases, case 1b checks the minMember 1 behaviour.

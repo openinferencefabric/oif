@@ -47,6 +47,9 @@ for f in kwok.yaml:$KWOK_SHA256 stage-fast.yaml:$KWOK_STAGE_SHA256; do
     && echo "${f#*:}  $W/${f%%:*}" | sha256sum -c - >/dev/null || { echo "cannot fetch or verify ${f%%:*}"; exit 1; }
 done
 kc apply -f "$W/kwok.yaml" >/dev/null && kc apply -f "$W/stage-fast.yaml" >/dev/null
+# stage-fast's pod-complete turns every Running pod of a Job into Succeeded at once, which frees its GPUs and let KAI
+# place the next pod on the same node (the 5/7 of the first run); without it fake pods stay Running like real ones
+kc delete stages.kwok.x-k8s.io pod-complete --ignore-not-found >/dev/null
 check "KWOK controller running" kc -n kube-system rollout status deploy/kwok-controller --timeout=180s
 
 fake_node() {   # name vendor domain: 8 GPUs of that vendor, tainted so only the test pods go there
@@ -80,9 +83,11 @@ EOF
 check "Topology $TOPO (levels: domain, host)" kc get topologies.kai.scheduler "$TOPO"
 sleep 20   # the schedulers pick up the new nodes and the Topology
 
-job() {   # name pods gpus-each vendor [required-level]
-  local ann=""
-  [ -n "${5:-}" ] && ann="annotations: {kai.scheduler/topology: $TOPO, kai.scheduler/topology-required-placement: $5}"
+job() {   # name pods gpus-each vendor [required-level [min-member]]
+  local ann=""   # min-member: pods KAI must place together (the Job grouper's default is 1)
+  [ -n "${5:-}" ] && ann="kai.scheduler/topology: $TOPO, kai.scheduler/topology-required-placement: $5"
+  [ -n "${6:-}" ] && ann="$ann, kai.scheduler/batch-min-member: \"$6\""
+  [ -n "$ann" ] && ann="annotations: {$ann}"
   kc -n "$NS" apply -f - >/dev/null <<EOF
 apiVersion: batch/v1
 kind: Job
@@ -105,9 +110,9 @@ spec:
       containers: [{name: main, image: busybox, command: [sleep, "600"], resources: {limits: {$4.com/gpu: "$3"}}}]
 EOF
 }
-placed() {   # job: "node domain" per pod, or "Pending" for unplaced pods
+placed() {   # job: "node domain" per live pod (not finished), or "Pending" for unplaced pods
   local p n
-  for p in $(kc -n "$NS" get pods -l job-name="$1" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}'); do
+  for p in $(kc -n "$NS" get pods -l job-name="$1" --field-selector=status.phase!=Succeeded,status.phase!=Failed -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}'); do
     n=$(kc -n "$NS" get pod "$p" -o jsonpath='{.spec.nodeName}')
     if [ -n "$n" ]; then echo "$n $(kc get node "$n" -o jsonpath="{.metadata.labels.oif\.ai/accelerator-domain}")"; else echo Pending; fi
   done
@@ -119,8 +124,8 @@ wait_placed() {   # job pods seconds
 }
 domains() { placed "$1" | awk '$1 != "Pending" {print $2}' | sort -u | paste -sd' '; }
 
-# 1. 3 pods x 4 NVIDIA GPUs, required in one domain: nv-a (16 GPUs) is the only one large enough
-job s9-pack 3 4 nvidia "$DOMAIN_LABEL"
+# 1. 3 pods x 4 NVIDIA GPUs placed together, required in one domain: nv-a (16 GPUs) is the only one large enough
+job s9-pack 3 4 nvidia "$DOMAIN_LABEL" 3
 wait_placed s9-pack 3 120; info "s9-pack: $(placed s9-pack | paste -sd',')"
 if [ "${1:-}" = --debug ]; then   # what KAI saw and did for s9-pack, then clean up
   echo "== fake nodes: allocatable GPUs, pool labels"
@@ -131,8 +136,10 @@ if [ "${1:-}" = --debug ]; then   # what KAI saw and did for s9-pack, then clean
   for pg in $(kc -n "$NS" get podgroups.scheduling.run.ai -o name 2>/dev/null | grep -i s9-pack); do
     kc -n "$NS" get "$pg" -o yaml | grep -E "^  (minMember|topologyConstraint|queue)|^    (preferredTopologyLevel|requiredTopologyLevel|topology)|subGroups|minSubGroup|^  annotations" -A1 | head -30
   done
-  echo "== scheduler (pool nvidia) log for s9-pack"
-  kc -n runai logs deploy/runai-scheduler-nvidia --since=5m 2>/dev/null | grep -i -E "s9-pack|s9-nv|topolog" | tail -40 | cut -c1-400
+  for d in $(kc -n runai get deploy -o name | grep -i scheduler); do
+    echo "== $d log for s9-pack"
+    kc -n runai logs "$d" --since=5m 2>/dev/null | grep -i -E "s9-pack|s9-nv|topolog" | tail -20 | cut -c1-400
+  done
   echo "== binder log for s9-pack"
   kc -n runai logs deploy/binder --since=5m 2>/dev/null | grep -i "s9-pack" | tail -10 | cut -c1-300
   exit 0
@@ -140,8 +147,16 @@ fi
 check "3 x 4 GPUs, required same domain: all in one domain" bash -c '[ "$1" = nv-a ]' _ "$(domains s9-pack)"
 kc -n "$NS" delete job s9-pack --wait=true >/dev/null
 
-# 2. larger than any domain (3 x 8 = 24 > 16), required same domain: waits, never split
-job s9-toolarge 3 8 nvidia "$DOMAIN_LABEL"
+# 1b. the same Job with KAI's default minimum of 1 pod: KAI picks the domain for that minimum (the smallest that fits
+# one pod, nv-b) and keeps the rest of the Job there, so 2 pods fill s9-nv-b1 and the 3rd waits (KAI v0.18.3 tests)
+job s9-pack1 3 4 nvidia "$DOMAIN_LABEL"
+wait_placed s9-pack1 2 120; sleep 30; info "s9-pack1: $(placed s9-pack1 | paste -sd',')"
+check "3 x 4 GPUs, minimum 1 pod: 2 in one domain, the 3rd waits, no node above 8 GPUs" \
+  bash -c '[ "$(grep -c Pending <<< "$1")" = 1 ] && [ "$(grep -v Pending <<< "$1" | awk "{print \$2}" | sort -u | wc -l)" = 1 ]' _ "$(placed s9-pack1)"
+kc -n "$NS" delete job s9-pack1 --wait=true >/dev/null
+
+# 2. larger than any domain (3 x 8 = 24 > 16), placed together, required same domain: waits, never split
+job s9-toolarge 3 8 nvidia "$DOMAIN_LABEL" 3
 sleep 45; info "s9-toolarge: $(placed s9-toolarge | paste -sd',')"
 check "3 x 8 GPUs, required same domain, no domain big enough: nothing placed" bash -c '[ "$(grep -vc Pending <<< "$1")" = 0 ]' _ "$(placed s9-toolarge)"
 reason=$(kc -n "$NS" get pods -l job-name=s9-toolarge -o jsonpath='{.items[0].status.conditions[0].message}' 2>/dev/null)
@@ -153,8 +168,8 @@ job s9-free 3 4 nvidia
 wait_placed s9-free 3 120; info "without topology: $(placed s9-free | paste -sd',') -> domains: $(domains s9-free)"
 kc -n "$NS" delete job s9-free --wait=true >/dev/null
 
-# 4. AMD: 2 x 8 GPUs, required in one domain: amd-a (2 nodes x 8)
-job s9-amd 2 8 amd "$DOMAIN_LABEL"
+# 4. AMD: 2 x 8 GPUs placed together, required in one domain: amd-a (2 nodes x 8)
+job s9-amd 2 8 amd "$DOMAIN_LABEL" 2
 wait_placed s9-amd 2 120; info "s9-amd: $(placed s9-amd | paste -sd',')"
 check "AMD 2 x 8 GPUs, required same domain: both in amd-a" bash -c '[ "$1" = amd-a ]' _ "$(domains s9-amd)"
 kc -n "$NS" delete job s9-amd --wait=true >/dev/null
