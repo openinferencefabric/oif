@@ -45,6 +45,8 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | issue |
 | A4 | ROCm (rocr-runtime, amdkfd) | CU mask only settable by the workload (`HSA_CU_MASK`), no node-enforced compute share (S-8) | issue | drafted, held for a measured run |
 | A5 | ROCm device-metrics-exporter | GPU metrics carry a pod only for device-plugin or DRA allocations, one pod per GPU: GPU-sharing pods (KAI fractions) get no per-pod metrics | issue | filed ([device-metrics-exporter#722](https://github.com/ROCm/device-metrics-exporter/issues/722)); AMD triaged it 2026-11-04 (assigned to check whether it is officially supported) |
+| A6 | AMD GPU Operator (node labeller, DRA driver) | No topology labels: xGMI group (the driver has `xgmi_hive_info/xgmi_hive_id`), UALink domain for Helios, partition capabilities, DRA device attributes; MI455X missing from `amdgpu.ids` | issue (oif labels fake nodes `oif.ai/accelerator-domain`) | drafted (S-9) |
+| X1 | KWOK (kubernetes-sigs) | Docs example for AMD Instinct GPU nodes next to the NVIDIA one, from oif's generator `tools/fake-gpu` | issue, then a docs PR (needs the CNCF CLA) | drafted (S-9) |
 
 Checked and not upstream: T-138, Run:ai Overview "Allocated GPU devices" at 0. oif's HA values gave Thanos receive three copies with `replicationFactor` 3 but not the chart's `receive.service.additionalHeadless`, so every remote write was refused; fixed in oif (guide 10). Run:ai's defaults (one receiver) are fine.
 

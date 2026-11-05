@@ -24,7 +24,7 @@ if [ "${1:-}" != unit ]; then
 fi
 
 echo "== python syntax"
-python3 -m py_compile installer/tools/*.py tests/lab/*.py && echo "   ok" || fail=1
+python3 -m py_compile installer/tools/*.py tests/lab/*.py tools/fake-gpu/*.py && echo "   ok" || fail=1
 
 echo "== unit tests"
 for t in tests/unit/test_*.sh; do
