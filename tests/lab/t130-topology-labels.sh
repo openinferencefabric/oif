@@ -53,9 +53,10 @@ check "annotation removed: $T is its own domain again (within 2 min)" \
   wait_for "restore" 120 5 bash -c '[ "$(kubectl --kubeconfig "$1" get node "$2" -o jsonpath="{.metadata.labels.oif\.ai/accelerator-domain} {.metadata.labels.oif\.ai/accelerator-fabric}")" = "$2 pcie" ]' _ "$KCFG" "$T"
 
 # policy oif-topology-own-node, tried as the agent (impersonated, with the node its token would name)
-O=$(grep -vx "$T" <<< "$GPU_NODES$(printf '\n')$OTHER_NODES" | grep . | head -1)
+O=$(printf '%s\n%s\n' "$GPU_NODES" "$OTHER_NODES" | grep -vx "$T" | grep . | head -1)   # another real node
 check "the agent may set its labels on its own node" \
   kc label node "$T" oif.ai/scaleout-zone=default --overwrite --as="$AGENT" --as-user-extra="authentication.kubernetes.io/node-name=$T"
+check "another real node to try: $O" kc get node "$O"
 check "the agent may not change another node ($O)" \
   bash -c '! kubectl --kubeconfig "$1" label node "$2" oif.ai/scaleout-zone=t130 --overwrite --as="$3" --as-user-extra="authentication.kubernetes.io/node-name=$4"' _ "$KCFG" "$O" "$AGENT" "$T"
 check "the agent may not change other labels of its node" \
