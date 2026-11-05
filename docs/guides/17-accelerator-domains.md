@@ -98,6 +98,12 @@ Stage `runai-topology` (after `topology`) creates Run:ai **network topology** `o
   domain has room for all of it, and KAI's reason says so ("requirement oif.ai/accelerator-domain couldn't be
   satisfied"). Run:ai's preferred placement is not added in that case; add
   `kai.scheduler/topology-preferred-placement: kubernetes.io/hostname` too if you want it.
+- **KAI v0.18.3 bug, fixed by oif:** when every node of the pool sits inside one domain below the required level (a
+  one-node pool, or a pool inside one NVL72 rack with a required zone), stock KAI never places the workload ("node-group(s)
+  didn't have enough resources: GPUs ... pods", T-132 lab). oif's KAI patch 0007 fixes it (upstream K10,
+  docs/UPSTREAM.md). The patched KAI is built by stage `amd-fractions`, so only on clusters with an AMD-only node and
+  without `AMD_FRACTIONS=none`; elsewhere a required level works only when the pool's nodes span several of its domains
+  (T-141).
 - **A plain Kubernetes Job** is one gang only when it says so: add `kai.scheduler/batch-min-member: "<pods>"`, or KAI
   places it one pod at a time and picks the domain for the first pod (spike S-9). Run:ai's distributed workloads are
   gangs already.
