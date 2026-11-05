@@ -10,6 +10,7 @@
 # Jobs in team-c, team-c's quota raised in pools nvidia and amd (put back to 1 and 1).
 #   sudo tests/lab/s9-fake-topology.sh           all cases
 #   sudo tests/lab/s9-fake-topology.sh --debug   the first case only, with what KAI saw and did
+#   sudo S9_TOPOLOGY=oif-accelerator tests/lab/s9-fake-topology.sh   use the installed topology (T-132) instead of its own
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); OIF_HOME=$ROOT
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 2; }
@@ -26,7 +27,7 @@ KWOK_VERSION=v0.8.0
 KWOK_SHA256=a4c16e6431e382dcb5c1903139344b7a68652f16a6460337fe17a678a426f405         # kwok.yaml
 KWOK_STAGE_SHA256=2f28d95564ec43056c0873f7a25ac7d2a5bba4c8496c72f8b3ee73fd4f54ee24   # stage-fast.yaml
 DOMAIN_LABEL=oif.ai/accelerator-domain
-TOPO=oif-s9
+TOPO=${S9_TOPOLOGY:-oif-s9}; OWN_TOPO=$([ -z "${S9_TOPOLOGY:-}" ] && echo yes)   # its own Topology is created and removed
 W=$(mktemp -d)
 FAILS=0; N=0
 check() { N=$((N + 1)); if "${@:2}" >/dev/null 2>&1; then echo "  PASS  $1"; else echo "  FAIL  $1"; FAILS=$((FAILS + 1)); fi; }
@@ -35,7 +36,7 @@ info() { echo "  INFO  $*"; }
 NS=$(runai_api project-pools team-c nvidia=40 amd=200)
 cleanup() {
   kc -n "$NS" delete job -l app.kubernetes.io/part-of=oif-s9 --ignore-not-found --wait=true >/dev/null 2>&1
-  kc delete topologies.kai.scheduler "$TOPO" --ignore-not-found >/dev/null 2>&1
+  [ -n "$OWN_TOPO" ] && kc delete topologies.kai.scheduler "$TOPO" --ignore-not-found >/dev/null 2>&1
   kc delete node -l app.kubernetes.io/part-of=oif-s9 --ignore-not-found >/dev/null 2>&1
   kc delete node -l oif.ai/fake-gpu-profile --ignore-not-found >/dev/null 2>&1
   [ -s "$W/stage-fast.yaml" ] && kc delete -f "$W/stage-fast.yaml" --ignore-not-found >/dev/null 2>&1
@@ -63,7 +64,8 @@ kind: Node
 metadata:
   name: $1
   annotations: {kwok.x-k8s.io/node: fake}
-  labels: {app.kubernetes.io/part-of: oif-s9, type: kwok, kubernetes.io/hostname: $1, oif.ai/gpu-vendor: $2, $DOMAIN_LABEL: $3}
+  labels: {app.kubernetes.io/part-of: oif-s9, type: kwok, kubernetes.io/hostname: $1, oif.ai/gpu-vendor: $2, $DOMAIN_LABEL: $3,
+    oif.ai/scaleout-zone: zone-1}
 spec:
   taints: [{key: kwok.x-k8s.io/node, value: fake, effect: NoSchedule}]
 status:
@@ -75,7 +77,8 @@ fake_node s9-nv-a1 nvidia nv-a; fake_node s9-nv-a2 nvidia nv-a; fake_node s9-nv-
 fake_node s9-amd-a1 amd amd-a; fake_node s9-amd-a2 amd amd-a
 check "five fake GPU nodes Ready (2 in domain nv-a, 1 in nv-b, 2 in amd-a)" \
   kc wait node -l app.kubernetes.io/part-of=oif-s9 --for=condition=Ready --timeout=120s
-kc apply -f - >/dev/null <<EOF
+if [ -n "$OWN_TOPO" ]; then
+  kc apply -f - >/dev/null <<EOF
 apiVersion: kai.scheduler/v1alpha1
 kind: Topology
 metadata: {name: $TOPO}
@@ -84,7 +87,10 @@ spec:
   - nodeLabel: $DOMAIN_LABEL
   - nodeLabel: kubernetes.io/hostname
 EOF
-check "Topology $TOPO (levels: domain, host)" kc get topologies.kai.scheduler "$TOPO"
+  check "Topology $TOPO (levels: domain, host)" kc get topologies.kai.scheduler "$TOPO"
+else   # the installed one (T-132): every fake node carries all its levels
+  check "Topology $TOPO installed (levels: $(kc get topologies.kai.scheduler "$TOPO" -o jsonpath='{.spec.levels[*].nodeLabel}'))"     bash -c 'grep -qw "$1" <<< "$2"' _ "$DOMAIN_LABEL" "$(kc get topologies.kai.scheduler "$TOPO" -o jsonpath='{.spec.levels[*].nodeLabel}')"
+fi
 sleep 20   # the schedulers pick up the new nodes and the Topology
 
 job() {   # name pods gpus-each vendor [required-level [min-member [fake-gpu-profile]]]

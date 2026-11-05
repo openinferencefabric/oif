@@ -40,6 +40,33 @@ stage_topology() {
 }
 stage_after topology vendor-pool
 
+# T-132 (ADR-019 amendment 2026-11-05): KAI packs a workload inside one domain. Run:ai network topology oif-accelerator
+# (levels: scale-out zone > accelerator domain > host), linked to the GPU node pools; Run:ai's agent writes it as KAI
+# Topology oif-accelerator, and Run:ai adds kai.scheduler/topology and a preferred placement at the host level to every
+# workload submitted into those pools. A workload that must stay in one domain adds
+# kai.scheduler/topology-required-placement: oif.ai/accelerator-domain (guide 17).
+RUNAI_TOPOLOGY=oif-accelerator
+RUNAI_TOPOLOGY_LEVELS=(oif.ai/scaleout-zone oif.ai/accelerator-domain kubernetes.io/hostname)
+runai_topology_pools() {   # the node pools with GPUs, comma separated: one per vendor (several nodes) or default
+  local v p=(); for v in nvidia amd; do [ "$(gpu_count "$v")" -gt 0 ] && p+=("$(pool_for "$v")"); done
+  printf '%s\n' "${p[@]}" | sort -u | paste -sd,; }
+runai_topology_rev() { echo "$RUNAI_TOPOLOGY ${RUNAI_TOPOLOGY_LEVELS[*]} $(runai_topology_pools)"; }
+
+register_stage runai-topology runai_topology_rev
+stage_runai_topology() {
+  local pools; pools=$(runai_topology_pools)
+  if [ -z "$pools" ]; then
+    runai_api network-topology-delete "$RUNAI_TOPOLOGY" | sed 's/^/    /' | tee -a "$TLOG"
+    ok "no GPUs: no network topology"; return 0
+  fi
+  runai_api network-topology "$RUNAI_TOPOLOGY" "$pools" "${RUNAI_TOPOLOGY_LEVELS[@]}" | sed 's/^/    /' | tee -a "$TLOG"
+  [ "${PIPESTATUS[0]}" = 0 ] || die "Run:ai network topology $RUNAI_TOPOLOGY not set (Run:ai UI: Resources, Network topologies)"
+  wait_for "KAI Topology $RUNAI_TOPOLOGY in the cluster" 300 5 kc get topologies.kai.scheduler "$RUNAI_TOPOLOGY" \
+    || die "Run:ai's agent did not create KAI Topology $RUNAI_TOPOLOGY (kubectl -n runai logs deploy/runai-agent)"
+  ok "workloads in node pools $pools are packed by accelerator domain (KAI Topology $RUNAI_TOPOLOGY, preferred: one host)"
+}
+stage_after runai-topology topology
+
 topology_off() {   # no agent, no policy, none of its labels
   kc delete namespace oif-topology --ignore-not-found >> "$LOG" 2>&1 || true
   kc delete validatingadmissionpolicybinding oif-topology-own-node --ignore-not-found >> "$LOG" 2>&1 || true
