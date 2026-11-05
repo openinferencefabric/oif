@@ -36,6 +36,7 @@ oif-specific and needs a general form; **issue** = no oif patch, oif works aroun
 | K3b | KAI binder | The reservation pod's resource config is changed in place on every call | part of patch 0003 | ready as its own PR |
 | K4 | KAI resource-reservation | Find the reserved AMD GPU without NVML | patch 0004 | ready |
 | K8 | KAI scheduler | GPU-memory fractions on AMD nodes: the scheduler reads only `nvidia.com/gpu.memory`; read `beta.amd.com/gpu.vram.<size>` as the pod-group controller does | patch 0005 (T-140) | proposed on KAI#2556 |
+| K9 | KAI scheduler | Node with GPUs of both vendors: `nvidia.com/gpu` and `amd.com/gpu` share one GPU slot, so a pod is placed where only the other vendor's GPU is free and the kubelet refuses it; check the vendor's own free GPUs in the node predicate | patch 0006 (T-116) | after the hardware test (T-901) |
 | K5 | KAI admission | `runtimeClassName: nvidia` set on every fraction pod, whatever the vendor | issue (oif maps the name to runc on AMD nodes) | issue + PR |
 | K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | propose as a design |
 | K7 | KAI gpu-fractioning | `fractiond --gpu-vendor=amd`: hard VRAM cap per pod with the Linux `dmem` cgroup | fork (merged to its main); installed by oif since T-139 | PR open ([gpu-fractioning#175](https://github.com/kai-scheduler/gpu-fractioning/pull/175)) |

@@ -26,7 +26,7 @@ How it works:
 
 | Piece | What it does |
 | --- | --- |
-| KAI Scheduler v0.18.3, rebuilt with oif's patches (`patches/kai/`) | the scheduler skips NVIDIA's readiness check on AMD GPU nodes; the binder reserves the GPU with a reservation pod that holds an `amd.com/gpu`, and writes the GPU's PCI address into the pod (`oif.ai/amd-gpu`); the scheduler reads an AMD node's GPU memory from AMD's label `beta.amd.com/gpu.vram.<size>`, so fractions by GPU memory (12 GB) schedule there (0005, T-140) |
+| KAI Scheduler v0.18.3, rebuilt with oif's patches (`patches/kai/`) | the scheduler skips NVIDIA's readiness check on AMD GPU nodes; the binder reserves the GPU with a reservation pod that holds an `amd.com/gpu`, and writes the GPU's PCI address into the pod (`oif.ai/amd-gpu`); the scheduler reads an AMD node's GPU memory from AMD's label `beta.amd.com/gpu.vram.<size>`, so fractions by GPU memory (12 GB) schedule there (0005, T-140); on a node with GPUs of both vendors, a pod's whole GPUs of one vendor must fit that vendor's free GPUs (0006, T-116) |
 | oif-amd-share, an NRI plugin (`images/oif-amd-share/`), on every AMD GPU node | when containerd creates the pod's container, gives it `/dev/kfd` and that GPU's `/dev/dri` nodes, and sets `OIF_GPU_MEMORY_FRACTION` |
 | fractiond from KAI's gpu-fractioning with oif's AMD backend (`--gpu-vendor=amd`, built from `GPU_FRACTIONING_REF` in `versions.env`), DaemonSet `oif-fractiond` on AMD nodes labelled `oif.ai/amd-vram-cap=dmem` | when containerd creates a fraction pod's container, writes `dmem.max` = share × VRAM on the pod's cgroup (T-139); refuses the container if it cannot |
 | ValidatingAdmissionPolicy `oif-amd-share-annotations` | only KAI's binder may set the `oif.ai/amd-gpu` annotations, so no one gets a GPU outside Run:ai's quotas |
@@ -52,7 +52,7 @@ How it works:
    ```text
    [192.168.120.21]   [ok] runtime class nvidia runs runc on this AMD GPU node (GPU fractions)
    == stage: amd-fractions
-       == patch 0001-common-amd-gpu-node.patch ... 0005-scheduler-amd-gpu-memory.patch
+       == patch 0001-common-amd-gpu-node.patch ... 0006-scheduler-one-vendor-gpus-on-mixed-nodes.patch
        ok  .../pkg/binder/plugins/nvfractions   ok  .../pkg/scheduler/plugins/gpusharingnodevalidation   ...
        == image oif.local/kai-scheduler/scheduler:v0.18.3-oif-216ce155df72 from ghcr.io/kai-scheduler/kai-scheduler/scheduler:v0.18.3
      [ok] patched image oif.local/kai-scheduler/binder:v0.18.3-oif-216ce155df72 on every node (4 loaded now)
