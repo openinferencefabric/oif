@@ -5,6 +5,7 @@
 # pod that GPU. T-139 (ADR-032 amendment): KAI's gpu-fractioning fractiond with oif's AMD backend caps each fraction
 # pod's VRAM with the Linux dmem cgroup (dmem.max = share x VRAM) on nodes whose kernel supports it (6.14+); elsewhere,
 # or with AMD_VRAM_CAP=none, the share is soft (OIF_GPU_MEMORY_FRACTION and PyTorch's cap tell the workload).
+# Patch 0007 (T-132) fixes KAI's topology plugin for a required level in a pool inside one domain; it is built here too.
 # Needs a node whose GPUs are AMD only (multi-node, T-123); AMD_FRACTIONS=none puts KAI's stock images back.
 
 KAI_STOCK_REGISTRY=ghcr.io/kai-scheduler/kai-scheduler
