@@ -1,7 +1,9 @@
 # Guide 17: Accelerator domains
 
 Step T-130 (ADR-019, amendment 2026-11-05). Tested on the lab cluster (guide 10) on 2026-11-05 with
-`tests/lab/t130-topology-labels.sh` (12/12, docs/evidence/T-130/).
+`tests/lab/t130-topology-labels.sh` (12/12, docs/evidence/T-130/); packing (T-132) tested on 2026-11-06 with
+`tests/lab/t132-runai-topology.sh` (8/8) and `S9_TOPOLOGY=oif-accelerator tests/lab/s9-fake-topology.sh` (14/14),
+docs/evidence/T-132/.
 
 ## What you get
 

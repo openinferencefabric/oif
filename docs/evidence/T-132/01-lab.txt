@@ -1,0 +1,42 @@
+T-132 on the lab cluster, 2026-11-05/06 (owner, cp1). Network topology oif-accelerator (Run:ai) = KAI Topology
+oif-accelerator, levels oif.ai/scaleout-zone > oif.ai/accelerator-domain > kubernetes.io/hostname, node pools nvidia
+and amd.
+
+== Runs, in order
+main 7be9eb6  sudo ./oif install (stage runai-topology); t132 4/9   test bug: case columns read in the wrong order
+main 44d186a  t132 8/9   the training with only kai.scheduler/topology-required-placement ran with no topology:
+              Run:ai adds its topology only to workloads without kai.scheduler/ annotations, and KAI ignores a
+              required level when the pod group has no topology name. Fix: the workload sets both (PR #25)
+main 44d186a  sudo S9_TOPOLOGY=oif-accelerator tests/lab/s9-fake-topology.sh 14/14 (fake NVIDIA and AMD Instinct
+              nodes packed by the installed Topology; KAI's reasons name groups such as zone-1.nv-a)
+main 239d5af  t132 7/8 (twice)   t132-amd-domain Pending with both annotations: KAI topology plugin bug, below
+main 61c91e6  sudo ./oif install: stage amd-fractions rebuilt KAI v0.18.3 with patches 0001-0007
+main bce1309  t132 8/8, below
+
+== 7/8: what KAI said (pod group status, read only)
+  schedulingConditions:
+  - message: "Unable to schedule podgroup: node-group(s) didn't have enough resources:
+      GPUs. \nnode-group(s) didn't have enough resources: pods. \ntopology oif-accelerator,
+      requirement oif.ai/accelerator-domain couldn't be satisfied for job <runai-team-c/pg-t132-amd-domain-...>."
+    nodePool: amd
+    reason: Unschedulable
+gpu-amd at that time: allocatable amd.com/gpu 1, no pod holding it; labels zone default, domain gpu-amd.
+Cause: pool amd has one node, so lowestCommonDomainID walked down to the host domain (it stops early only at a
+preferred level); free resources were computed for that host only, and the required level's domain
+default.gpu-amd was checked with zero GPUs and pods. Reproduced in KAI's own tests on v0.18.3 and on main 4261bdf
+(3 of 5 cases fail); oif KAI patch 0007 stops at the required level too. Upstream: KAI#2593, PR KAI#2594.
+
+== 8/8 (main bce1309, KAI with patch 0007)
+T-132 domain-aware packing through Run:ai (network topology oif-accelerator)
+        oif-accelerator source=Run.ai phase=Ready levels=oif.ai/scaleout-zone,oif.ai/accelerator-domain,kubernetes.io/hostname pools=amd,nvidia
+  PASS  Run:ai: oif-accelerator Ready, levels zone > domain > host, node pools amd and nvidia
+  PASS  Run:ai: no topology left by spike S-9 (oif-s9)
+  PASS  KAI Topology oif-accelerator in the cluster (oif.ai/scaleout-zone oif.ai/accelerator-domain kubernetes.io/hostname)
+  PASS  every GPU node carries all three levels
+        phase=Running node=gpu-nvidia topology=- preferred=- required=- pg-topology=oif-accelerator pg-preferred=kubernetes.io/hostname pg-required=-
+  PASS  t132-nvidia: runs on gpu-nvidia
+  PASS  t132-nvidia: KAI got topology oif-accelerator, preferred one host (set by Run:ai)
+        phase=Running node=gpu-amd topology=oif-accelerator preferred=- required=oif.ai/accelerator-domain pg-topology=oif-accelerator pg-preferred=- pg-required=oif.ai/accelerator-domain
+  PASS  t132-amd-domain: runs on gpu-amd
+  PASS  t132-amd-domain: KAI got topology oif-accelerator with the required level oif.ai/accelerator-domain
+T-132: 8/8 checks passed
