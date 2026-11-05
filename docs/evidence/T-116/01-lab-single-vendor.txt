@@ -1,0 +1,20 @@
+# T-116 on the lab cluster, 2026-11-05 (main 52c8268): sudo ./oif install rebuilt KAI v0.18.3 with patches 0001-0006
+# (the build ran node_info's tests, ok), then sudo tests/lab/t129-vendor-pool.sh on cp1. The lab's GPU nodes each
+# have one vendor, where patch 0006 does nothing: this shows it changes nothing there. The test on a node with both
+# GPUs is part of T-901.
+2026-11-05 04:18:22 == stage: amd-fractions (2504a9596993 -> 8addea86bbf9)
+    == patch 0006-scheduler-one-vendor-gpus-on-mixed-nodes.patch
+    ok          github.com/kai-scheduler/KAI-scheduler/pkg/scheduler/api/node_info      0.075s
+  [ok] KAI scheduler and binder patched for AMD GPU fractions (v0.18.3-oif-a9a6dd19a238)
+T-129 one GPU vendor per workload
+  PASS  webhook oif-vendor-pool ready
+  PASS  webhook registered, failing open
+  PASS  policy oif-vendor-agnostic-gpu bound
+  PASS  an nvidia.com/gpu pod is pinned to pool nvidia (label and node selector)
+  PASS  it runs on the NVIDIA node
+  PASS  a second one waits on NVIDIA quota instead of moving to the AMD GPU (UI-10b)
+  PASS  a fraction without a vendor, pools nvidia and amd: refused with the T-129 message
+  PASS  the same fraction in pool amd is accepted
+  PASS  an amd.com/gpu pod is accepted and pinned to pool amd
+  PASS  a GPU-less pod of a Deployment in pool nvidia is pinned to nvidia
+T-129: 10/10 checks passed
