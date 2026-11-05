@@ -44,7 +44,7 @@ PROFILES = {
                    domain="rack", rack_nodes=18, partitions=False, family="AI",
                    assumed="device id and product name: not in amdgpu.ids yet"),
     "w7900": dict(name="AMD Radeon Pro W7900", device_id="7448", vram_gb=45, cus=96, gpus=1, fabric="pcie",
-                  domain="node", partitions=False, family="GC_11_0_0"),
+                  domain="node", partitions=False, family="GC_11_0_0", simds_per_cu=2),
 }
 # Compute partitions per GPU, from AMD SMI's partitioning guide (rocm.docs.amd.com, amdsmi, conceptual/partition) and
 # AMD's MI300X partitioning overview: SPX the whole GPU, DPX 2 devices of 4 XCDs, QPX 4 of 2 XCDs, CPX one device per
@@ -96,7 +96,8 @@ def node(profile: str, name: str, partition: str, naming: str, domain: str, zone
     # the labeller reads each device's memory bank: a compute partition of a GPU reports its share (ROCm/gpu-operator#555)
     labels |= labeller("vram", f"{round(p['vram_gb'] / per_gpu)}G", devices)
     labels |= labeller("cu-count", str(p["cus"] // per_gpu), devices)
-    labels |= labeller("simd-count", str(p["cus"] // per_gpu * 4), devices)
+    # SIMDs per CU: 4 on CDNA (Instinct), 2 on RDNA (Radeon; the lab's W7900 node reports 192 for 96 CUs)
+    labels |= labeller("simd-count", str(p["cus"] // per_gpu * p.get("simds_per_cu", 4)), devices)
     if p["partitions"]:
         labels |= {"amd.com/gpu.compute-memory-partition": partition, "amd.com/gpu.compute-partitioning-supported": "true",
                    "amd.com/gpu.memory-partitioning-supported": "true"}
