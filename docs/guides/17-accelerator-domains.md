@@ -76,3 +76,30 @@ sudo tests/lab/t130-topology-labels.sh               # labels, override, and the
 ```
 
 Without GPUs the stage removes the agent, the policy and the labels. `oif uninstall` removes them with the cluster.
+
+## Packing workloads by domain (T-132)
+
+Stage `runai-topology` (after `topology`) creates Run:ai **network topology** `oif-accelerator` with the levels
+`oif.ai/scaleout-zone` > `oif.ai/accelerator-domain` > `kubernetes.io/hostname` and links it to the GPU node pools
+(`nvidia` and `amd`; `default` on one node). Run:ai's agent writes it into the cluster as KAI `Topology`
+`oif-accelerator`; it shows in the Run:ai UI under the node pools.
+
+- **Every workload** submitted through Run:ai (UI, API, CLI) into those pools gets `kai.scheduler/topology:
+  oif-accelerator` and `kai.scheduler/topology-preferred-placement: kubernetes.io/hostname` from Run:ai itself: KAI puts
+  its pods on as few hosts as it can, then inside one domain, then one zone. Preferred means it still runs when no
+  single host or domain has room.
+- **A workload that must stay in one domain** (tensor parallelism over NVLink or xGMI) adds the annotation
+  `kai.scheduler/topology-required-placement: oif.ai/accelerator-domain`: in the form under the workload's
+  annotations, in the API as `spec.annotations: [{"name": "kai.scheduler/topology-required-placement", "value":
+  "oif.ai/accelerator-domain"}]`, or on a Job or other object as a metadata annotation. It waits until one domain has
+  room for all of it, and KAI's reason says so ("requirement oif.ai/accelerator-domain couldn't be satisfied").
+- **A plain Kubernetes Job** is one gang only when it says so: add `kai.scheduler/batch-min-member: "<pods>"`, or KAI
+  places it one pod at a time and picks the domain for the first pod (spike S-9). Run:ai's distributed workloads are
+  gangs already.
+
+Making "required" a project's default is T-134 (PlacementPolicy); asking for it in vendor-neutral terms is T-133.
+
+```bash
+sudo tests/lab/t132-runai-topology.sh                            # topology, pools, what KAI gets for Run:ai workloads
+sudo S9_TOPOLOGY=oif-accelerator tests/lab/s9-fake-topology.sh   # packing on fake 8-GPU servers and Helios racks
+```

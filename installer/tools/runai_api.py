@@ -23,6 +23,11 @@ never printed. Commands:
                                          (nvidia, amd, amd-fractions), delete oif's presets of the other kinds
   telemetry TYPE                         the cluster's node telemetry TYPE as the Overview reads it (ALLOCATED_GPUS,
                                          TOTAL_GPUS, FREE_GPUS, ...): the sum of its values, or "none" when it has none
+  network-topology NAME POOLS LEVEL...   create the network topology NAME with these node-label levels (top first;
+                                         recreated when its levels differ), link it to the node pools POOLS (comma
+                                         separated) and wait until it is Ready; Run:ai's agent writes it as KAI Topology NAME
+  network-topologies                     print each network topology: name, source, phase, levels, node pools
+  network-topology-delete NAME           unlink NAME from its node pools and delete it, if there is one
 """
 import json
 import os
@@ -378,6 +383,67 @@ def telemetry(token: str, kind: str) -> None:
     print(f"{sum(values):g}" if values else "none")
 
 
+def all_topologies(token: str) -> list:
+    status, out = call("GET", "/api/v1/network-topologies", token=token)
+    if status != 200:
+        sys.exit(f"GET network-topologies: HTTP {status} {out}")
+    return (out or {}).get("networkTopologies") or []
+
+
+def link_pools(token: str, topology_id: str | None, pools_: list) -> None:
+    """Set (or with None clear) the node pools' network topology. A PATCH without networkTopologyId clears it too, so
+    the field is always sent."""
+    for p in all_pools(token):
+        if p.get("name") in pools_ and p.get("networkTopologyId") != topology_id:
+            status, out = call("PATCH", f"/api/v1/node-pools/{p['id']}", {"networkTopologyId": topology_id}, token)
+            if status not in (200, 202):
+                sys.exit(f"node pool {p.get('name')}: network topology not set: HTTP {status} {out}")
+
+
+def network_topology_delete(token: str, name: str) -> None:
+    for t in all_topologies(token):
+        if t.get("name") == name:
+            link_pools(token, None, [p.get("name") for p in all_pools(token) if p.get("networkTopologyId") == t["id"]])
+            status, out = call("DELETE", f"/api/v1/network-topologies/{t['id']}", token=token)
+            if status not in (200, 202, 204):
+                sys.exit(f"delete network topology {name}: HTTP {status} {out}")
+            print(f"network topology {name} deleted")
+
+
+def network_topology(token: str, name: str, pools_: list, levels: list) -> None:
+    """KAI keeps a workload's pods inside one value of a level; Run:ai adds kai.scheduler/topology and a preferred
+    placement at the lowest level to every workload submitted into a node pool linked to the topology."""
+    t = next((x for x in all_topologies(token) if x.get("name") == name), None)
+    if t and t.get("levels") != levels:   # levels cannot be changed in place
+        network_topology_delete(token, name)
+        t = None
+    if not t:
+        cl = clusters(token)
+        if not cl:
+            sys.exit("no Run:ai cluster registered")
+        status, out = call("POST", "/api/v1/network-topologies", {"name": name, "clusterId": cl[0]["uuid"], "levels": levels}, token)
+        if status not in (200, 201, 202):
+            sys.exit(f"create network topology {name}: HTTP {status} {out}")
+    for _ in range(60):
+        t = next((x for x in all_topologies(token) if x.get("name") == name), {})
+        if t.get("phase") == "Ready":
+            break
+        time.sleep(5)
+    else:
+        sys.exit(f"network topology {name} is not Ready after 5 min (phase {t.get('phase')})")
+    missing = set(pools_) - {p.get("name") for p in all_pools(token)}
+    if missing:
+        sys.exit(f"node pools not found: {', '.join(sorted(missing))}")
+    link_pools(token, t["id"], pools_)
+    print(f"network topology {name} Ready, levels {' > '.join(levels)}, node pools {', '.join(pools_)}")
+
+
+def network_topologies(token: str) -> None:
+    for t in all_topologies(token):
+        print(f"{t.get('name')} source={t.get('source')} phase={t.get('phase')} levels={','.join(t.get('levels') or [])} "
+              f"pools={','.join(t.get('nodePools') or []) or '-'}")
+
+
 def main() -> None:
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     token = login()
@@ -418,6 +484,12 @@ def main() -> None:
         compute_presets(token, sys.argv[2], sys.argv[3:])
     elif cmd == "telemetry" and len(sys.argv) == 3:
         telemetry(token, sys.argv[2])
+    elif cmd == "network-topology" and len(sys.argv) >= 5:
+        network_topology(token, sys.argv[2], [p for p in sys.argv[3].split(",") if p], sys.argv[4:])
+    elif cmd == "network-topologies" and len(sys.argv) == 2:
+        network_topologies(token)
+    elif cmd == "network-topology-delete" and len(sys.argv) == 3:
+        network_topology_delete(token, sys.argv[2])
     elif cmd == "submit" and 6 <= len(sys.argv) <= 8:
         submit(token, *sys.argv[2:])
     else:
