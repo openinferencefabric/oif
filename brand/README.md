@@ -41,6 +41,6 @@ by `team/make_signature.py` from a square portrait on white (its docstring has t
 | `team/oif-profile-<name>-512.png` | Round portrait with the OIF mark as a badge: mail account, GitHub, Slack, LinkedIn |
 | `team/<name>-portrait-512.png` | The source portrait |
 
-Current: Manmohan Brahma, Project Lead (`manmohan@openinferencefabric.us.ci`). Rerun the script when a role or address
+Current: Manmohan Brahma, Founder & Chief Token Alchemist (`manmohan@openinferencefabric.us.ci`). Rerun the script when a role or address
 changes rather than editing the images. Portraits are personal: a person's photo is used only for that person, with
 their consent, and the Apache-2.0 licence of the repository does not grant rights to use anyone's likeness.
