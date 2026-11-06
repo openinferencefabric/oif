@@ -2,7 +2,9 @@
 
 Every change oif makes to the code of other projects, and every upstream problem it works around, prepared for the
 maintainers: what is wrong, what oif changed, how it was tested, and what to submit. oif applies its patches at install
-time to the pinned releases; nothing here is a fork.
+time to the pinned releases. The one fork is Dynamo (ADR-002 amendment 2026-11-06): its ROCm support changes how the
+images are built, so it is developed on branch `rocm` of <https://github.com/openinferencefabric/dynamo>, pinned by commit,
+with nothing oif-specific in it, and each change goes upstream (D-items).
 
 Live status of every submitted thread (state, last activity, replies waiting on us): <https://openinferencefabric.github.io/upstream/>,
 refreshed daily from GitHub. Add each new thread to that page's `upstream/contributions.json` when it is filed.
@@ -11,39 +13,42 @@ refreshed daily from GitHub. Add each new thread to that page's `upstream/contri
 | --- | --- | --- |
 | Run:ai (open source) | <https://github.com/dsx-ai-factory/run-ai> | 3.0.20 (`RUNAI_VERSION`) |
 | KAI Scheduler | <https://github.com/kai-scheduler/KAI-Scheduler> | v0.18.3 (`KAI_VERSION`; the version Run:ai 3.0.20 deploys through KRM) |
+| Dynamo | <https://github.com/ai-dynamo/dynamo> | 1.6.1 on NVIDIA (`DYNAMO_VERSION`); AMD images from the fork's branch `rocm` (`DYNAMO_ROCM_*`) |
 
 Status: **ready** = the patch can be proposed as it is (tests included); **rework** = the idea is right but the patch is
-oif-specific and needs a general form; **issue** = no oif patch, oif works around it, report it.
+oif-specific and needs a general form; **issue** = no oif patch, oif works around it, report it; **filed** = submitted,
+with the thread linked (its live state is on the page above).
 
 ## Summary
 
 | # | Project | Change | Kind | Status |
 | --- | --- | --- | --- | --- |
-| R1 | Run:ai cluster-sync | Count AMD GPUs in the node inventory | patch 0001 | ready |
-| R2 | Run:ai frontend | AMD logo for workloads on ROCm images | patch 0002 | ready |
-| R3 | Run:ai go-operator | Report GPU fractions unavailable when the fractioning daemons have no node | patch 0003 | ready |
-| R4 | Run:ai frontend | New cluster page: say how clusters are added in this installation | patch 0004 | rework |
-| R5 | Run:ai go-operator | `cluster-redis` follows `global.replicaCount` into unreplicated copies | issue (oif sets `cluster-redis.replicas: 1`) | issue + small PR |
-| R6 | Run:ai API | Department list omits `defaultNodePools` | issue | issue |
-| R7 | Run:ai | New projects' default node pools are `default` only, a pool without GPUs | issue (oif sets the order per department) | issue |
+| R1 | Run:ai cluster-sync | Count AMD GPUs in the node inventory | patch 0001 | filed: [run-ai#3939](https://github.com/dsx-ai-factory/run-ai/issues/3939), PR open [run-ai#3950](https://github.com/dsx-ai-factory/run-ai/pull/3950) |
+| R2 | Run:ai frontend | AMD logo for workloads on ROCm images | patch 0002 | filed: [run-ai#3940](https://github.com/dsx-ai-factory/run-ai/issues/3940), PR open [run-ai#3948](https://github.com/dsx-ai-factory/run-ai/pull/3948) |
+| R3 | Run:ai go-operator | Report GPU fractions unavailable when the fractioning daemons have no node | patch 0003 | filed: [run-ai#3941](https://github.com/dsx-ai-factory/run-ai/issues/3941), PR open [run-ai#3949](https://github.com/dsx-ai-factory/run-ai/pull/3949) |
+| R4 | Run:ai frontend | New cluster page: say how clusters are added in this installation | patch 0004 | filed: [run-ai#3942](https://github.com/dsx-ai-factory/run-ai/issues/3942) (rework) |
+| R5 | Run:ai go-operator | `cluster-redis` follows `global.replicaCount` into unreplicated copies | issue (oif sets `cluster-redis.replicas: 1`) | filed: [run-ai#3943](https://github.com/dsx-ai-factory/run-ai/issues/3943) |
+| R6 | Run:ai API | Department list omits `defaultNodePools` | issue | filed: [run-ai#3944](https://github.com/dsx-ai-factory/run-ai/issues/3944) |
+| R7 | Run:ai | New projects' default node pools are `default` only, a pool without GPUs | issue (oif sets the order per department) | filed: [run-ai#3945](https://github.com/dsx-ai-factory/run-ai/issues/3945) |
 | R8 | Run:ai cluster-sync | AMD GPU nodes reported "GPU fractions not supported" once KAI supports them | follow-up to K1 to K4 | after K1 to K4 |
-| R9 | Run:ai | ROCm workload templates (whole and half AMD GPU) | template JSON | offer as samples |
-| R10 | Run:ai workspaces | Parallel requests during a workspace login fail with `invalid_grant` | issue | issue |
+| R9 | Run:ai | ROCm workload templates (whole and half AMD GPU) | template JSON | filed: [run-ai#3946](https://github.com/dsx-ai-factory/run-ai/issues/3946) |
+| R10 | Run:ai workspaces | Parallel requests during a workspace login fail with `invalid_grant` | issue | filed: [run-ai#3947](https://github.com/dsx-ai-factory/run-ai/issues/3947) |
 | R11 | Run:ai metrics | AMD GPUs missing from Run:ai's GPU metrics: its AMD rules read `amd_gpu_*` names no current exporter emits; its Prometheus does not watch `kube-amd-gpu` | feature request (oif's own `oif:gpu_*` rules map the exporter) | filed ([run-ai#4274](https://github.com/dsx-ai-factory/run-ai/issues/4274)) |
-| K1 | KAI common | Helper: is a node an AMD GPU node, which resource holds its GPU | patch 0001 | ready (rename) |
-| K2 | KAI scheduler | Skip the NvFractions readiness check on AMD GPU nodes | patch 0002 | ready |
-| K3 | KAI binder | Reserve an `amd.com/gpu` on AMD nodes; name the shared GPU for the device injector | patch 0003 | rework (annotation names) |
-| K3b | KAI binder | The reservation pod's resource config is changed in place on every call | part of patch 0003 | ready as its own PR |
-| K4 | KAI resource-reservation | Find the reserved AMD GPU without NVML | patch 0004 | ready |
+| K1 | KAI common | Helper: is a node an AMD GPU node, which resource holds its GPU | patch 0001 | proposed on [KAI-Scheduler#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556) (design questions first) |
+| K2 | KAI scheduler | Skip the NvFractions readiness check on AMD GPU nodes | patch 0002 | proposed on [KAI-Scheduler#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556) |
+| K3 | KAI binder | Reserve an `amd.com/gpu` on AMD nodes; name the shared GPU for the device injector | patch 0003 | proposed on [KAI-Scheduler#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556); rework (annotation names) |
+| K3b | KAI binder | The reservation pod's resource config is changed in place on every call | part of patch 0003 | filed: [KAI-Scheduler#2554](https://github.com/kai-scheduler/KAI-Scheduler/issues/2554), PR open [KAI-Scheduler#2557](https://github.com/kai-scheduler/KAI-Scheduler/pull/2557) |
+| K4 | KAI resource-reservation | Find the reserved AMD GPU without NVML | patch 0004 | proposed on [KAI-Scheduler#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556) |
 | K8 | KAI scheduler | GPU-memory fractions on AMD nodes: the scheduler reads only `nvidia.com/gpu.memory`; read `beta.amd.com/gpu.vram.<size>` as the pod-group controller does | patch 0005 (T-140) | proposed on KAI#2556 |
 | K9 | KAI scheduler | Node with GPUs of both vendors: `nvidia.com/gpu` and `amd.com/gpu` share one GPU slot, so a pod is placed where only the other vendor's GPU is free and the kubelet refuses it; check the vendor's own free GPUs in the node predicate | patch 0006 (T-116) | after the hardware test (T-901) |
 | K10 | KAI scheduler | Topology: a required level above the lowest common domain of the job's nodes (a one-node pool, or a pool inside one domain) is never satisfied: `lowestCommonDomainID` stops only at the preferred level, and the required level's domains are checked with free resources computed for a lower subtree (0 GPUs, 0 pods); stop at the required level too | patch 0007 (T-132); reproduced on main 4261bdf | filed ([KAI#2593](https://github.com/kai-scheduler/KAI-Scheduler/issues/2593)), PR open ([KAI#2594](https://github.com/kai-scheduler/KAI-Scheduler/pull/2594)) |
-| K5 | KAI admission | `runtimeClassName: nvidia` set on every fraction pod, whatever the vendor | issue (oif maps the name to runc on AMD nodes) | issue + PR |
-| K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | propose as a design |
+| D1 | Dynamo container build | `--device rocm` for vLLM (and SGLang): Dynamo images on vllm/vllm-openai-rocm, the Intel XPU pattern; co-developing Andy Luo's (AMD) draft [dynamo#12537](https://github.com/ai-dynamo/dynamo/pull/12537), rebased onto main, vLLM 0.33.0 as on CUDA, `rixl` alias dropped (vLLM imports `nixl_rocm` since 0.26.1) | fork [openinferencefabric/dynamo](https://github.com/openinferencefabric/dynamo/tree/rocm) branch `rocm` (T-211) | branch ready (15 commits, all DCO and Verified); image build and W7900 run pending; comment on #12537 drafted |
+| K5 | KAI admission | `runtimeClassName: nvidia` set on every fraction pod, whatever the vendor | issue (oif maps the name to runc on AMD nodes) | filed: [KAI-Scheduler#2555](https://github.com/kai-scheduler/KAI-Scheduler/issues/2555) |
+| K6 | KAI / AMD | Device injector for AMD fractions (oif-amd-share NRI plugin) and the PyTorch memory cap | new component | design shared on [KAI-Scheduler#1544](https://github.com/kai-scheduler/KAI-Scheduler/issues/1544) |
 | K7 | KAI gpu-fractioning | `fractiond --gpu-vendor=amd`: hard VRAM cap per pod with the Linux `dmem` cgroup | fork (merged to its main); installed by oif since T-139 | PR open ([gpu-fractioning#175](https://github.com/kai-scheduler/gpu-fractioning/pull/175)) |
 | A1 | AMD metrics exporter | Phantom UMC ECC errors on Radeon PRO W7900 with kernel 7.0 | issue (oif raises the threshold) | issue |
-| A2 | ROCm (clr, rocr-runtime) | `hipMemGetInfo` and the HSA pool size ignore the cgroup `dmem.max` VRAM limit (S-8) | issue (oif keeps the in-process fraction as the sizing hint) | issue |
-| A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | issue |
+| A2 | ROCm (clr, rocr-runtime) | `hipMemGetInfo` and the HSA pool size ignore the cgroup `dmem.max` VRAM limit (S-8) | issue (oif keeps the in-process fraction as the sizing hint) | filed: [rocm-systems#14860](https://github.com/ROCm/rocm-systems/issues/14860) |
+| A3 | ROCm (amdsmi, amdkfd) | No per-process compute busy time for KFD queues, so no per-pod GPU utilization (S-8) | issue | filed: [rocm-systems#14861](https://github.com/ROCm/rocm-systems/issues/14861) |
 | A4 | ROCm (rocr-runtime, amdkfd) | CU mask only settable by the workload (`HSA_CU_MASK`), no node-enforced compute share (S-8) | issue | drafted, held for a measured run |
 | A5 | ROCm device-metrics-exporter | GPU metrics carry a pod only for device-plugin or DRA allocations, one pod per GPU: GPU-sharing pods (KAI fractions) get no per-pod metrics | issue | filed ([device-metrics-exporter#722](https://github.com/ROCm/device-metrics-exporter/issues/722)); AMD triaged it 2026-11-04 (assigned to check whether it is officially supported) |
 | A6 | AMD GPU Operator (node labeller, DRA driver) | No topology labels: xGMI group (the driver has `xgmi_hive_info/xgmi_hive_id`), UALink domain for Helios, partition capabilities, DRA device attributes; MI455X missing from `amdgpu.ids` | issue (oif labels fake nodes `oif.ai/accelerator-domain`) | filed 2026-11-05: [ROCm/gpu-operator#679](https://github.com/ROCm/gpu-operator/issues/679) |
