@@ -97,7 +97,7 @@ The goal is an apples-to-apples comparison: same model, same Dynamo version, sam
 
 ### P2.2 Dynamo on AMD with equivalent engines
 
-- [ ] S-1 **Dynamo on ROCm (W7900).** ROCm vLLM base plus the Dynamo runtime (no NIXL, no KVBM), aggregated, in podman. Exit: worker registers, chat completion works (streaming and not), 10 minutes of AIPerf at concurrency 8 without errors. Fail: owner chooses llm-d or plain vLLM ROCm.
+- [~] S-1 **Dynamo on ROCm (W7900).** ROCm vLLM base plus the Dynamo runtime (no NIXL, no KVBM), aggregated, in podman. Exit: worker registers, chat completion works (streaming and not), 10 minutes of AIPerf at concurrency 8 without errors. Fail: owner chooses llm-d or plain vLLM ROCm.
 - [ ] S-5 **SGLang ROCm on gfx1100.** SGLang's ROCm builds target Instinct GPUs; prove it serves on the W7900. Fail: the AMD SGLang column is marked "not supported" in reports.
 - [ ] T-211 `images/dynamo-vllm-rocm`: the vLLM version that matches Dynamo's NVIDIA default as closely as ROCm allows
 - [ ] T-212 `images/dynamo-sglang-rocm` (if S-5 passes)

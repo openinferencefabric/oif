@@ -1,0 +1,73 @@
+# S-1: Dynamo 1.6.1 on ROCm, aggregated (frontend + one vLLM worker, Qwen3-0.6B) on the W7900 for project team-c.
+# Route A: vLLM's own ROCm image at the vLLM version Dynamo 1.6's vllm-runtime ships (0.31.0), with Dynamo's
+# CUDA-free wheels added at start (not the [vllm] extra, which brings CUDA vLLM and nixl[cu13]); the image's torch,
+# vLLM and Triton must be unchanged afterwards. Both components use this image, so the AMD node pulls one image.
+# tests/lab/s1-dynamo-rocm.sh fills in __IMAGE__ (VLLM_ROCM_IMAGE in versions.env) and __NAME__.
+apiVersion: nvidia.com/v1beta1
+kind: DynamoGraphDeployment
+metadata:
+  name: __NAME__
+  labels:
+    runai/node-pool: amd
+spec:
+  components:
+    - name: Frontend
+      type: frontend
+      replicas: 1
+      podTemplate:
+        metadata:
+          labels:
+            runai/node-pool: amd        # per pod too: a GPU-less pod otherwise falls through to another pool (T-129)
+        spec:
+          containers:
+            - name: main
+              image: __IMAGE__
+              command: [bash, -c]
+              args: ["$(S1_SETUP)\nexec python3 -m dynamo.frontend --http-port 8000"]
+              env: &setup
+                - name: PIP_BREAK_SYSTEM_PACKAGES
+                  value: "1"
+                - name: PIP_ROOT_USER_ACTION
+                  value: ignore
+                - name: S1_SETUP
+                  value: |
+                    set -e
+                    v() { python3 -c '
+                    import importlib.metadata as m, torch, vllm
+                    def ver(*names):
+                        for n in names:
+                            try:
+                                return m.version(n)
+                            except m.PackageNotFoundError:
+                                pass
+                        return "-"
+                    print("torch=%s hip=%s vllm=%s triton=%s" % (torch.__version__, torch.version.hip, vllm.__version__,
+                                                                 ver("pytorch-triton-rocm", "triton")))'; }
+                    before=$(v)
+                    pip install -q --no-deps ai-dynamo==1.6.1 ai-dynamo-runtime==1.6.1
+                    pip install -q "aiohttp>=3.14.3,<4" "certifi>=2026.10.19" "kubernetes>=32.0.1,<33" "msgspec>=0.19.0" \
+                      "prometheus-client>=0.23.1,<1" "pyzmq>=26" "redis>=6.2,<9" "zstandard>=0.23,<1" \
+                      "pydantic>=2.10.6,<=2.13.5" "uvloop>=0.21" "blake3>=1,<2"
+                    after=$(v)
+                    echo "S1-VERSIONS $after dynamo=$(python3 -c 'import importlib.metadata as m; print(m.version("ai-dynamo"))') unchanged=$([ "$before" = "$after" ] && echo yes || echo "no (before: $before)")"
+                    [ "$before" = "$after" ] || { echo "S1-ERROR the Dynamo install changed the ROCm engine stack"; exit 1; }
+                    python3 -c 'import dynamo.vllm, dynamo.frontend' && echo "S1-IMPORTS ok"
+    - name: worker
+      type: worker
+      replicas: 1
+      podTemplate:
+        metadata:
+          labels:
+            runai/node-pool: amd
+        spec:
+          containers:
+            - name: main
+              image: __IMAGE__
+              command: [bash, -c]
+              args: ["$(S1_SETUP)\nexec python3 -m dynamo.vllm --model Qwen/Qwen3-0.6B"]
+              env: *setup
+              resources:
+                limits:
+                  amd.com/gpu: "1"
+                requests:
+                  ephemeral-storage: 2Gi
