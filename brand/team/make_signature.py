@@ -8,7 +8,7 @@ From a square portrait on a white background, writes into the output directory:
 Needs Pillow and network access once for IBM Plex Sans (SIL OFL). Without Python on the host:
   docker run --rm -v "$PWD":/w -w /w python:3.12-slim sh -c "pip -q install pillow && python brand/team/make_signature.py \\
     --portrait brand/team/manmohan-brahma-portrait-512.png --name 'Manmohan Brahma' \\
-    --role 'Founder & Chief Token Alchemist' --email manmohan@openinferencefabric.us.ci --out brand/team"
+    --role 'Project Lead, Open Inference Fabric' --email manmohan@openinferencefabric.us.ci --out brand/team"
 """
 import argparse
 import os
