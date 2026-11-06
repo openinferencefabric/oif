@@ -99,7 +99,7 @@ The goal is an apples-to-apples comparison: same model, same Dynamo version, sam
 
 - [~] S-1 **Dynamo on ROCm (W7900).** ROCm vLLM base plus the Dynamo runtime (no NIXL, no KVBM), aggregated, in podman. Exit: worker registers, chat completion works (streaming and not), 10 minutes of AIPerf at concurrency 8 without errors. Fail: owner chooses llm-d or plain vLLM ROCm.
 - [ ] S-5 **SGLang ROCm on gfx1100.** SGLang's ROCm builds target Instinct GPUs; prove it serves on the W7900. Fail: the AMD SGLang column is marked "not supported" in reports.
-- [ ] T-211 `images/dynamo-vllm-rocm`: the vLLM version that matches Dynamo's NVIDIA default as closely as ROCm allows
+- [~] T-211 `images/dynamo-vllm-rocm`: the vLLM version that matches Dynamo's NVIDIA default as closely as ROCm allows In progress (owner, 2026-11-06): Dynamo has no ROCm build; OIF forks it (openinferencefabric/dynamo, branch rocm = upstream PR ai-dynamo/dynamo#12537 by Andy Luo, AMD, rebased onto main, moved to vLLM 0.33.0 like the CUDA image, rixl alias dropped; all commits DCO and Verified) to land upstream. Scope (owner): every AMD GPU vLLM's ROCm build supports. images/dynamo-vllm-rocm/build.sh builds it with upstream's render.py --device rocm and pushes to ghcr.io/openinferencefabric/dynamo-vllm-rocm (guide 16); run on the lab server (this workstation lacks the disk).
 - [ ] T-212 `images/dynamo-sglang-rocm` (if S-5 passes)
 - [ ] T-213 Qwen3-0.6B on the W7900 through the same Dynamo frontend, selected by model name
 - [ ] T-214 Same `oif bench` profiles on the W7900

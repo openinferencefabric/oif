@@ -134,6 +134,33 @@ yet (ROCm Dynamo, S-1); the vendor and size picker for deployments comes with oi
 
 Recorded output: [docs/evidence/S-4/](../evidence/S-4/) (hand install) and `docs/evidence/T-201/`.
 
+## The AMD image (T-211, being built)
+
+Dynamo publishes no ROCm image. oif builds one from its Dynamo fork,
+[openinferencefabric/dynamo](https://github.com/openinferencefabric/dynamo) branch `rocm`: upstream's own build
+(`container/render.py --device rocm`, proposed upstream in ai-dynamo/dynamo#12537, which oif co-develops) on
+`vllm/vllm-openai-rocm`, the same vLLM release as Dynamo's CUDA image. Which AMD GPUs it serves is vLLM's ROCm list
+(MI200, MI300, MI350, Radeon RX 7900 and 9000, Ryzen AI); Dynamo adds no GPU kernels.
+
+Build it on a Linux machine with Docker or Podman and about 150 GB free (1-2 hours, no GPU needed), inside `tmux`:
+
+```bash
+git clone https://github.com/openinferencefabric/oif.git && cd oif
+images/dynamo-vllm-rocm/build.sh            # build and smoke-test (ROCm torch, vLLM, nixl_rocm, Dynamo imports)
+```
+
+To push it to `ghcr.io/openinferencefabric/dynamo-vllm-rocm`, log in once with a GitHub token that has the
+`write:packages` scope (github.com > Settings > Developer settings > Personal access tokens > Tokens (classic)), then
+add `--push`:
+
+```bash
+read -rs TOKEN && echo "$TOKEN" | docker login ghcr.io -u <github user> --password-stdin && unset TOKEN
+images/dynamo-vllm-rocm/build.sh --push     # prints the image@digest to pin in versions.env
+```
+
+The image is tagged with the fork commit and the vLLM version (`<commit>-vllm0.33.0`). A new GHCR package is private;
+the organisation owner makes it public under the organisation's Packages when it should be.
+
 ## What changed on the host
 
 Nothing on the hosts themselves; oif keeps the chart in its state folder. In the cluster:
