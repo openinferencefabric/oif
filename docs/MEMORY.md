@@ -55,7 +55,7 @@ P1.4 (T-130+) is defined and ready to start after P1.3 checkpoint (or in paralle
 
 ## Known issues and risks
 
-- Dynamo has no official ROCm support (ADR-002); decided by S-1.
+- Dynamo has no official ROCm support (ADR-002); decided by S-1. Since 2026-11-06 (ADR-002 amendment) oif builds Dynamo's vLLM image for AMD from its fork openinferencefabric/dynamo branch `rocm` (upstream draft ai-dynamo/dynamo#12537 by Andy Luo, AMD, rebased and co-developed): `render.py --device rocm` on `vllm/vllm-openai-rocm`, which installs into the system Python (no /opt/venv, unlike main's xpu/cpu images); vLLM >= 0.26.1 imports NIXL as `nixl_rocm` on ROCm, so no `rixl` alias; nixl_cu12 must not share the interpreter with nixl_rocm. Upstream requires DCO plus Verified signatures (signing key in ~/.ssh, configured only in the dynamo clone). Building needs about 150 GB free; the owner's workstation lacks it, so build on the lab (images/dynamo-vllm-rocm/build.sh, T-211).
 - SGLang ROCm builds target Instinct GPUs; serving on the W7900 (gfx1100) is unproven (S-5).
 - Run:ai GPU quotas count both vendors as one; per-vendor caps on a mixed node use ResourceQuota (ADR-015). On multi-node with one vendor per server, real node pools replace that (T-123).
 - The KAI scheduler can bind an NVIDIA pod when only the AMD GPU is free on a mixed node; T-116.
