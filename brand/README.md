@@ -28,3 +28,19 @@ supported hardware, following each company's trademark guidelines.
 
 The logo is licensed with the rest of the repository (Apache-2.0). Use it to refer to the project; do not use it in a way
 that suggests the project endorses a product or service.
+
+## Team
+
+Email signatures and profile photos for the people who represent OIF, in the brand's colours and type, all generated
+by `team/make_signature.py` from a square portrait on white (its docstring has the one-line Docker command):
+
+| File | Use |
+| --- | --- |
+| `team/oif-signature-<name>-1200x360.png` | Email signature banner: insert it at 600 px wide below a text signature (many mail clients block images, and text keeps the details readable) |
+| `team/oif-signature-<name>-600x180.png` | The same at 1x, for clients that do not scale images |
+| `team/oif-profile-<name>-512.png` | Round portrait with the OIF mark as a badge: mail account, GitHub, Slack, LinkedIn |
+| `team/<name>-portrait-512.png` | The source portrait |
+
+Current: Manmohan Brahma, Project Lead (`manmohan@openinferencefabric.us.ci`). Rerun the script when a role or address
+changes rather than editing the images. Portraits are personal: a person's photo is used only for that person, with
+their consent, and the Apache-2.0 licence of the repository does not grant rights to use anyone's likeness.
