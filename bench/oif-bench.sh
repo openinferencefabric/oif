@@ -103,7 +103,7 @@ for s in $STACKS; do
   $CT pull -q "$(image_of "$s")" >/dev/null || die "pull $(image_of "$s") failed (network, or a private registry needing $CT login)"
   echo "   $s"
 done
-GPU_FLAGS=(--device /dev/kfd --device "$CARD" --device "$RENDER" --group-add video --ipc host --shm-size 16g
+GPU_FLAGS=(--device /dev/kfd --device "$CARD" --device "$RENDER" --group-add video --ipc host
            --security-opt seccomp=unconfined --network host)
 getent group render >/dev/null && GPU_FLAGS+=(--group-add "$(getent group render | cut -d: -f3)")
 HF_FLAGS=(-v "$HF_HOME_HOST:/hf" -e HF_HOME=/hf)
