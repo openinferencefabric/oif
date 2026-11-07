@@ -9,6 +9,7 @@
 #   sudo ./oif status             progress and recorded host changes
 #   sudo ./oif plan               read-only preview of what uninstall would remove and keep
 #   sudo ./oif uninstall [--yes]  reverse every host change oif made, back to the OS default
+#   sudo ./oif bench [options]    benchmark Dynamo against its plain engine on this node's GPU (oif bench help)
 #   ./oif version | help
 #
 # Settings come from .env next to this script (see .env.example) or from --env FILE; missing ones are asked.
@@ -28,6 +29,8 @@ trap 'rc=$?; [ "$BASH_SUBSHELL" = 0 ] && echo "${c_r}ERROR: unexpected failure (
 
 main() {
   local verb=${1:-help}; shift || true
+  # bench needs no install state or settings: it runs containers on the GPU node it is started on (bench/)
+  [ "$verb" = bench ] && exec "$OIF_HOME/bench/oif-bench.sh" "$@"
   ENV_FILE=$OIF_HOME/.env
   local args=()
   while [ $# -gt 0 ]; do
@@ -63,7 +66,7 @@ main() {
   esac
 }
 
-usage() { sed -n '3,15p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '3,16p' "$SELF" | sed 's/^# \{0,1\}//'; }
 usage_error() { echo "oif: $*" >&2; echo "run '$0 help' for usage" >&2; exit 2; }
 
 install_interactive() {
