@@ -72,7 +72,8 @@ See [design/P1.4-Lab-Acceptance-Checks.md](design/P1.4-Lab-Acceptance-Checks.md)
 
 ## Performance (Project 2)
 
-- `oif bench` runs the sweep on each GPU, one GPU at a time, after the temperature guard (ADR-009).
+- `oif bench` runs the sweep on each GPU, one GPU at a time, after the temperature guard (ADR-009); B-1: Dynamo and its plain engine on the W7900 (guide 18), quick profile then full.
+- Every point produces the requested output length (ignore_eos honoured) and an AIPerf export; points without one are listed in the report.
 - Zero failed requests; results include versions, image digests and the exact AIPerf command.
 - Re-running the same profile gives output tokens/s within ±5 % (manual review of the first runs).
 - Fair comparison reports list any engine version differences explicitly (ADR-011, ADR-012).

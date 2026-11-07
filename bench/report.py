@@ -14,7 +14,7 @@ points = [r for r in rows if r.get("type") == "point"]
 starts = [r for r in rows if r.get("type") == "startup"]
 STACK_ORDER = ["vllm", "dynamo-vllm", "sglang", "dynamo-sglang"]
 PAIRS = [("vllm", "dynamo-vllm"), ("sglang", "dynamo-sglang")]
-METRICS = ["out_tok_s", "req_s", "tok_s_per_user", "ttft_p50_ms", "ttft_p99_ms", "itl_p50_ms", "itl_p99_ms",
+METRICS = ["out_tok_s", "prefill_tok_s", "req_s", "tok_s_per_user", "ttft_p50_ms", "ttft_p99_ms", "itl_p50_ms", "itl_p99_ms",
            "e2e_p50_ms", "e2e_p99_ms", "gpu_busy_avg", "power_avg_w", "tok_per_joule", "vram_max_mib",
            "junction_max_c", "sclk_avg_mhz", "osl_avg", "errors"]
 
@@ -116,7 +116,7 @@ img_rows = [[i.get("stack"), i.get("image", "").split("@")[0], (i.get("digest") 
 tiles = "".join(
     f'<div class="tile"><div class="tl">{html.escape(h["pair"])}<br><b>{html.escape(h["model"])}</b></div>'
     f'<div class="tv">{sgn(h["d_tp_pct"])}</div><div class="tl">median output-throughput difference over {h["points"]} points'
-    f' (worst {sgn(h["worst_tp_pct"])})</div><div class="ts">TTFT p50 {sgn(h["d_ttft_ms"], " ms")} · ITL p50 {sgn(h["d_itl_pct"])}'
+    f' (worst {sgn(h["worst_tp_pct"])})</div><div class="ts">TTFT p50 {sgn(h["d_ttft_ms"], " ms")} · TPOT p50 {sgn(h["d_itl_pct"])}'
     f'{" · " + str(h["within_noise"]) + " points within noise" if env.get("repeats", 1) > 1 else ""}</div></div>'
     for h in headline) or '<p class="muted">No Dynamo/engine pair has results yet.</p>'
 over_body = [[o["pair"], o["model"], o["workload"], o["concurrency"], o["tp_engine"], o["tp_dynamo"], sgn(o["d_tp_pct"]),
@@ -165,17 +165,18 @@ part of this test.</p>
 {"<p class='muted'>Not in this run: " + ", ".join(skipped) + " (no image pinned yet; SGLang needs spike S-5 on gfx1100 first).</p>" if skipped else ""}
 
 <h2>Headline: Dynamo vs engine</h2><div class="tiles">{tiles}</div>
-<p class="muted">Positive throughput means Dynamo served more output tokens per second; positive TTFT/ITL means Dynamo was slower.
+<p class="muted">Positive throughput means Dynamo served more output tokens per second; positive TTFT/TPOT means Dynamo was slower.
 Medians over every workload and concurrency point.</p>
 
 <h2>Curves</h2>
+<p class="muted">Metric definitions: docs/BENCHMARK.md in the oif repository. TPOT is the average gap between generated tokens after the first; speed per user is 1000 ÷ TPOT.</p>
 <div class="ctl"><label>Model <select id="model"></select></label><label>Metric <select id="metric"></select></label></div>
 <div class="legend" id="legend"></div>
 <div class="grid" id="charts"></div>
 <details class="card"><summary>Table view of the curves</summary><div id="ctable"></div></details>
 
 <h2>Dynamo vs engine at every point</h2>
-<div class="card">{table(["pair", "model", "workload", "conc", "engine tok/s", "Dynamo tok/s", "Δ throughput", "Δ TTFT p50", "Δ TTFT p99", "Δ ITL p50", "Δ E2E p99", "verdict"], over_body)}</div>
+<div class="card">{table(["pair", "model", "workload", "conc", "engine tok/s", "Dynamo tok/s", "Δ throughput", "Δ TTFT p50", "Δ TTFT p99", "Δ TPOT p50", "Δ E2E p99", "verdict"], over_body)}</div>
 
 <h2>Start-up and memory</h2>
 <div class="card">{table(["model", "stack", "started", "seconds to first answer (median)", "VRAM after start (GiB)"], start_rows)}</div>
@@ -196,8 +197,8 @@ Workloads (name:input:output tokens): <code>{html.escape(" ".join(env.get("workl
 const DATA={json.dumps(data)};
 const COL={{"vllm":"var(--s1)","dynamo-vllm":"var(--s2)","sglang":"var(--s3)","dynamo-sglang":"var(--s4)"}};
 const DASH=s=>s.startsWith("dynamo")?"6 4":"";
-const MET={{out_tok_s:["Output tokens/s","",1],tok_s_per_user:["Output tokens/s per user","",1],req_s:["Requests/s","",1],
-ttft_p50_ms:["TTFT p50","ms",0],ttft_p99_ms:["TTFT p99","ms",0],itl_p50_ms:["ITL p50","ms",0],itl_p99_ms:["ITL p99","ms",0],
+const MET={{out_tok_s:["Output tokens/s","",1],prefill_tok_s:["Prompt processing rate (input tokens/s)","",1],tok_s_per_user:["Speed per user (tokens/s)","",1],req_s:["Requests/s","",1],
+ttft_p50_ms:["TTFT p50","ms",0],ttft_p99_ms:["TTFT p99","ms",0],itl_p50_ms:["TPOT p50","ms",0],itl_p99_ms:["TPOT p99","ms",0],
 e2e_p50_ms:["End-to-end latency p50","ms",0],e2e_p99_ms:["End-to-end latency p99","ms",0],power_avg_w:["GPU power","W",0],
 tok_per_joule:["Output tokens per joule","",1],gpu_busy_avg:["GPU busy","%",0]}};
 const $=id=>document.getElementById(id);

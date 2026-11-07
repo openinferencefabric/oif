@@ -6,7 +6,7 @@ import csv, glob, json, statistics, sys
 
 if sys.argv[1] == "--line":
     d = json.loads(sys.stdin.read())
-    print("rc=%s  %s tok/s  TTFT p50 %s ms  ITL p50 %s ms  errors %s  OSL %s  GPU %s%% %s W" % (
+    print("rc=%s  %s tok/s  TTFT p50 %s ms  TPOT p50 %s ms  errors %s  OSL %s  GPU %s%% %s W" % (
         d.get("rc"), d.get("out_tok_s"), d.get("ttft_p50_ms"), d.get("itl_p50_ms"), d.get("errors"),
         d.get("osl_avg"), d.get("gpu_busy_avg"), d.get("power_avg_w")))
     sys.exit(0)
@@ -38,6 +38,7 @@ row["errors"] = m("error_request_count") or 0
 row["error_kinds"] = len(d.get("error_summary") or [])
 row["osl_avg"] = round(m("output_sequence_length") or 0, 1) or None
 row["isl_avg"] = round(m("input_sequence_length") or 0, 1) or None
+row["prefill_tok_s"] = round(row["isl_avg"] * row["req_s"], 1) if row["isl_avg"] and row["req_s"] else None  # prompt processing rate
 row["export"] = bool(d)
 
 try:  # GPU telemetry: keep the samples while the GPU is working (the window AIPerf measured)
