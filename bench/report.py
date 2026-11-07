@@ -12,6 +12,7 @@ env = json.load(open(os.path.join(D, "env.json")))
 rows = [json.loads(l) for l in open(os.path.join(D, "results.jsonl")) if l.strip()]
 points = [r for r in rows if r.get("type") == "point"]
 starts = [r for r in rows if r.get("type") == "startup"]
+runtimes = [r for r in rows if r.get("type") == "runtime"]
 STACK_ORDER = ["vllm", "dynamo-vllm", "sglang", "dynamo-sglang"]
 PAIRS = [("vllm", "dynamo-vllm"), ("sglang", "dynamo-sglang")]
 METRICS = ["out_tok_s", "prefill_tok_s", "req_s", "tok_s_per_user", "ttft_p50_ms", "ttft_p99_ms", "itl_p50_ms", "itl_p99_ms",
@@ -90,7 +91,9 @@ for model in models:
         st = [x for x in starts if x["model"] == model and x["stack"] == s]
         ok = [x["ready_s"] for x in st if x.get("ready_s") is not None]
         vr = [x["vram_bytes"] / 2**30 for x in st if x.get("vram_bytes")]
-        start_rows.append([model, s, f"{len(ok)}/{len(st)}", med(ok), round(statistics.median(vr), 1) if vr else None])
+        rt = [x["run_s"] / 60 for x in runtimes if x["model"] == model and x["stack"] == s]
+        start_rows.append([model, s, f"{len(ok)}/{len(st)}", med(ok), round(statistics.median(vr), 1) if vr else None,
+                           med(rt), round(sum(rt), 1) if rt else None])
 failed = [a for a in agg if a["failed"] or (a["errors"] or 0) > 0]
 osl_bad = [a for a in agg if not a["osl_ok"]]
 
@@ -127,7 +130,7 @@ skipped = [s for s in STACK_ORDER if s not in stacks]
 data = {"agg": agg, "models": models, "stacks": stacks, "workloads": workloads, "conc": env.get("concurrency", [])}
 
 page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>oif bench W7900</title>
+<title>oif bench {html.escape(env.get("gpu", "GPU"))}</title>
 <style>
 :root{{--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10);
 --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--teal:#0E7C86}}
@@ -152,7 +155,7 @@ main{{max-width:1180px;margin:0 auto;padding:24px 16px 64px}} h1{{font-size:26px
 details summary{{cursor:pointer;color:var(--ink2)}} code{{font-size:12px}} ul{{padding-left:20px}}
 </style></head><body><main>
 <header><span class="mk-l">{mark("light")}</span><span class="mk-d">{mark("dark")}</span>
-<div><h1>Dynamo vs plain engine on the Radeon PRO W7900</h1>
+<div><h1>Dynamo vs plain engine on the {html.escape(env.get("gpu", "GPU"))}</h1>
 <div class="muted">open inference fabric · oif bench, profile {html.escape(str(env.get("profile")))} · {env.get("repeats")} repeat(s) · AIPerf {html.escape(str(env.get("aiperf")))}</div></div>
 <button id="theme" style="margin-left:auto" aria-label="Switch light or dark">Light / dark</button></header>
 
@@ -178,8 +181,8 @@ Medians over every workload and concurrency point.</p>
 <h2>Dynamo vs engine at every point</h2>
 <div class="card">{table(["pair", "model", "workload", "conc", "engine tok/s", "Dynamo tok/s", "Δ throughput", "Δ TTFT p50", "Δ TTFT p99", "Δ TPOT p50", "Δ E2E p99", "verdict"], over_body)}</div>
 
-<h2>Start-up and memory</h2>
-<div class="card">{table(["model", "stack", "started", "seconds to first answer (median)", "VRAM after start (GiB)"], start_rows)}</div>
+<h2>Start-up, memory and run time</h2>
+<div class="card">{table(["model", "stack", "started", "seconds to first answer (median)", "VRAM after start (GiB)", "run time per repeat (min, median)", "run time, all repeats (min)"], start_rows)}</div>
 
 <h2>Run quality</h2>
 <ul><li>Points with failed runs or request errors: <b>{len(failed)}</b>{(" — " + "; ".join(f"{a['model']} {a['stack']} {a['workload']} c={a['concurrency']} ({a['errors']} errors)" for a in failed[:12])) if failed else ""}</li>

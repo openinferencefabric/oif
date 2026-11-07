@@ -35,7 +35,21 @@ Method and metric definitions: [docs/BENCHMARK.md](../BENCHMARK.md).
    read -rsp "GHCR token: " T; echo "$T" | sudo podman login ghcr.io -u <github-user> --password-stdin; unset T
    ```
 
-2. A quick run first (about 30–40 minutes with the image pulls; two workloads, concurrency 1, 8 and 32, 30 s each):
+2. See which GPUs the node has and which can be used (AMD on amdgpu today; NVIDIA with B-2; a GPU below
+   `BENCH_MIN_VRAM_GIB`, default 16 GiB, or driving the console display is not offered):
+
+   ```bash
+   ./oif bench gpus
+   ```
+
+   ```text
+      #  GPU                                PCI            memory  driver    usable
+      1  Radeon Pro W7900                   0000:03:00.0   48 GiB  amdgpu    yes
+   ```
+
+3. A quick run first (about 30–40 minutes with the image pulls; two workloads, concurrency 1, 8 and 32, 30 s each). It
+   lists the GPUs, asks which one to use, then asks for the models (Hugging Face ids; Enter keeps Qwen/Qwen3-0.6B and
+   Qwen/Qwen3-8B):
 
    ```bash
    sudo ./oif bench --profile quick
@@ -50,13 +64,16 @@ Method and metric definitions: [docs/BENCHMARK.md](../BENCHMARK.md).
       [1/24] chat     c=1   rc=0  ... tok/s  TTFT p50 ... ms  TPOT p50 ... ms  errors 0  OSL 256.0  GPU ..% .. W
    ```
 
-3. The full run (the comparable result: four workloads, concurrency 1 to 64, 60 s per point, 3 repeats; about 7–8 hours),
+4. The full run (the comparable result: four workloads, concurrency 1 to 64, 60 s per point, 3 repeats; about 7–8 hours),
    detached so a dropped SSH session does not stop it:
 
    ```bash
-   sudo nohup setsid ./oif bench > ~/oif-bench-full.log 2>&1 &
+   sudo nohup setsid ./oif bench --gpu 1 --models "Qwen/Qwen3-0.6B Qwen/Qwen3-8B" > ~/oif-bench-full.log 2>&1 &
    tail -f ~/oif-bench-full.log
    ```
+
+A detached run cannot ask, so give `--gpu` (number or PCI address from `oif bench gpus`) and `--models`. Each
+model's run time per stack is printed and shown in the report.
 
 Options: `--stacks "vllm dynamo-vllm"`, `--models "Qwen/Qwen3-8B"`, `--repeats N`, `--out DIR`, `--profile quick|full`
 (bench/profiles). `HF_TOKEN` in the environment for gated models.
@@ -81,6 +98,7 @@ Options: `--stacks "vllm dynamo-vllm"`, `--models "Qwen/Qwen3-8B"`, `--repeats N
 | Symptom | Fix |
 | --- | --- |
 | `something already uses the GPU (/dev/kfd)` | Stop the kubelet or the container holding the GPU; `sudo fuser -v /dev/kfd` names it. |
-| `pull ... failed` for ghcr.io | Log in to ghcr.io (step 1) while the package is private. |
+| `pull ... failed` for ghcr.io, `invalid username/password` | The login did not take: `sudo podman login ghcr.io` again with your GitHub user name and a classic token with `read:packages` (or make the package public). The login must be as root, the same user that runs `oif bench`. |
+| `GPU N cannot be used` | `./oif bench gpus` gives the reason (driver, memory, display). |
 | `not ready` and the server log | The log is in `<out>/logs/server-*.log`; a model too large for the GPU at `--max-model-len 8192` fails here. |
 | Output length short in the run-quality section | The stack ignored `ignore_eos`; throughput at those points is not comparable. |

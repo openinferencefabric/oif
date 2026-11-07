@@ -1,10 +1,13 @@
 #!/bin/bash
 # oif bench: Dynamo against the plain engine it is built on, on the GPU of this node, with AIPerf (ADR-006).
 #
+#   ./oif bench gpus                   list the GPUs on this node (name, PCI address, memory, usable or why not)
 #   sudo ./oif bench [run] [options]   benchmark on this GPU node (plain containers, no Kubernetes in the request path)
+#        --gpu N|PCI                   which GPU (number or PCI address from oif bench gpus); asked when not given
 #        --profile full|quick          bench/profiles/*.env (default full: 4 workloads x 7 concurrencies x 3 repeats)
 #        --stacks "vllm dynamo-vllm sglang dynamo-sglang"   default: every stack with an image in versions.env
-#        --models "Qwen/Qwen3-0.6B Qwen/Qwen3-8B"           Hugging Face ids (HF_TOKEN in the environment if gated)
+#        --models "Qwen/Qwen3-0.6B Qwen/Qwen3-8B"           Hugging Face ids, asked when not given (Enter keeps the
+#                                      default); HF_TOKEN in the environment for gated models
 #        --repeats N                   override the profile's repeats (order of the stacks flips every repeat)
 #        --out DIR                     default /var/tmp/oif-bench/<date>
 #   ./oif bench report DIR             rebuild DIR/report.html from DIR/results.jsonl
@@ -17,7 +20,8 @@
 # Each Dynamo image is built FROM its engine image, so engine, torch and ROCm match; the difference measured is
 # Dynamo's frontend, request plane and worker wrapper. Same engine arguments within a pair, same AIPerf prompts
 # (fixed seed), exact output lengths (ignore_eos), GPU below BENCH_MAX_START_TEMP_C before every point (ADR-009).
-# AMD: the Radeon PRO W7900 (gfx1100); the W6400 is never used.
+# GPUs: AMD on the amdgpu driver today (ROCm stacks); NVIDIA with B-2. Only the chosen GPU is passed to the containers;
+# a GPU driving the console display is never offered.
 set -uo pipefail
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd); ROOT=$(dirname "$HERE")
 # shellcheck source=../versions.env
@@ -25,12 +29,12 @@ HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd); ROOT=$(dirname "$HERE")
 
 say() { echo "== $*"; }
 die() { echo "oif bench: $*" >&2; exit 1; }
-usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; }
 
-cmd=run; case ${1:-} in run) shift ;; report) cmd=report; shift ;; help|-h|--help) usage; exit 0 ;; esac
+cmd=run; case ${1:-} in run) shift ;; report) cmd=report; shift ;; gpus) exec python3 "$HERE/gpus.py" ;; help|-h|--help) usage; exit 0 ;; esac
 if [ $cmd = report ]; then [ -d "${1:-}" ] || die "report needs a result directory"; exec python3 "$HERE/report.py" "$1"; fi
 
-MODELS="Qwen/Qwen3-0.6B Qwen/Qwen3-8B"; STACKS="vllm dynamo-vllm sglang dynamo-sglang"; PROFILE=full; REPEATS=""
+GPU_SEL=""; MODELS=""; DEFAULT_MODELS="Qwen/Qwen3-0.6B Qwen/Qwen3-8B"; STACKS="vllm dynamo-vllm sglang dynamo-sglang"; PROFILE=full; REPEATS=""
 OUT=/var/tmp/oif-bench/$(date +%Y%m%d-%H%M)
 HF_HOME_HOST=${HF_HOME_HOST:-/var/tmp/oif-bench/hf}
 PORT=8000; CTX=8192; MAXT=${BENCH_MAX_START_TEMP_C:-60}
@@ -40,7 +44,7 @@ SGLANG_ARGS="--context-length $CTX --mem-fraction-static 0.85 --max-running-requ
 
 while [ $# -gt 0 ]; do case $1 in
   --profile) PROFILE=$2; shift 2 ;; --models) MODELS=$2; shift 2 ;; --stacks) STACKS=$2; shift 2 ;;
-  --repeats) REPEATS=$2; shift 2 ;; --out) OUT=$2; shift 2 ;;
+  --repeats) REPEATS=$2; shift 2 ;; --out) OUT=$2; shift 2 ;; --gpu) GPU_SEL=$2; shift 2 ;;
   *) die "unknown option $1 (oif bench help)" ;; esac; done
 [ -f "$HERE/profiles/$PROFILE.env" ] || die "no profile $PROFILE in bench/profiles"
 # shellcheck source=/dev/null
@@ -60,16 +64,35 @@ STACKS=${use# }; [ -n "$STACKS" ] || die "no stack to run"
 # ---------------------------------------------------------------- preflight
 CT=$(command -v docker || command -v podman) || die "no docker or podman: sudo apt-get install -y podman"
 say "oif bench, profile $PROFILE ($REPEATS repeat(s)), stacks: $STACKS, runtime $CT"
-gpu=""; for d in /sys/class/drm/card*/device; do
-  [ "$(cat "$d/vendor" 2>/dev/null)" = 0x1002 ] || continue
-  case $(cat "$d/device") in 0x7448) gpu=$d ;; 0x7422) echo "   W6400 present: never used by oif bench" ;; esac
-done
-[ -n "$gpu" ] || die "no Radeon PRO W7900 (1002:7448) with the amdgpu driver on this node"
+# ---------------------------------------------------------------- GPU: list this node's GPUs, ask which one
+export BENCH_MIN_VRAM_GIB
+mapfile -t GPUS < <(python3 "$HERE/gpus.py" --json)
+[ ${#GPUS[@]} -gt 0 ] || die "no AMD or NVIDIA GPU found on this node"
+echo "   GPUs on this node:"; python3 "$HERE/gpus.py" | sed 's/^/   /'
+field() { python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get(sys.argv[2]) or "")' "$1" "$2"; }
+pick() {  # number or PCI address -> the GPU's JSON line
+  local g; for g in "${GPUS[@]}"; do
+    [ "$(field "$g" index)" = "$1" ] || [[ "$(field "$g" pci)" == *"$1" ]] && { echo "$g"; return 0; }
+  done; return 1; }
+if [ -z "$GPU_SEL" ]; then
+  [ -t 0 ] || die "choose the GPU with --gpu N|PCI (see the list above); a detached run cannot ask"
+  read -rp "   Which GPU should oif bench use? Number from the list: " GPU_SEL
+fi
+if [ -z "$MODELS" ]; then
+  if [ -t 0 ]; then
+    read -rp "   Which model(s)? Hugging Face ids, space-separated [$DEFAULT_MODELS]: " MODELS
+  fi
+  MODELS=${MODELS:-$DEFAULT_MODELS}
+fi
+say "models: $MODELS"
+G=$(pick "$GPU_SEL") || die "no GPU $GPU_SEL in the list"
+[ "$(field "$G" usable)" = True ] || die "GPU $GPU_SEL ($(field "$G" name)) cannot be used: $(field "$G" why_not)"
+gpu=$(field "$G" sysfs); GPU_NAME=$(field "$G" name); CARD=/dev/dri/$(field "$G" card); RENDER=/dev/dri/$(field "$G" render)
 hw=$(ls -d "$gpu"/hwmon/hwmon* 2>/dev/null | head -1)
-say "GPU: Radeon PRO W7900 at $(basename "$(readlink -f "$gpu")")"
+say "GPU: $GPU_NAME at $(field "$G" pci), $(field "$G" vram_gib) GiB ($CARD, $RENDER)"
 command -v fuser >/dev/null || die "fuser missing (apt-get install -y psmisc)"
-if fuser /dev/kfd >/dev/null 2>&1; then
-  die "something already uses the GPU (/dev/kfd, pids$(fuser /dev/kfd 2>/dev/null)): stop it first (e.g. systemctl stop kubelet)"
+if fuser "$RENDER" >/dev/null 2>&1; then
+  die "something already uses this GPU ($RENDER, pids$(fuser "$RENDER" 2>/dev/null)): stop it first (e.g. systemctl stop kubelet)"
 fi
 mkdir -p "$OUT"/{raw,logs} "$HF_HOME_HOST"
 free_gb=$(df -BG --output=avail "$(dirname "$OUT")" | tail -1 | tr -dc 0-9)
@@ -80,7 +103,7 @@ for s in $STACKS; do
   $CT pull -q "$(image_of "$s")" >/dev/null || die "pull $(image_of "$s") failed (a private GHCR package needs: $CT login ghcr.io)"
   echo "   $s"
 done
-GPU_FLAGS=(--device /dev/kfd --device /dev/dri --group-add video --ipc host --shm-size 16g
+GPU_FLAGS=(--device /dev/kfd --device "$CARD" --device "$RENDER" --group-add video --ipc host --shm-size 16g
            --security-opt seccomp=unconfined --network host)
 getent group render >/dev/null && GPU_FLAGS+=(--group-add "$(getent group render | cut -d: -f3)")
 HF_FLAGS=(-v "$HF_HOME_HOST:/hf" -e HF_HOME=/hf)
@@ -105,7 +128,7 @@ rd() { cat "$1" 2>/dev/null || true; }
 python3 - "$OUT/env.json" <<PY
 import json, os, platform, sys
 env = {"oif_version": "${OIF_VERSION:-}", "kernel": platform.release(), "cpus": os.cpu_count(),
-       "amdgpu": "$(rd /sys/module/amdgpu/version)", "gpu": "Radeon PRO W7900 (gfx1100)",
+       "amdgpu": "$(rd /sys/module/amdgpu/version)", "gpu": "$GPU_NAME", "gpu_pci": "$(field "$G" pci)",
        "vram_total_bytes": int("$(rd "$gpu/mem_info_vram_total")" or 0),
        "power_cap_w": round(int("$(rd "$hw/power1_cap")" or 0) / 1e6), "max_start_temp_c": $MAXT,
        "profile": "$PROFILE", "repeats": $REPEATS, "duration_s": $DUR, "aiperf": "$AIPERF_VERSION",
@@ -130,7 +153,7 @@ $CT run --rm -v "$OUT:/out" --entrypoint bash "$first" -c \
   > "$OUT/logs/aiperf-install.log" 2>&1 || die "aiperf install failed: $OUT/logs/aiperf-install.log"
 
 # ---------------------------------------------------------------- server control
-stop_server() { $CT rm -f oifb-srv >/dev/null 2>&1; for _ in $(seq 30); do fuser /dev/kfd >/dev/null 2>&1 || return 0; sleep 2; done; }
+stop_server() { $CT rm -f oifb-srv >/dev/null 2>&1; for _ in $(seq 30); do fuser "$RENDER" >/dev/null 2>&1 || return 0; sleep 2; done; }
 start_server() {  # stack model
   local s=$1 m=$2 img; img=$(image_of "$1")
   local dyn=(-e DYN_DISCOVERY_BACKEND=file -e DYN_FILE_KV=/tmp/dynamo_kv -e DYN_REQUEST_PLANE=tcp -e DYN_SYSTEM_PORT=8081)
@@ -177,6 +200,7 @@ for rep in $(seq "$REPEATS"); do
     for stack in $order; do
       say "repeat $rep  $model  $stack"
       log="$OUT/logs/server-$rep-$tag-$stack.log"
+      t_case=$(date +%s)
       start_server "$stack" "$model"
       if ! ready=$(wait_ready "$model"); then
         $CT logs oifb-srv > "$log" 2>&1; echo "   not ready; last lines of $log:"; tail -15 "$log" | sed 's/^/     /'
@@ -206,6 +230,9 @@ for rep in $(seq "$REPEATS"); do
       done
       $CT logs oifb-srv > "$log" 2>&1
       stop_server
+      run_s=$(( $(date +%s) - t_case ))
+      echo "{\"type\":\"runtime\",\"rep\":$rep,\"model\":\"$model\",\"stack\":\"$stack\",\"run_s\":$run_s}" >> "$OUT/results.jsonl"
+      echo "   $model on $stack: $((run_s / 60)) min $((run_s % 60)) s"
     done
   done
 done
