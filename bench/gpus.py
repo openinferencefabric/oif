@@ -4,7 +4,7 @@ gpus.py            table for people: number, name, PCI address, memory, driver, 
 gpus.py --json     the same as JSON lines (used by oif-bench.sh)
 
 Usable today (B-1): AMD GPUs on the amdgpu driver (ROCm stacks). NVIDIA GPUs are listed; their CUDA stacks come with
-B-2. A GPU that drives the console display (boot_vga), or has less memory than BENCH_MIN_VRAM_GIB (default 16),
+B-2. A GPU with a monitor connected to one of its outputs, or with less memory than BENCH_MIN_VRAM_GIB (default 16),
 is listed but not offered."""
 import glob, json, os, re, subprocess, sys
 
@@ -52,9 +52,12 @@ for d in sorted(glob.glob("/sys/bus/pci/devices/*")):
     pci = os.path.basename(d)
     driver = os.path.basename(os.path.realpath(f"{d}/driver")) if os.path.exists(f"{d}/driver") else "none"
     g = {"pci": pci, "vendor": vendor, "id": f"{rd(f'{d}/vendor')[2:]}:{rd(f'{d}/device')[2:]}", "driver": driver,
-         "sysfs": d, "display": rd(f"{d}/boot_vga") == "1", "name": "", "vram_gib": None, "card": "", "render": ""}
+         "sysfs": d, "display": False, "name": "", "vram_gib": None, "card": "", "render": ""}
     drm = sorted(os.listdir(f"{d}/drm")) if os.path.isdir(f"{d}/drm") else []
     g["card"] = next((x for x in drm if x.startswith("card")), "")
+    # a monitor on one of its outputs: the console or a desktop uses it (boot_vga alone is set on every VM's only GPU)
+    if g["card"]:
+        g["display"] = any(rd(c + "/status") == "connected" for c in glob.glob(f"/sys/class/drm/{g['card']}-*"))
     g["render"] = next((x for x in drm if x.startswith("renderD")), "")
     if vendor == "AMD":
         g["name"] = rd(f"{d}/product_name") or lspci_name(pci) or f"AMD GPU {g['id']}"
@@ -71,7 +74,7 @@ for d in sorted(glob.glob("/sys/bus/pci/devices/*")):
     if g["vram_gib"] is not None and g["vram_gib"] < MIN_GIB and "why_not" not in g:
         g["why_not"] = f"{g['vram_gib']} GiB, below the {MIN_GIB} GiB minimum"
     if g["display"] and "why_not" not in g:
-        g["why_not"] = "drives the console display"
+        g["why_not"] = "a display is connected to it"
     g["usable"] = "why_not" not in g
     gpus.append(g)
 

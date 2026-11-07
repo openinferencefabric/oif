@@ -34,7 +34,7 @@ Method and metric definitions: [docs/BENCHMARK.md](../BENCHMARK.md).
    ```
 
 2. See which GPUs the node has and which can be used (AMD on amdgpu today; NVIDIA with B-2; a GPU below
-   `BENCH_MIN_VRAM_GIB`, default 16 GiB, or driving the console display is not offered):
+   `BENCH_MIN_VRAM_GIB`, default 16 GiB, or with a monitor connected, is not offered):
 
    ```bash
    ./oif bench gpus
@@ -97,6 +97,6 @@ Options: `--stacks "vllm dynamo-vllm"`, `--models "Qwen/Qwen3-8B"`, `--repeats N
 | --- | --- |
 | `something already uses the GPU (/dev/kfd)` | Stop the kubelet or the container holding the GPU; `sudo fuser -v /dev/kfd` names it. |
 | `pull ... failed` for ghcr.io, `invalid username/password` | A stale login is sent with the request: `sudo podman logout ghcr.io` and run again (the OIF images are public). |
-| `GPU N cannot be used` | `./oif bench gpus` gives the reason (driver, memory, display). |
+| `GPU N cannot be used` | `./oif bench gpus` gives the reason (driver, memory, a monitor connected). |
 | `not ready` and the server log | The log is in `<out>/logs/server-*.log`; a model too large for the GPU at `--max-model-len 8192` fails here. |
 | Output length short in the run-quality section | The stack ignored `ignore_eos`; throughput at those points is not comparable. |

@@ -21,7 +21,7 @@
 # Dynamo's frontend, request plane and worker wrapper. Same engine arguments within a pair, same AIPerf prompts
 # (fixed seed), exact output lengths (ignore_eos), GPU below BENCH_MAX_START_TEMP_C before every point (ADR-009).
 # GPUs: AMD on the amdgpu driver today (ROCm stacks); NVIDIA with B-2. Only the chosen GPU is passed to the containers;
-# a GPU driving the console display is never offered.
+# a GPU with a monitor connected is never offered.
 set -uo pipefail
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd); ROOT=$(dirname "$HERE")
 # shellcheck source=../versions.env
