@@ -24,15 +24,13 @@ Method and metric definitions: [docs/BENCHMARK.md](../BENCHMARK.md).
   again afterwards.
 - Docker or Podman (`sudo apt-get install -y podman psmisc`), internet access for images and models, 60 GB free under
   `/var/tmp`.
-- While the OIF packages on ghcr.io are private: a GitHub token with `read:packages`.
 
 ## Steps
 
-1. Get oif on the node and log in to ghcr.io:
+1. Get oif on the node (the images are public, no registry login needed):
 
    ```bash
    git clone https://github.com/openinferencefabric/oif && cd oif
-   read -rsp "GHCR token: " T; echo "$T" | sudo podman login ghcr.io -u <github-user> --password-stdin; unset T
    ```
 
 2. See which GPUs the node has and which can be used (AMD on amdgpu today; NVIDIA with B-2; a GPU below
@@ -98,7 +96,7 @@ Options: `--stacks "vllm dynamo-vllm"`, `--models "Qwen/Qwen3-8B"`, `--repeats N
 | Symptom | Fix |
 | --- | --- |
 | `something already uses the GPU (/dev/kfd)` | Stop the kubelet or the container holding the GPU; `sudo fuser -v /dev/kfd` names it. |
-| `pull ... failed` for ghcr.io, `invalid username/password` | The login did not take: `sudo podman login ghcr.io` again with your GitHub user name and a classic token with `read:packages` (or make the package public). The login must be as root, the same user that runs `oif bench`. |
+| `pull ... failed` for ghcr.io, `invalid username/password` | A stale login is sent with the request: `sudo podman logout ghcr.io` and run again (the OIF images are public). |
 | `GPU N cannot be used` | `./oif bench gpus` gives the reason (driver, memory, display). |
 | `not ready` and the server log | The log is in `<out>/logs/server-*.log`; a model too large for the GPU at `--max-model-len 8192` fails here. |
 | Output length short in the run-quality section | The stack ignored `ignore_eos`; throughput at those points is not comparable. |

@@ -100,7 +100,7 @@ free_gb=$(df -BG --output=avail "$(dirname "$OUT")" | tail -1 | tr -dc 0-9)
 
 say "pull images"
 for s in $STACKS; do
-  $CT pull -q "$(image_of "$s")" >/dev/null || die "pull $(image_of "$s") failed (a private GHCR package needs: $CT login ghcr.io)"
+  $CT pull -q "$(image_of "$s")" >/dev/null || die "pull $(image_of "$s") failed (network, or a private registry needing $CT login)"
   echo "   $s"
 done
 GPU_FLAGS=(--device /dev/kfd --device "$CARD" --device "$RENDER" --group-add video --ipc host --shm-size 16g

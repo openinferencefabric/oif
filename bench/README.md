@@ -19,5 +19,5 @@ sudo ./oif bench --stacks "vllm dynamo-vllm" --models "Qwen/Qwen3-8B"
 | `report.py` | medians over repeats, Dynamo-vs-engine difference with a noise verdict, `report.html`, `summary.csv` |
 
 Images come from `versions.env` (`BENCH_*`, `DYNAMO_*ROCM_IMAGE`); a stack without an image is skipped. Before a run,
-stop anything that holds the GPU on that node (`systemctl stop kubelet` on a cluster node) and log in to ghcr.io while
-the OIF packages are private.
+stop anything that holds the GPU on that node (`systemctl stop kubelet` on a cluster node). The OIF images on ghcr.io
+are public.
