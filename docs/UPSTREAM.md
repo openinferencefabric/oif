@@ -34,6 +34,7 @@ with the thread linked (its live state is on the page above).
 | R9 | Run:ai | ROCm workload templates (whole and half AMD GPU) | template JSON | closed as not planned 2026-11-08: [run-ai#3946](https://github.com/dsx-ai-factory/run-ai/issues/3946); templates stay in oif |
 | R10 | Run:ai workspaces | Parallel requests during a workspace login fail with `invalid_grant` | issue | filed: [run-ai#3947](https://github.com/dsx-ai-factory/run-ai/issues/3947) |
 | R11 | Run:ai metrics | AMD GPUs missing from Run:ai's GPU metrics: its AMD rules read `amd_gpu_*` names no current exporter emits; its Prometheus does not watch `kube-amd-gpu` | feature request (oif's own `oif:gpu_*` rules map the exporter) | closed as not planned 2026-11-08: [run-ai#4274](https://github.com/dsx-ai-factory/run-ai/issues/4274); oif keeps its `oif:gpu_*` rules |
+| R12 | Run:ai | AMD GPU support as community-maintained (reconsider R1, R2, R9, R11), or a stop-gap fork under its own name | discussion | opened 2026-11-11: [run-ai discussion #5023](https://github.com/dsx-ai-factory/run-ai/discussions/5023) |
 | K1 | KAI common | Helper: is a node an AMD GPU node, which resource holds its GPU | patch 0001 | proposed on [KAI-Scheduler#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556) (design questions first) |
 | K2 | KAI scheduler | Skip the NvFractions readiness check on AMD GPU nodes | patch 0002 | proposed on [KAI-Scheduler#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556) |
 | K3 | KAI binder | Reserve an `amd.com/gpu` on AMD nodes; name the shared GPU for the device injector | patch 0003 | proposed on [KAI-Scheduler#2556](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556); rework (annotation names) |
@@ -129,6 +130,7 @@ PR #3950 closed as not planned; oif keeps them as patches. R2's PR #3948 and R3'
 | R4 | [reply on run-ai#3942](https://github.com/dsx-ai-factory/run-ai/issues/3942#issuecomment-6802447469) | Reopened, "looking into it"; offered a PR that takes the bearer token out of the copied `curl` command |
 | R6 | [reply on run-ai#3944](https://github.com/dsx-ai-factory/run-ai/issues/3944#issuecomment-6802448253) | Fixed upstream; will confirm on the next release |
 | R1 | [reply on run-ai#3939](https://github.com/dsx-ai-factory/run-ai/issues/3939#issuecomment-6802449436) | Acknowledged the not-planned answers on #3939, #3940, #3946 and #4274 |
+| R12 | [run-ai discussion #5023](https://github.com/dsx-ai-factory/run-ai/discussions/5023); reopen requests on [#3939](https://github.com/dsx-ai-factory/run-ai/issues/3939#issuecomment-6805462080), [#3940](https://github.com/dsx-ai-factory/run-ai/issues/3940#issuecomment-6805462515), [#3946](https://github.com/dsx-ai-factory/run-ai/issues/3946#issuecomment-6805462976), [#4274](https://github.com/dsx-ai-factory/run-ai/issues/4274#issuecomment-6805463604), [PR #3950](https://github.com/dsx-ai-factory/run-ai/pull/3950#issuecomment-6805464072) | Asks the maintainers (GOVERNANCE.md) to accept AMD support as community-maintained: outside the support matrix, OIF owns the tests and posts an AMD lab run per release, `amd` label and a named owner. Otherwise a stop-gap fork, under its own name per TRADEMARKS.md, kept in step with releases and offered back. We have no triage rights, so we asked for the threads to be reopened |
 
 ## Run:ai
 
@@ -202,6 +204,13 @@ fraction cannot be scheduled (NvFractions readiness check), cannot be reserved (
 make the path vendor-aware; K6 is the AMD device injector. Tested on a Radeon PRO W7900 with Run:ai 3.0.20: two
 half-GPU workloads share the GPU (24.2 TFLOPS each), a third waits on quota, NVIDIA fractions unchanged
 (`docs/evidence/T-126/`).
+
+### R12. AMD GPU support: community-maintained, or a fork (discussion open)
+
+- **Where:** [run-ai discussion #5023](https://github.com/dsx-ai-factory/run-ai/discussions/5023) (Ideas), opened 2026-11-11 after R1, R2, R9, R11 and PR #3950 were closed as not planned.
+- **Ask:** reconsider under GOVERNANCE.md (roadmap is NVIDIA's; decisions by lazy consensus); accept AMD support as community-maintained, outside the support matrix, with OIF owning tests, an AMD lab run per release, an `amd` label and a named owner; reopen the threads meanwhile (we have pull rights only).
+- **Fallback:** a stop-gap fork of Run:ai with the AMD changes, kept in step with releases, under its own name (TRADEMARKS.md: no NVIDIA or Run:ai branding implying endorsement), every change offered back. Name not chosen yet.
+- **Commitment:** an AMD lab run per Run:ai release while the discussion stands.
 
 ### K1. common: AMD GPU node helper (ready, rename)
 
