@@ -42,7 +42,7 @@ amd_node_run "$AMD_NODE" "set -e; d=\$(mktemp -d); trap 'rm -rf \$d' EXIT
   git clone -q --depth 1 --branch '$REF' https://github.com/openinferencefabric/gpu-fractioning \$d/src
   git -C \$d/src log -1 --format='  commit %h %s'
   podman build -q -t $IMG -f \$d/src/fractioning-manager/fractiond/build/Dockerfile \$d/src >/dev/null
-  podman save $IMG | ctr -n k8s.io images import - >/dev/null
+  podman save $IMG | sudo ctr -n k8s.io images import - >/dev/null
   echo '  image imported into containerd'" || { echo "build failed"; exit 1; }
 
 GPU=$(amd_node_run "$AMD_NODE" "awk '\$1 ~ /^drm\\/.*\\/vram\$/ {split(\$1, a, \"/\"); print a[2]; exit}' /sys/fs/cgroup/dmem.capacity")
