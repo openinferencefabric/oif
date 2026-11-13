@@ -1,0 +1,34 @@
+# T-142 on the lab cluster, 2026-11-13: main 470cfd0, sudo tests/lab/gf175-reapply.sh on cp1 (five nodes, W7900 on
+# gpu-amd), fractiond built from openinferencefabric/gpu-fractioning review/175-fixes (584b4b8, the PR head). Rounds:
+#   2c10e50 build failed: ctr ran as the SSH user on the AMD node (permission denied on containerd.sock); sudo ctr (#37)
+#   2c10e50 10/11: readiness log check FAIL although the line was logged: grep -q in a pipe under pipefail (kubectl
+#           SIGPIPE); the log is read whole, with a 10 s retry (#38)
+#   470cfd0 11/11 (below)
+== build fractiond from openinferencefabric/gpu-fractioning review/175-fixes on gpu-amd
+  commit 584b4b8 docs(amd): Linux 6.15, dependencies, limits of the cap, capacity mount
+  image imported into containerd
+  INFO  AMD node gpu-amd, GPU 0000:03:00.0, kernel 7.0.0-43-generic, runc 1.4.0-0ubuntu1
+== 1. readiness
+  PASS  fractiond ready on gpu-amd (--gpu-vendor=AMD, upper case, accepted)
+  PASS  it found the GPU's dmem region through the read-only host cgroup mount
+== 2. create path
+  INFO  capped: dmem.max 4096 MiB
+  PASS  a new 4Gi container is capped at 4096 MiB on its own cgroup
+  PASS  no dmem.min is written
+== 3. re-apply after a restart
+  INFO  late, created while fractiond was down: dmem.max max
+  PASS  a container created while fractiond is down starts uncapped
+  INFO  late, after fractiond reconnected: dmem.max 4096
+  PASS  fractiond's return sets its dmem.max to 4096 MiB in place
+  PASS  without restarting it
+  PASS  the log names the re-applied container
+  PASS  and leaves the already-capped one alone
+  PASS  the first container is still capped
+== 4. fail-closed on a GPU with no dmem region
+  INFO  nogpu events: has no dmem VRAM region on this node (dmem.capacity lists [drm/0000:03:00.0/vram])
+  PASS  it is refused by fractiond with the clear error, not by runc
+== fractiond log (AMD lines)
+    {"time":"2026-11-13T01:22:54.541592869Z","level":"INFO","msg":"AMD GPU VRAM dmem regions found","regions":["drm/0000:03:00.0/vram"]}
+    {"time":"2026-11-13T01:22:54.541916298Z","level":"INFO","msg":"re-applying the AMD GPU memory limit to a container created without it","container":"main","pod":"late","limit":"drm/0000:03:00.0/vram 4294967296"}
+    {"time":"2026-11-13T01:23:01.791000582Z","level":"WARN","msg":"cannot limit AMD GPU memory","container":"main","pod":"nogpu","error":"GPU 0000:ff:1f.7 has no dmem VRAM region on this node (dmem.capacity lists [drm/0000:03:00.0/vram]); AMD GPU memory limits need Linux 6.15+ with amdgpu bound to the GPU"}
+gf175: 11/11 checks passed
