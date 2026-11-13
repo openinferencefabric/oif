@@ -31,7 +31,13 @@ no_ python3 "$GEN" --profile mi300x --partition spx_nps4
 no_ python3 "$GEN" --profile mi300x --partition cpx_nps2
 ok_ python3 "$GEN" --profile mi355x --partition dpx_nps2
 no_ python3 "$GEN" --profile mi325x --partition dpx_nps2
-ok_ python3 "$GEN" --profile mi355x --partition cpx_nps4
+no_ python3 "$GEN" --profile mi355x --partition cpx_nps4   # two IODs: no NPS4 on MI350X/MI355X
+no_ python3 "$GEN" --profile mi350x --partition qpx_nps4
+ok_ python3 "$GEN" --profile mi355x --partition cpx_nps2   # AMD: CPX/NPS2 and QPX/NPS2 on MI350 Series
+ok_ python3 "$GEN" --profile mi350x --partition qpx_nps2
+no_ python3 "$GEN" --profile mi355x --partition spx_nps2   # never more memory than compute partitions
+eq "$(q 'R["amd.com/gpu"], L["amd.com/gpu.vram"], L["amd.com/gpu.cu-count"], L["amd.com/gpu.compute-memory-partition"]' --profile mi355x --partition cpx_nps2)"   "64 36G 32 cpx_nps2" "MI355X CPX + NPS2: 8 devices of 36 GB and 32 CUs per GPU (AMD's MI350 page):"
+eq "$(python3 "$GEN" --profile mi355x --partition cpx_nps4 2>&1 >/dev/null)"   "mi355x: CPX with NPS4 is not a valid mode (compute modes SPX, DPX, QPX, CPX; NPS1 with SPX, DPX, QPX, CPX; NPS2 with DPX, QPX, CPX)"   "the error names the GPU's own rules:"
 eq "$(q 'R["amd.com/gpu"], L["amd.com/gpu.product-name"], L["amd.com/gpu.device-id"], L["amd.com/gpu.vram"], L["oif.ai/accelerator-fabric"]' --profile mi350p)" \
   "8 AMD_Instinct_MI350P 75a8 144G pcie" "MI350P server: 8 PCIe cards of 144 GB, no xGMI:"
 eq "$(q 'R["amd.com/gpu"], L["amd.com/gpu.vram"], L["amd.com/gpu.cu-count"], R.get("amd.com/gpu-mi350p-cpx-nps1")' --profile mi350p --partition cpx_nps1)" "32 36G 32 None" "MI350P in CPX: 4 partitions of 36 GB and 32 CUs per card:"
