@@ -42,8 +42,9 @@ KWOK must be running and manage nodes annotated `kwok.x-k8s.io/node=fake` (its d
   `oif.ai/accelerator-domain` (the GPUs a job can use over the scale-up fabric), `oif.ai/accelerator-fabric`
   (`xgmi`, `ualoe`, `pcie`) and `oif.ai/scaleout-zone`, for KAI Scheduler's `Topology` levels.
 
-**Assumed, not yet published:** MI455X's device id and product name are not in `amdgpu.ids`, so its nodes carry no
-device-id or product labels and use `amd.com/gpu` (annotation `oif.ai/fake-gpu-assumed`). Fake nodes have no device
+**Not yet published:** MI455X's device id and product name are not in `amdgpu.ids`, and what the labeller will report
+as its family and CU count is unknown (AMD lists 256 work group processors, not CUs), so its nodes carry only the VRAM
+label and use `amd.com/gpu` (annotation `oif.ai/fake-gpu-assumed`). Fake nodes have no device
 plugin, partition manager or GPUs: they test placement, not performance or device injection.
 
 Tests: `tests/unit/test_fake_gpu.sh` (labels, resource names, partition rules, Helios racks).
