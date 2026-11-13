@@ -32,10 +32,11 @@ PROFILES = {
                    domain="node", partitions=True, nps=("nps1", "nps2", "nps4"), family="AI"),
     "mi325x": dict(name="AMD Instinct MI325X", device_id="74A5", vram_gb=256, cus=304, gpus=8, fabric="xgmi",
                    domain="node", partitions=True, nps=("nps1", "nps4"), family="AI"),
+    # two IODs (MI300X: four), so NPS1 or NPS2 only; NPS2 with DPX, QPX or CPX (CDNA4_NPS_WITH)
     "mi350x": dict(name="AMD Instinct MI350X", device_id="75A0", vram_gb=288, cus=256, gpus=8, fabric="xgmi",
-                   domain="node", partitions=True, nps=("nps1", "nps2", "nps4"), family="AI"),
+                   domain="node", partitions=True, nps=("nps1", "nps2"), nps_with="cdna4", family="AI"),
     "mi355x": dict(name="AMD Instinct MI355X", device_id="75A3", vram_gb=288, cus=256, gpus=8, fabric="xgmi",
-                   domain="node", partitions=True, nps=("nps1", "nps2", "nps4"), family="AI"),
+                   domain="node", partitions=True, nps=("nps1", "nps2"), nps_with="cdna4", family="AI"),
     # PCIe card, half an MI350X (one IOD, 4 XCDs); up to 8 per server, no Infinity Fabric between cards
     "mi350p": dict(name="AMD Instinct MI350P", device_id="75A8", vram_gb=144, cus=128, gpus=8, fabric="pcie",
                    domain="node", partitions=True, modes={"spx": 1, "dpx": 2, "cpx": 4}, nps=("nps1",), family="AI",
@@ -50,11 +51,15 @@ PROFILES = {
 # AMD's MI300X partitioning overview: SPX the whole GPU, DPX 2 devices of 4 XCDs, QPX 4 of 2 XCDs, CPX one device per
 # XCD (8). Memory partitions (NPS), MI300X matrix: NPS1 with any compute mode, NPS2 with DPX, NPS4 with QPX or CPX;
 # never more memory than compute partitions. Which NPS modes a GPU has is per profile (AMD's partitioning index:
-# DPX + NPS2 on MI300X, MI350 and MI355, not on MI325). A GPU with fewer XCDs has its own modes (MI350P, 4 XCDs: SPX,
-# DPX, CPX of 4). TPX (3 partitions) exists only on the 6-XCD MI300A APU, which is not modelled.
+# DPX + NPS2 on MI300X, MI350 and MI355, not on MI325). MI350X and MI355X (CDNA 4) have two IODs, so their memory is
+# NPS1 or NPS2 (two 144 GB pools), and NPS2 goes with DPX, QPX or CPX (rocm.docs.amd.com gpu-arch/mi350: SPX/NPS1,
+# DPX/NPS2, QPX/NPS2, CPX/NPS2; amdgpu driver 30.20.0 release notes: "NPS2 + CPX partitioning support for MI355X and
+# MI350X"). A GPU with fewer XCDs has its own modes (MI350P, 4 XCDs: SPX, DPX, CPX of 4). TPX (3 partitions) exists
+# only on the 6-XCD MI300A APU, which is not modelled.
 COMPUTE_PARTITIONS = {"spx": 1, "dpx": 2, "qpx": 4, "cpx": 8}
 MEMORY_PARTITIONS = ("nps1", "nps2", "nps4")
 NPS_WITH = {"nps1": ("spx", "dpx", "qpx", "cpx"), "nps2": ("dpx",), "nps4": ("qpx", "cpx")}
+NPS_WITH_BY = {"cdna3": NPS_WITH, "cdna4": {"nps1": ("spx", "dpx", "qpx", "cpx"), "nps2": ("dpx", "qpx", "cpx")}}
 BRAND_WORDS = {"amd", "ati", "instinct", "radeon", "graphics", "series"}
 
 
@@ -80,10 +85,11 @@ def node(profile: str, name: str, partition: str, naming: str, domain: str, zone
     if (cp, mp) != ("spx", "nps1") and not p["partitions"]:
         raise SystemExit(f"{profile} does not support partitioning")
     modes = p.get("modes", COMPUTE_PARTITIONS)
-    if p["partitions"] and (cp not in modes or mp not in p["nps"] or cp not in NPS_WITH[mp]):
+    pairs = NPS_WITH_BY[p.get("nps_with", "cdna3")]
+    if p["partitions"] and (cp not in modes or mp not in p["nps"] or cp not in pairs[mp]):
+        rules = "; ".join(f"{m.upper()} with {', '.join(c.upper() for c in pairs[m] if c in modes)}" for m in p["nps"])
         raise SystemExit(f"{profile}: {cp.upper()} with {mp.upper()} is not a valid mode (compute modes "
-                         f"{', '.join(modes).upper()}; memory modes {', '.join(p['nps']).upper()}; "
-                         "NPS1 with any, NPS2 with DPX, NPS4 with QPX or CPX)")
+                         f"{', '.join(modes).upper()}; {rules})")
     per_gpu = modes[cp]
     devices = p["gpus"] * per_gpu
     labels = {"type": "kwok", "kubernetes.io/hostname": name, "kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64",

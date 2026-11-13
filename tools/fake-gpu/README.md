@@ -9,7 +9,7 @@ it does not depend on the rest of OIF. Python 3.9+, standard library only.
 ```bash
 python3 tools/fake-gpu/fake_gpu_nodes.py --list
 python3 tools/fake-gpu/fake_gpu_nodes.py --profile mi300x --count 4 | kubectl apply -f -
-python3 tools/fake-gpu/fake_gpu_nodes.py --profile mi355x --partition cpx_nps4 --naming mixed | kubectl apply -f -
+python3 tools/fake-gpu/fake_gpu_nodes.py --profile mi355x --partition cpx_nps2 --naming mixed | kubectl apply -f -
 python3 tools/fake-gpu/fake_gpu_nodes.py --profile mi455x --racks 2 | kubectl apply -f -
 kubectl delete node -l oif.ai/fake-gpu-profile            # remove them
 ```
@@ -34,7 +34,8 @@ KWOK must be running and manage nodes annotated `kwok.x-k8s.io/node=fake` (its d
 - **Resources as the device plugin names them** (`--naming`, its `resource_naming_strategy`): `single`
   (`amd.com/gpu`), `mixed` (`amd.com/cpx_nps4`) and `product` (`amd.com/gpu-mi300x-spx-nps1`).
 - **Partitions** (`--partition`): SPX, DPX, QPX and CPX (1, 2, 4 and 8 devices per GPU) with NPS1, NPS2 or NPS4, only in
-  the combinations AMD documents (NPS2 with DPX, NPS4 with QPX or CPX; DPX + NPS2 not on MI325X). The MI350P (4 XCDs)
+  the combinations AMD documents (MI300X: NPS2 with DPX, NPS4 with QPX or CPX; DPX + NPS2 not on MI325X; MI350X and
+  MI355X, two I/O dies: NPS1 or NPS2, NPS2 with DPX, QPX or CPX). The MI350P (4 XCDs)
   has SPX, DPX and CPX of 4 partitions (36 GB, 32 CUs each); its NPS modes are not published, so NPS1 only. A partition's
   VRAM and CU labels are the GPU's divided by the partitions, as the labeller reports them (ROCm/gpu-operator#555).
 - **Topology** (OIF's own labels; the AMD GPU Operator publishes no xGMI or UALink domain yet):
