@@ -46,5 +46,6 @@ no_ python3 "$GEN" --profile mi350p --partition qpx_nps1
 no_ python3 "$GEN" --profile mi350p --partition cpx_nps4
 no_ python3 "$GEN" --profile w7900 --partition cpx_nps1
 no_ python3 "$GEN" --profile mi455x --partition dpx_nps1
+eq "$(q 'sorted(k for k in L if "amd.com/gpu" in k), R["amd.com/gpu"]' --profile mi455x)"   "['amd.com/gpu.vram', 'beta.amd.com/gpu.vram', 'beta.amd.com/gpu.vram.432G'] 4" "MI455X: only the published VRAM label, no guessed family or CU count:"
 ok_ python3 "$GEN" --list
 finish

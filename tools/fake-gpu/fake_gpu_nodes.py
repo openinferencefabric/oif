@@ -41,9 +41,11 @@ PROFILES = {
     "mi350p": dict(name="AMD Instinct MI350P", device_id="75A8", vram_gb=144, cus=128, gpus=8, fabric="pcie",
                    domain="node", partitions=True, modes={"spx": 1, "dpx": 2, "cpx": 4}, nps=("nps1",), family="AI",
                    assumed="memory partition modes: not published, NPS1 only"),
-    "mi455x": dict(name="AMD Instinct MI455X", device_id="", vram_gb=432, cus=256, gpus=4, fabric="ualoe",
-                   domain="rack", rack_nodes=18, partitions=False, family="AI",
-                   assumed="device id and product name: not in amdgpu.ids yet"),
+    # AMD publishes 432 GB and "256 Work Group Processors" (not compute units); the labeller's family and CU count for
+    # CDNA 5 are unknown until it supports the GPU, so those labels are left out rather than guessed
+    "mi455x": dict(name="AMD Instinct MI455X", device_id="", vram_gb=432, cus=None, gpus=4, fabric="ualoe",
+                   domain="rack", rack_nodes=18, partitions=False, family=None,
+                   assumed="device id, product name, family and CU count: not published for the labeller yet"),
     "w7900": dict(name="AMD Radeon Pro W7900", device_id="7448", vram_gb=45, cus=96, gpus=1, fabric="pcie",
                   domain="node", partitions=False, family="GC_11_0_0", simds_per_cu=2),
 }
@@ -95,15 +97,17 @@ def node(profile: str, name: str, partition: str, naming: str, domain: str, zone
     labels = {"type": "kwok", "kubernetes.io/hostname": name, "kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64",
               "feature.node.kubernetes.io/amd-gpu": "true", "oif.ai/gpu-vendor": "amd", "oif.ai/fake-gpu-profile": profile,
               "oif.ai/accelerator-domain": domain, "oif.ai/accelerator-fabric": p["fabric"], "oif.ai/scaleout-zone": zone}
-    labels |= labeller("family", p["family"], devices)
+    if p["family"]:
+        labels |= labeller("family", p["family"], devices)
     if p["device_id"]:
         labels |= labeller("device-id", p["device_id"].lower(), devices)
         labels |= labeller("product-name", label_name(p["name"]), devices)
     # the labeller reads each device's memory bank: a compute partition of a GPU reports its share (ROCm/gpu-operator#555)
     labels |= labeller("vram", f"{round(p['vram_gb'] / per_gpu)}G", devices)
-    labels |= labeller("cu-count", str(p["cus"] // per_gpu), devices)
-    # SIMDs per CU: 4 on CDNA (Instinct), 2 on RDNA (Radeon; the lab's W7900 node reports 192 for 96 CUs)
-    labels |= labeller("simd-count", str(p["cus"] // per_gpu * p.get("simds_per_cu", 4)), devices)
+    if p["cus"]:
+        labels |= labeller("cu-count", str(p["cus"] // per_gpu), devices)
+        # SIMDs per CU: 4 on CDNA (Instinct), 2 on RDNA (Radeon; the lab's W7900 node reports 192 for 96 CUs)
+        labels |= labeller("simd-count", str(p["cus"] // per_gpu * p.get("simds_per_cu", 4)), devices)
     if p["partitions"]:
         labels |= {"amd.com/gpu.compute-memory-partition": partition, "amd.com/gpu.compute-partitioning-supported": "true",
                    "amd.com/gpu.memory-partitioning-supported": "true"}
