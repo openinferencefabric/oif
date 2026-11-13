@@ -103,10 +103,13 @@ ctr_file() {   # pod file: a file of the pod's main container cgroup ("" if not 
 cap_mib() { ctr_file "$1" dmem.max | awk -v g="$GPU" '$1 == "drm/" g "/vram" { if ($2 == "max") print "max"; else print int($2 / 1048576) }'; }
 ready() { kc -n "$NS" rollout status ds/gf175-fractiond --timeout=120s; }
 fdlogs() { kc -n "$NS" logs ds/gf175-fractiond 2>/dev/null; }
-log_has() { fdlogs | grep -q "$1"; }
-reapplied() { fdlogs | grep 're-applying' | grep -Eq "pod.{0,3}$1"; }   # text (pod=x) or JSON ("pod":"x")
+# The whole log is read before grep: grep -q in a pipe stops reading at its first match, kubectl then dies of
+# SIGPIPE, and pipefail turned a found line into a FAIL (the readiness check on the lab, 2026-11-12).
+log_has() {   # text: in fractiond's log within 10 s (the first lines can lag the rollout)
+  local i; for i in $(seq 1 10); do grep -q "$1" <<< "$(fdlogs)" && return 0; sleep 1; done; return 1; }
+reapplied() { grep 're-applying' <<< "$(fdlogs)" | grep -Ec "pod.{0,3}$1" >/dev/null; }   # text (pod=x) or JSON ("pod":"x")
 not_reapplied() { ! reapplied "$1"; }
-no_min() { ! ctr_file capped dmem.min | grep -q "$GPU/vram [1-9]"; }
+no_min() { ! grep -q "$GPU/vram [1-9]" <<< "$(ctr_file capped dmem.min)"; }
 refused() { echo "$EV" | grep -q 'has no dmem VRAM region'; }
 
 echo "== 1. readiness"
