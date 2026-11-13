@@ -21,10 +21,11 @@ One guide per step of the plan in [TASKS.md](../../TASKS.md). Each guide is writ
 | 15 | [Continuous integration](15-ci.md): shellcheck, yamllint, unit tests, Go tests, patch check and secret scan on every push; run them locally | T-003 | Tested (CI) |
 | 16 | [Dynamo under Run:ai](16-dynamo-under-runai.md): Dynamo 1.6.1 with Grove and its own KAI off, a DynamoGraphDeployment submitted through the Run:ai UI, the worker on the project's NVIDIA quota, chat through the frontend, a deployment over quota waits; installed by `oif install`; the AMD image built from oif's Dynamo fork (T-211) | S-4, T-201, T-211 | Tested (lab: NVIDIA); AMD image: build script ready, not built yet |
 | 17 | [Accelerator domains](17-accelerator-domains.md): GPU nodes labelled with their scale-up domain (NVLink clique or NVSwitch, AMD xGMI hive, PCIe), fabric and scale-out zone by agent oif-topology; annotations for rack-scale domains; the agent limited to its own node and labels | T-130, T-132 | Tested (lab: T-130 12/12, T-132 8/8) |
+| 18 | [Benchmark Dynamo against its engine: `oif bench`](18-oif-bench.md): vLLM and OIF's Dynamo ROCm build on the W7900, same engine underneath, AIPerf sweep with temperature guard, HTML report with Dynamo's difference per point; SGLang after S-5 | B-1 | Report tested (synthetic); lab run pending |
 
 Multi-node (P1.3) workflow decks live under [presentations/](../../presentations/) (T-120–T-122). Full multi-node install guides come with T-124.
 
-Project 2 (Dynamo serving and benchmarks) and 3 (unified API and gateway) add their guides here as they are built.
+Project 2 (Dynamo serving and benchmarks) and 3 (unified API and gateway) add their guides here as they are built. Benchmark method: [docs/BENCHMARK.md](../BENCHMARK.md).
 
 ## How each guide is laid out
 

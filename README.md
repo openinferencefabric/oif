@@ -35,7 +35,7 @@ cp .env.example .env && $EDITOR .env      # addresses, tokens
 sudo ./oif install                         # questions first, then unattended
 sudo ./oif status | plan                   # progress; preview of uninstall
 sudo ./oif uninstall                       # back to the OS default
-sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GPU, HTML report
+sudo ./oif bench --profile quick          # on a GPU node: Dynamo against its plain engine, AIPerf, HTML report
 ```
 
 ## Documentation
@@ -46,6 +46,7 @@ sudo ./oif bench --model qwen3-0.6b        # (Project 2) AIPerf sweep on each GP
 | [PRD](docs/PRD.md) | What we are building and why; goals and success criteria |
 | [SDLC](docs/SDLC.md) | How we build, test, document and release (process for humans and agents) |
 | [Architecture](docs/ARCHITECTURE.md) | Layers, flows, telemetry schema, repository layout |
+| [Benchmark method](docs/BENCHMARK.md) | How `oif bench` measures: hardware configurations, metrics, workloads, quality benchmarks |
 | [Design](docs/DESIGN.md) | CLI, dashboard and report conventions |
 | [Rules](docs/RULES.md) | How code is written and changed |
 | [Tasks](TASKS.md) | What we build next, in order |

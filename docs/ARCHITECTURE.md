@@ -120,7 +120,7 @@ open-inference-fabric/
 │   └── oif-amd-share/      # NRI plugin (Go): AMD GPU fractions (T-126)
 ├── patches/                # runai/, kai/: oif's patches to upstream components, built by the installer
 ├── serving/                # DynamoGraphDeployment examples per GPU
-├── bench/                  # AIPerf profiles, runner Job, report generator
+├── bench/                  # oif bench: runner (plain containers on a GPU node), AIPerf profiles, GPU sampler, report (docs/BENCHMARK.md)
 ├── observability/
 │   ├── rules/              # oif:* recording rules
 │   └── dashboards/         # Fleet, Serving, Scheduling (Grafana JSON)

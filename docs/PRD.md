@@ -110,7 +110,7 @@ OIF provides a layered, pluggable fabric:
 
 - Dynamo (or llm-d fallback) on NVIDIA with default engines
 - Equivalent ROCm path for AMD (spike first)
-- AIPerf integration (`oif bench`) with profiles and temperature guard
+- AIPerf integration (`oif bench`) with profiles and temperature guard; selectable hardware configurations, workload catalogue, separate quality benchmarks (docs/BENCHMARK.md, ADR-033)
 - Serving dashboard (TTFT, ITL, throughput, KV cache)
 - Overlay builds for latest engine versions on both vendors
 - Comparison report generation
@@ -143,7 +143,7 @@ OIF provides a layered, pluggable fabric:
 | FR-04 | Scheduler supports projects, quotas and (multi-node) node pools per vendor | P0 | 1 |
 | FR-05 | Telemetry from both vendors maps into a single `oif:*` schema | P0 | 1 |
 | FR-06 | HA Kubernetes API via kube-vip on multi-node | P0 | 1 |
-| FR-07 | Fair benchmark of the same model/engine on both vendors | P0 | 2 |
+| FR-07 | Fair benchmark of the same model/engine on both vendors, on comparable GPU configurations chosen by the user | P0 | 2 |
 | FR-08 | One OpenAI-compatible inference endpoint with team isolation | P0 | 3 |
 | FR-09 | Platform can attach to an existing OpenShift/NKP cluster (adapter) | P1 | Later |
 | FR-10 | All versions pinned and checksummed; no silent upgrades | P0 | All |

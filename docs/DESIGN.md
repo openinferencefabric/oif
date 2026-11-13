@@ -35,7 +35,9 @@ Conventions:
 
 - One self-contained HTML file per run set plus the raw AIPerf JSON.
 - Header: date, host summary, GPU models, driver and engine versions, image digests, exact AIPerf command.
-- Charts: throughput vs concurrency, TTFT and ITL percentiles vs concurrency, one line per GPU in the vendor colours.
+- Metrics and their names as defined in docs/BENCHMARK.md (output throughput, prompt processing rate, TTFT, TPOT, speed per user, E2E, power, tokens per joule).
+- Charts: each metric by concurrency, one small chart per workload, one line per stack or GPU configuration, colours fixed per series (never reassigned by rank), Dynamo stacks dashed; hover shows every series at that concurrency.
+- Comparisons show the difference at every point and whether it is within the run-to-run noise.
 - Tables follow the charts with the numbers; no number appears only in a chart.
 - Light and dark themes; readable on a phone.
 
