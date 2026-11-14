@@ -1,7 +1,7 @@
 # 19. Run a job without naming a GPU vendor: AIJob
 
-> Status: built (T-133); lab check `tests/lab/t133-aijob.sh` to run. The lab has one GPU per worker: every job there
-> is one pod with one GPU.
+> Status: done (T-133). Tested on the lab cluster on 2026-11-14: `tests/lab/t133-aijob.sh` 17/17
+> ([evidence](../evidence/T-133/01-lab.txt)). The lab has one GPU per worker: every job there is one pod with one GPU.
 
 ## What you get
 

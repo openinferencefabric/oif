@@ -1,0 +1,43 @@
+# T-133 on the lab cluster, 2026-11-14 (owner): branch feat/t133-aijob (83c1e6f) on cp1,
+#   sudo ./oif install; sudo tests/lab/t133-aijob.sh   (project team-c, quota 1 GPU per vendor pool)
+
+== oif install: stage aijob (new), 07:56:29 to 07:57:13
+  [ok] oif-aijob build finished (go test in the build Job: ok)
+  [ok] patched image oif.local/oif/oif-aijob:346b5ec353ff on every node (4 loaded now)
+namespace/oif-aijob created
+customresourcedefinition.apiextensions.k8s.io/aijobs.oif.ai created
+clusterrole.rbac.authorization.k8s.io/oif-aijob-edit created
+serviceaccount/oif-aijob created
+clusterrole.rbac.authorization.k8s.io/oif-aijob created
+clusterrolebinding.rbac.authorization.k8s.io/oif-aijob created
+deployment.apps/oif-aijob created
+deployment "oif-aijob" successfully rolled out
+  [ok] AIJobs: a job that names no GPU vendor runs on one (kubectl get aijobs -A; controller oif-aijob, pools nvidia=nvidia,amd=amd)
+
+== tests/lab/t133-aijob.sh: 17/17
+T-133 AIJob (controller oif-aijob), project namespace runai-team-c
+  PASS  oif-aijob running
+  PASS  both GPUs free before the test
+  PASS  allowCrossVendor: true is refused
+  PASS  an AIJob's spec cannot change
+  PASS  t133-amd (prefers AMD): Running within 3 min
+  INFO  t133-amd: t133-amd   amd   Running   ["gpu-amd"]   ["gpu-amd"]   21s; amd: the preferred vendor, it has room
+  PASS  t133-amd: vendor amd, domain gpu-amd, nodes [gpu-amd], crossVendor false
+  PASS  its Job asks for amd.com/gpu: 1, in pool amd
+  PASS  the container got OIF_GPU_VENDOR and OIF_MODEL
+  PASS  the domain view shows the AMD GPU in use (within 90 s)
+  PASS  t133-soft (prefers AMD, AMD busy): Running within 3 min
+  INFO  t133-soft: nvidia: it has room for 1 GPUs
+  PASS  t133-soft: vendor nvidia, domain gpu-nvidia (a soft preference)
+  PASS  its Job asks for nvidia.com/gpu: 1 with runtime class nvidia
+  PASS  deleting an AIJob deletes its Job
+  PASS  t133-any (no vendor): Running within 3 min
+  INFO  t133-any: t133-any   nvidia   Running   ["gpu-nvidia"]   ["gpu-nvidia"]   16s; nvidia: it has room for 1 GPUs
+  PASS  t133-any: a vendor, its domain, crossVendor false
+  PASS  a plain amd GPU pod still runs (within 3 min)
+  PASS  and carries no AIJob label
+  INFO  oif-aijob log: aijobs: runai-team-c/t133-any nvidia Running
+
+Acceptance checks (docs/design/P1.4-Lab-Acceptance-Checks.md, T-133/T-134): 1 vendor-agnostic submit, 2 translation,
+3 preferVendor, 4 allowCrossVendor false, 6 status, 7 direct jobs: shown. 5 (PlacementPolicy defaults) is T-134.
+Not shown on the lab (one GPU per worker): workers > 1 (gang) and requireSameDomain across domains (Go unit tests).
