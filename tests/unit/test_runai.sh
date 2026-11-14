@@ -77,4 +77,13 @@ eq "${NODE_DIGEST[192.0.2.13]}" sha256:new "the node with another image under th
 eq "$RUNAI_PATCH_FRESH" " frontend" "and the component is restarted:"
 RUNAI_PATCH_FRESH=""; runai_patch_spread frontend img:1 >/dev/null
 eq "$RUNAI_PATCH_FRESH" "" "every node already has it: nothing loaded, nothing restarted:"
+
+# T-135: the prometheus stage reruns when oif's values change, not only the chart version; kube-state-metrics copies
+# the domain and AIJob labels the oif:domain_* and oif:aijob_* rules join on
+a=$(prometheus_rev); mkdir -p "$SANDBOX/oif/platform/observability"
+cp "$ROOT"/platform/observability/kps-values*.yaml "$SANDBOX/oif/platform/observability/"; echo "# x" >> "$SANDBOX/oif/platform/observability/kps-values.yaml"
+b=$(OIF_HOME=$SANDBOX/oif prometheus_rev)
+[ "$a" != "$b" ] && [ "${a%% *}" = "$KPS_VERSION" ] || fail "a change of kps-values reruns the prometheus stage"
+grep -q "nodes=\[oif.ai/accelerator-domain\]" "$ROOT/platform/observability/kps-values.yaml" || fail "kube-state-metrics copies the node's accelerator domain"
+grep -q "pods=\[oif.ai/aijob\]" "$ROOT/platform/observability/kps-values.yaml" || fail "kube-state-metrics copies the pod's AIJob"
 finish

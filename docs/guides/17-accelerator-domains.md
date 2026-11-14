@@ -106,6 +106,8 @@ goes with the agent when the cluster has no GPUs, and with `oif uninstall`. GPU 
 sudo tests/lab/t131-domains.sh     # the objects, and in-use following a GPU pod on the NVIDIA node
 ```
 
+Over time, in Prometheus and Grafana: `oif:domain_gpu_allocatable`, `oif:domain_gpu_in_use` and `oif:domain_gpu_util_ratio` (T-135, guide 7), the row "Accelerator domains and AIJobs" of OIF Scheduling.
+
 ## Packing workloads by domain (T-132)
 
 Stage `runai-topology` (after `topology`) creates Run:ai **network topology** `oif-accelerator` with the levels
