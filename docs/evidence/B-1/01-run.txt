@@ -1,0 +1,60 @@
+# B-1 full run on the lab's W7900, 2026-11-13/14: oif main 7fe1dbf, sudo ./oif bench --profile full on gpu-amd
+# (kubelet stopped), one detached run per model (systemd-run), AIPerf 0.13.0, 4 workloads x 7 concurrencies x 3 repeats,
+# 60 s per point, stack order flipped every repeat.
+#   Qwen/Qwen3-8B    unit oif-bench-8b,  started 11:03 UTC, 162 of 168 points kept (see "Lost points")
+#   Qwen/Qwen3-0.6B  unit oif-bench-06b, 18:28 to 00:34 UTC, 168 of 168 points, 6 h 6 min
+# Files here: results-qwen3-8b.jsonl and results-qwen3-0.6b.jsonl as written by the runs; env.json (the 8B run's, with
+# both models listed); report.html and summary.csv built from both with this commit's bench/report.py:
+#   mkdir X; cat full-06b/results.jsonl full-8b/results.jsonl > X/results.jsonl; cp env.json X/; ./oif bench report X
+
+== Lost points (operator error, not the stacks)
+The 0.6B run was started while the 8B run was at 161/168. Both runs name their server container oifb-srv and use port
+8000; the second run removed the first run's Dynamo server and started its own. Both units were stopped at 18:24.
+- Kept: every 8B point measured before the clash (up to repeat 3, dynamo-vllm, short, c=1, recorded at 18:21).
+- Removed: one point, repeat 3, dynamo-vllm, short, c=2 (rc=1, no data), the last line of results.jsonl.
+- Not measured: repeat 3, dynamo-vllm, short, c=4 to c=64. Those 6 points have 2 repeats (the report lists them).
+- Follow-up: a run lock and per-run container names (separate PR), so a second oif bench refuses to start.
+
+== Start-up and run time (seconds; VRAM after start)
+model  stack        repeat  ready_s  VRAM MiB  run_s
+8B     vllm         1       179      37426     4528
+8B     dynamo-vllm  1       170      37426     4643
+8B     dynamo-vllm  2       170      37426     4469
+8B     vllm         2       169      37426     4485
+8B     vllm         3       170      37426     4412
+8B     dynamo-vllm  3       173      37426     (stopped)
+0.6B   vllm         1       163      39136     3619
+0.6B   dynamo-vllm  1       163      39136     3666
+0.6B   dynamo-vllm  2       163      39136     3657
+0.6B   vllm         2       163      39136     3802
+0.6B   vllm         3       161      39136     3599
+0.6B   dynamo-vllm  3       164      39136     3621
+Full B-1 run time: about 7.5 h for 8B and 6 h for 0.6B, about 13.5 h in all (guide 18 said 7-8 h before this run).
+
+== Run quality (report.html, "Run quality")
+- failed points or request errors: 0; output length missed: 0 (ignore_eos honoured on both stacks)
+- points with fewer than 10 requests: 4 medians, 8B decode at c=1 and c=2 (3 and 6 requests in 60 s)
+- run-to-run spread of output throughput: median CV 0.2%
+- GPU: power at the 241 W cap from c=1 (GPU busy 98-99%); hotspot up to 104 C (8B) and 97 C (0.6B) during points,
+  every point started below 60 C; median clocks and power equal for both stacks (8B 2360/2350 MHz, 0.6B 2759/2755 MHz)
+- Dynamo image: the pinned digest (sha256:c7a95130...) is the image index; the run records its amd64 manifest
+  (sha256:568c2111...), checked on ghcr.io. Same image.
+
+== Dynamo vs vLLM (dynamo-vllm vs vllm, same engine files; medians of 3 repeats)
+                       Qwen3-8B                          Qwen3-0.6B
+output throughput      0.0% median (-0.4 to +3.2%)       +0.5% median (-3.2 to +2.8%)
+  verdict (28 points)  24 noise, 4 real <2%, 0 >=2%      16 noise, 8 real <2%, 4 >=2%
+TPOT p50               0.0% (within 0.5% everywhere)     +0.2% (+4.2% at short c=32)
+TTFT p50               -6.7 ms median                    -13.5 ms median (10-40% lower from c=4 up)
+The four 0.6B points beyond 2%: prefill c=8 +2.3%, prefill c=16 +2.8%, short c=8 +2.1%, short c=32 -3.2%.
+Where Dynamo costs something: 0.6B short (128 in / 128 out) at c=32 and c=64, about 50 requests/s: throughput -3.2% and
+-1.8%, and at c=64 TTFT p99 137 -> 304 ms, E2E p99 +12.5%. On 8B nothing measurable (TTFT p99 +39% at decode c=16 on
+32 requests).
+
+Reading of the TTFT difference (hypothesis, not measured): Dynamo's frontend tokenizes and detokenizes in Rust, while
+vLLM's own API server does it in one Python process that queues as concurrency rises. Evidence for it: the gap grows with
+concurrency, TPOT is equal, and when the engine is the bottleneck (8B prefill c=16: 2.3 s on both) the gap disappears,
+so Dynamo is not just sending an early empty chunk. To confirm before quoting it: a profile of vLLM's API server at
+c=32, or vLLM with --api-server-count > 1.
+
+Not shown by this test: Dynamo's gains (KV-aware routing across workers, disaggregation, planner) need more than one GPU.

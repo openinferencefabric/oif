@@ -1,10 +1,16 @@
 """oif bench report: DIR/results.jsonl + DIR/env.json -> DIR/report.html (self-contained) and DIR/summary.csv.
 
 report.py DIR
-Repeats are combined by the median. A Dynamo-vs-engine difference is called "within noise" when it is smaller than
-twice the larger run-to-run spread (coefficient of variation) of the two stacks at that point (needs 2+ repeats)."""
+Repeats are combined by the median. A Dynamo-vs-engine difference in output throughput is called "within noise" when it
+is smaller than twice the larger run-to-run spread (coefficient of variation) of the two stacks at that point (needs 2+
+repeats). A difference beyond the noise but smaller than PRACTICAL_PCT is shown as "real, below 2%": with spreads of
+0.1-0.3% a 0.4% difference is measurable but does not matter (B-1, 2026-11-14). Points where a stack completed fewer
+than MIN_REQUESTS requests are marked: their p99 latencies rest on a handful of requests."""
 import csv, html, json, os, statistics, sys
 from collections import defaultdict
+
+PRACTICAL_PCT = 2.0   # smallest throughput difference reported as one that matters
+MIN_REQUESTS = 10     # fewer completed requests per point: percentiles are not meaningful
 
 D = sys.argv[1]
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +23,7 @@ STACK_ORDER = ["vllm", "dynamo-vllm", "sglang", "dynamo-sglang"]
 PAIRS = [("vllm", "dynamo-vllm"), ("sglang", "dynamo-sglang")]
 METRICS = ["out_tok_s", "prefill_tok_s", "req_s", "tok_s_per_user", "ttft_p50_ms", "ttft_p99_ms", "itl_p50_ms", "itl_p99_ms",
            "e2e_p50_ms", "e2e_p99_ms", "gpu_busy_avg", "power_avg_w", "tok_per_joule", "vram_max_mib",
-           "junction_max_c", "sclk_avg_mhz", "osl_avg", "errors"]
+           "junction_max_c", "sclk_avg_mhz", "osl_avg", "errors", "requests"]
 
 # ---------------------------------------------------------------- aggregate repeats (median), keep spread
 groups = defaultdict(list)
@@ -53,13 +59,17 @@ for eng, dyn in PAIRS:
         b = by[(model, dyn, wl, c)]
         noise = max(a["cv_pct"] or 0, b["cv_pct"] or 0)
         d_tp = pct(a["out_tok_s"], b["out_tok_s"])
+        has_noise = d_tp is not None and a["cv_pct"] is not None and b["cv_pct"] is not None
+        verdict = None if not has_noise else ("noise" if abs(d_tp) <= 2 * noise else ("small" if abs(d_tp) < PRACTICAL_PCT else "real"))
+        reqs = [x["requests"] for x in (a, b) if x["requests"] is not None]
         over.append({"pair": f"{dyn} vs {eng}", "model": model, "workload": wl, "concurrency": c,
                      "tp_engine": a["out_tok_s"], "tp_dynamo": b["out_tok_s"], "d_tp_pct": d_tp,
                      "d_ttft_p50_ms": None if a["ttft_p50_ms"] is None or b["ttft_p50_ms"] is None else round(b["ttft_p50_ms"] - a["ttft_p50_ms"], 1),
                      "d_ttft_p50_pct": pct(a["ttft_p50_ms"], b["ttft_p50_ms"]), "d_ttft_p99_pct": pct(a["ttft_p99_ms"], b["ttft_p99_ms"]),
                      "d_itl_p50_pct": pct(a["itl_p50_ms"], b["itl_p50_ms"]), "d_e2e_p99_pct": pct(a["e2e_p99_ms"], b["e2e_p99_ms"]),
                      "noise_pct": noise if (a["cv_pct"] is not None and b["cv_pct"] is not None) else None,
-                     "within_noise": (d_tp is not None and a["cv_pct"] is not None and b["cv_pct"] is not None and abs(d_tp) <= 2 * noise)})
+                     "within_noise": verdict == "noise", "verdict": verdict,
+                     "few_requests": bool(reqs) and min(reqs) < MIN_REQUESTS})
 
 
 def med(vals):
@@ -77,7 +87,9 @@ for eng, dyn in PAIRS:
                          "d_tp_pct": med([x["d_tp_pct"] for x in o]), "d_ttft_ms": med([x["d_ttft_p50_ms"] for x in o]),
                          "d_itl_pct": med([x["d_itl_p50_pct"] for x in o]),
                          "worst_tp_pct": min((x["d_tp_pct"] for x in o if x["d_tp_pct"] is not None), default=None),
-                         "within_noise": sum(1 for x in o if x["within_noise"])})
+                         "within_noise": sum(1 for x in o if x["verdict"] == "noise"),
+                         "small": sum(1 for x in o if x["verdict"] == "small"),
+                         "real": [x for x in o if x["verdict"] == "real"]})
 
 # ---------------------------------------------------------------- CSV
 with open(os.path.join(D, "summary.csv"), "w", newline="") as f:
@@ -96,11 +108,24 @@ for model in models:
                            med(rt), round(sum(rt), 1) if rt else None])
 failed = [a for a in agg if a["failed"] or (a["errors"] or 0) > 0]
 osl_bad = [a for a in agg if not a["osl_ok"]]
+few_req = [a for a in agg if a["requests"] is not None and a["requests"] < MIN_REQUESTS]
+short_rep = [a for a in agg if a["repeats"] < (env.get("repeats") or 1)]
+
+
+def peak(k, model=None):
+    return max((a[k] for a in agg if a[k] is not None and model in (None, a["model"])), default=None)
+
+
+hot = peak("junction_max_c")
+
+
+def pts(lst):
+    return "; ".join(f"{a['model'].split('/')[-1]} {a['stack']} {a['workload']} c={a['concurrency']}" for a in lst[:12]) + (" …" if len(lst) > 12 else "")
 
 # ---------------------------------------------------------------- HTML
 def mark(theme):
     p = os.path.join(ROOT, "brand", f"oif-mark-{theme}.svg")
-    s = open(p).read() if os.path.exists(p) else ""
+    s = open(p, encoding="utf-8").read() if os.path.exists(p) else ""
     return s.replace('width="264" height="200"', 'width="66" height="50"')
 
 
@@ -114,17 +139,36 @@ def sgn(v, unit="%"):
     return "—" if v is None else f"{'+' if v > 0 else ''}{v}{unit}"
 
 
+def verdict_line(h):
+    if env.get("repeats", 1) <= 1:
+        return "one repeat: no noise verdict"
+    real = h["real"]
+    line = f'{h["within_noise"]} within noise · {h["small"]} real but below {PRACTICAL_PCT:g}% · <b>{len(real)} beyond {PRACTICAL_PCT:g}%</b>'
+    if real:
+        line += " (" + html.escape(", ".join(f'{x["workload"]} c={x["concurrency"]} {sgn(x["d_tp_pct"])}' for x in real[:6])) + ")"
+    return line
+
+
+def hot_line(model):
+    t, w, cap = peak("junction_max_c", model), peak("power_avg_w", model), env.get("power_cap_w")
+    return "" if t is None else (
+        f'<div class="ts muted">GPU hotspot up to {t:g} °C under load (each point starts below {env.get("max_start_temp_c")} °C)'
+        + (f", power up to {w:g} W of a {cap} W cap" if w and cap else "") + "</div>")
+
+
 img_rows = [[i.get("stack"), i.get("image", "").split("@")[0], (i.get("digest") or "").split("@")[-1][:19],
              ", ".join(f"{k} {v}" for k, v in (i.get("inside") or {}).items())] for i in env.get("images", [])]
 tiles = "".join(
     f'<div class="tile"><div class="tl">{html.escape(h["pair"])}<br><b>{html.escape(h["model"])}</b></div>'
     f'<div class="tv">{sgn(h["d_tp_pct"])}</div><div class="tl">median output-throughput difference over {h["points"]} points'
     f' (worst {sgn(h["worst_tp_pct"])})</div><div class="ts">TTFT p50 {sgn(h["d_ttft_ms"], " ms")} · TPOT p50 {sgn(h["d_itl_pct"])}'
-    f'{" · " + str(h["within_noise"]) + " points within noise" if env.get("repeats", 1) > 1 else ""}</div></div>'
+    f'</div><div class="ts">{verdict_line(h)}</div>{hot_line(h["model"])}</div>'
     for h in headline) or '<p class="muted">No Dynamo/engine pair has results yet.</p>'
 over_body = [[o["pair"], o["model"], o["workload"], o["concurrency"], o["tp_engine"], o["tp_dynamo"], sgn(o["d_tp_pct"]),
               sgn(o["d_ttft_p50_ms"], " ms"), sgn(o["d_ttft_p99_pct"]), sgn(o["d_itl_p50_pct"]), sgn(o["d_e2e_p99_pct"]),
-              "—" if o["noise_pct"] is None else ("within noise" if o["within_noise"] else f"real (noise {o['noise_pct']}%)")]
+              ("—" if o["verdict"] is None else {"noise": "within noise", "small": f"real, below {PRACTICAL_PCT:g}% (noise {o['noise_pct']}%)",
+                                                 "real": f"real (noise {o['noise_pct']}%)"}[o["verdict"]])
+              + (" · few requests" if o["few_requests"] else "")]
              for o in over]
 skipped = [s for s in STACK_ORDER if s not in stacks]
 data = {"agg": agg, "models": models, "stacks": stacks, "workloads": workloads, "conc": env.get("concurrency", [])}
@@ -162,14 +206,15 @@ details summary{{cursor:pointer;color:var(--ink2)}} code{{font-size:12px}} ul{{p
 <h2>What this measures</h2>
 <p>The Dynamo image is built <b>FROM</b> the plain engine image, so the engine, PyTorch and ROCm are the same files. Both get the same engine
 arguments, the same AIPerf prompts (fixed seed) and exact output lengths (<code>ignore_eos</code>), one at a time on one GPU that starts
-each point below {env.get("max_start_temp_c")} °C. What differs is Dynamo's frontend, request plane and worker wrapper. A small negative
+each point below {env.get("max_start_temp_c")} °C{f" (it may run much hotter during the point: up to {hot:g} °C here)" if hot is not None else ""}. What differs is Dynamo's frontend, request plane and worker wrapper. A small negative
 number is the price of that layer; Dynamo's gains (KV-aware routing across workers, disaggregation, planner) need more than one GPU and are not
 part of this test.</p>
 {"<p class='muted'>Not in this run: " + ", ".join(skipped) + " (no image pinned yet; SGLang needs spike S-5 on gfx1100 first).</p>" if skipped else ""}
 
 <h2>Headline: Dynamo vs engine</h2><div class="tiles">{tiles}</div>
 <p class="muted">Positive throughput means Dynamo served more output tokens per second; positive TTFT/TPOT means Dynamo was slower.
-Medians over every workload and concurrency point.</p>
+Medians over every workload and concurrency point. A throughput difference counts when it is beyond twice the run-to-run spread
+and at least {PRACTICAL_PCT:g}%.</p>
 
 <h2>Curves</h2>
 <p class="muted">Metric definitions: docs/BENCHMARK.md in the oif repository. TPOT is the average gap between generated tokens after the first; speed per user is 1000 ÷ TPOT.</p>
@@ -187,6 +232,8 @@ Medians over every workload and concurrency point.</p>
 <h2>Run quality</h2>
 <ul><li>Points with failed runs or request errors: <b>{len(failed)}</b>{(" — " + "; ".join(f"{a['model']} {a['stack']} {a['workload']} c={a['concurrency']} ({a['errors']} errors)" for a in failed[:12])) if failed else ""}</li>
 <li>Points where the mean output length missed the requested length by more than 2%: <b>{len(osl_bad)}</b>{" (ignore_eos not honoured there; throughput is not comparable)" if osl_bad else " (every request produced the requested tokens)"}</li>
+<li>Points where a stack completed fewer than {MIN_REQUESTS} requests: <b>{len(few_req)}</b>{(" — " + pts(few_req) + " (their p99 latencies rest on a few requests)") if few_req else ""}</li>
+<li>Points with fewer repeats than the profile's {env.get("repeats")}: <b>{len(short_rep)}</b>{(" — " + pts(short_rep)) if short_rep else ""}</li>
 <li>Run-to-run spread of output throughput: {("median CV " + str(med([a["cv_pct"] for a in agg])) + "%") if env.get("repeats", 1) > 1 else "one repeat only: no spread, so no noise verdict (the full profile runs 3)"}</li></ul>
 
 <h2>Environment</h2>
@@ -234,5 +281,5 @@ tip.style.display="block";const pr=pn.getBoundingClientRect();tip.style.left=Mat
 svg.addEventListener("mouseleave",()=>{{tip.style.display="none";cross.setAttribute("visibility","hidden")}})}})}}
 $("model").onchange=draw;$("metric").onchange=draw;draw();
 </script></body></html>"""
-open(os.path.join(D, "report.html"), "w").write(page)
+open(os.path.join(D, "report.html"), "w", encoding="utf-8").write(page)
 print(f"report: {len(points)} points, {len(agg)} medians, {len(over)} Dynamo/engine comparisons")

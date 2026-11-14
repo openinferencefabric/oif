@@ -40,7 +40,9 @@ ADR-033 (hardware configurations, workload catalogue, quality; proposed). Status
 
 Percentiles are p50, p90 and p99 for TTFT, TPOT and E2E. Repeats are combined by the median, and a difference between
 two stacks is called "within noise" when it is smaller than twice the larger run-to-run spread (coefficient of
-variation) of the two.
+variation) of the two. A difference beyond the noise but below 2% is reported as "real, below 2%": with spreads of
+0.1-0.3% (B-1) a few tenths of a percent are measurable without mattering. A point where a stack completed fewer than
+10 requests is marked, because its p99 rests on a handful of requests.
 
 ## Workloads
 
