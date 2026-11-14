@@ -1,0 +1,53 @@
+# T-135 on the lab cluster, 2026-11-14 (owner): branch feat/t135-observability (0d5a021) on cp1.
+
+== sudo ./oif install: stages prometheus and observability rerun (values and rules changed)
+2026-11-14 09:41:07 == stage: prometheus (92.3.0 -> 92.3.0 77c59fc0df70)
+Release "kps" has been upgraded. Happy Helming!   (REVISION: 2)
+  [ok] Prometheus, Grafana and Alertmanager running (namespace monitoring)
+2026-11-14 09:41:55 == stage: observability (45f8e0732ae0 -> c484064ef011)
+prometheusrule.monitoring.coreos.com/oif-gpu configured
+  [ok] recording rules oif:gpu_*, oif:node_*, oif:project_* loaded into Prometheus
+  [ok] dashboards OIF Fleet and OIF Scheduling handed to Grafana
+2026-11-14 09:42:00 == stage: observability-verify (45f8e0732ae0 -> c484064ef011)
+  [ok] GPU vendors recorded (oif:gpu_allocatable)
+  [ok] every oif:gpu_* series covers the vendors with allocatable GPUs
+  [ok] Grafana dashboard oif-fleet
+  [ok] Grafana dashboard oif-scheduling
+2026-11-14 09:42:01 == install finished
+
+== sudo tests/lab/t135-observability.sh: 13/13
+T-135 oif:domain_* and oif:aijob_* series, Grafana
+  PASS  kube-state-metrics copies the domain and AIJob labels
+  PASS  every GPU node's domain in kube_node_labels (within 2 min)
+  PASS  gpu-amd: oif:domain_gpu_allocatable = 1, as the AcceleratorDomain view (within 2 min)
+  PASS  gpu-nvidia: oif:domain_gpu_allocatable = 1, as the AcceleratorDomain view (within 2 min)
+  INFO
+  PASS  AIJob t135 running (within 3 min)
+  INFO  t135: vendor nvidia, domain gpu-nvidia
+  PASS  oif:aijob_gpu_requested{vendor=nvidia, phase=Running} = 1 (within 2 min)
+  PASS  oif:domain_gpu_in_use{domain=gpu-nvidia} = 1 (within 2 min)
+  PASS  oif:aijob_cross_vendor = 0
+  PASS  after the AIJob: its domain's use back to 0 (within 3 min)
+  PASS  Grafana: OIF Scheduling has "Accelerator domains and AIJobs"
+  PASS  Grafana: OIF Scheduling has "GPUs per accelerator domain"
+  PASS  Grafana: OIF Scheduling has "AIJob GPUs by vendor"
+  PASS  Grafana: OIF Scheduling has "AIJobs on more than one vendor"
+T-135: 13/13 checks passed
+The empty INFO line (oif:domain_gpu_util_ratio) was asked once, right after the rules were loaded, before their first
+evaluation; a read-only query afterwards returned both domains (0 while idle). Informational only.
+
+== T-137 regression, straight after: 6/7, then alone: 7/7
+First run: "team-c's allocated GPUs are 1.5" FAIL while the per-pool checks passed (amd=0.5, nvidia=1). T-135 did not
+change the oif:project_* rules. Rerun alone (owner, same branch):
+  INFO  per pool: amd=1 default=0 nvidia=1
+  PASS  team-c's quota is 2 GPUs (1 nvidia + 1 amd), as in Run:ai
+  PASS  only projects are counted (department queues have no project)
+  INFO  allocated per pool: amd=0.5 nvidia=1
+  PASS  team-c's allocated GPUs are 1.5 (a whole NVIDIA GPU and half an AMD one)
+  PASS  per pool: 1 in nvidia
+  PASS  per pool: 0.5 in amd
+  PASS  Grafana serves the dashboard with the per-pool table
+  PASS  the per-vendor caps panel explains why it is empty on several nodes
+T-137: 7/7 checks passed
+The first failure is not reproduced; likely the two Prometheus replicas (not restarted by the upgrade, each evaluating
+the rules on its own behind one service) disagreeing, or Run:ai's queue metrics lagging. Watch for it in later regression runs.
