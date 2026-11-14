@@ -1,7 +1,18 @@
 # 19. Run a job without naming a GPU vendor: AIJob
 
 > Status: done (T-133). Tested on the lab cluster on 2026-11-14: `tests/lab/t133-aijob.sh` 17/17
-> ([evidence](../evidence/T-133/01-lab.txt)). The lab has one GPU per worker: every job there is one pod with one GPU.
+> ([evidence](../evidence/T-133/01-lab.txt)); PlacementPolicy (T-134) 10/10 ([evidence](../evidence/T-134/01-lab.txt));
+> its figures in Grafana (T-135) 13/13 ([evidence](../evidence/T-135/01-lab.txt)). The lab has one GPU per worker: every
+> job there is one pod with one GPU.
+
+## The path, start to finish
+
+1. **See the domains** your GPUs sit in: `kubectl get acceleratordomains` (guide 17, "See the domains").
+2. **Set your project's defaults**, if any: a PlacementPolicy (below, "Defaults per project").
+3. **Submit an AIJob** that names GPUs, not a vendor (below, "Submit one").
+4. **Read its status**: vendor, domains, nodes and why (`kubectl get aijobs`).
+5. **Watch it** in Grafana, OIF Scheduling, row "Accelerator domains and AIJobs" (guide 7).
+6. **Cross-vendor** jobs are refused, at three points (below, "Cross-vendor: requested or forbidden").
 
 ## What you get
 
@@ -99,6 +110,26 @@ sudo tests/lab/t134-policy.sh
 ```
 
 In Grafana (T-135, guide 7): OIF Scheduling, row "Accelerator domains and AIJobs": AIJob GPUs by vendor and phase (`oif:aijob_gpu_requested`) and the count of AIJobs on more than one vendor (`oif:aijob_cross_vendor`, 0).
+
+## Cross-vendor: requested or forbidden (T-136)
+
+One job runs on one GPU vendor (ADR-032). A job can **ask** for both in one way only, `allowCrossVendor: true` on an
+AIJob, and that is refused today: no engine runs one job's pods on NVIDIA and AMD together yet. oif refuses a
+cross-vendor job at three points, each when the object is created, not after it has waited:
+
+| What is refused | Where | Message | Guide |
+| --- | --- | --- | --- |
+| An AIJob with `allowCrossVendor: true` | AIJob CRD rule | `cross-vendor jobs (allowCrossVendor: true) are not supported yet` | this one |
+| A pod asking for `nvidia.com/gpu` and `amd.com/gpu` | ValidatingAdmissionPolicy `oif-one-gpu-vendor` | `oif: a pod uses one GPU vendor; it asks for nvidia.com/gpu and amd.com/gpu, ...` | 12 |
+| A GPU fraction naming no vendor whose node pools allow both | ValidatingAdmissionPolicy `oif-vendor-agnostic-gpu` | `oif: this GPU request names no vendor and its node pools allow NVIDIA and AMD GPUs; choose one GPU vendor: ...` | 12 |
+
+What keeps an allowed job on one vendor: an AIJob's pods all go to the vendor chosen for it (its Job asks for that
+vendor's GPU, in that vendor's node pool); a multi-pod Run:ai workload is one KAI PodGroup bound to one pool (guide 12).
+Each AIJob's status says `crossVendor: false`, and `oif:aijob_cross_vendor` in Prometheus counts AIJobs on more than one
+vendor (always 0; Grafana stat "AIJobs on more than one vendor").
+
+`allowCrossVendor: true` becomes possible only when an engine can run one job over both vendors; lifting the refusal
+needs an ADR that amends ADR-032.
 
 ## Check it worked
 
