@@ -26,7 +26,7 @@ How it works:
 
 | Piece | What it does |
 | --- | --- |
-| KAI Scheduler v0.18.3, rebuilt with oif's patches (`patches/kai/`) | the scheduler skips NVIDIA's readiness check on AMD GPU nodes; the binder reserves the GPU with a reservation pod that holds an `amd.com/gpu`, and writes the GPU's PCI address into the pod (`oif.ai/amd-gpu`); the scheduler reads an AMD node's GPU memory from AMD's label `beta.amd.com/gpu.vram.<size>`, so fractions by GPU memory (12 GB) schedule there (0005, T-140); on a node with GPUs of both vendors, a pod's whole GPUs of one vendor must fit that vendor's free GPUs (0006, T-116); a required topology level is honoured in a pool whose nodes share one domain, such as a one-node pool (0007, T-132) |
+| KAI Scheduler v0.18.3, rebuilt with oif's patches (`patches/kai/`), on every cluster with an AMD GPU (T-141; KAI's stock images without AMD GPUs or with `AMD_FRACTIONS=none`) | the scheduler skips NVIDIA's readiness check on AMD GPU nodes; the binder reserves the GPU with a reservation pod that holds an `amd.com/gpu`, and writes the GPU's PCI address into the pod (`oif.ai/amd-gpu`); the scheduler reads an AMD node's GPU memory from AMD's label `beta.amd.com/gpu.vram.<size>`, so fractions by GPU memory (12 GB) schedule there (0005, T-140); on a node with GPUs of both vendors, a pod's whole GPUs of one vendor must fit that vendor's free GPUs (0006, T-116); a required topology level is honoured in a pool whose nodes share one domain, such as a one-node pool (0007, T-132) |
 | oif-amd-share, an NRI plugin (`images/oif-amd-share/`), on every AMD GPU node | when containerd creates the pod's container, gives it `/dev/kfd` and that GPU's `/dev/dri` nodes, and sets `OIF_GPU_MEMORY_FRACTION` |
 | fractiond from KAI's gpu-fractioning with oif's AMD backend (`--gpu-vendor=amd`, built from `GPU_FRACTIONING_REF` in `versions.env`), DaemonSet `oif-fractiond` on AMD nodes labelled `oif.ai/amd-vram-cap=dmem` | when containerd creates a fraction pod's container, writes `dmem.max` = share × VRAM on the pod's cgroup (T-139); refuses the container if it cannot |
 | ValidatingAdmissionPolicy `oif-amd-share-annotations` | only KAI's binder may set the `oif.ai/amd-gpu` annotations, so no one gets a GPU outside Run:ai's quotas |
@@ -34,7 +34,9 @@ How it works:
 
 ## Before you start
 
-- A multi-node cluster installed with oif (guide 10): AMD GPUs on nodes of their own, Run:ai node pool `amd` (T-123). On a single node with both vendors, AMD GPUs stay whole.
+- A multi-node cluster installed with oif (guide 10): AMD GPUs on nodes of their own, Run:ai node pool `amd` (T-123). On a single node with both vendors, AMD GPUs stay whole: the install
+  still runs the patched KAI there (no sharing plugin), so a pod's whole GPUs of one vendor are placed only where that
+  vendor's GPUs are free (patch 0006, T-116, T-141).
 - GPU fractions on NVIDIA working or not needed (guide 11).
 - Internet access for the build: the KAI source (pinned checksum), Go modules and the base images.
 

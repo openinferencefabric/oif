@@ -6,7 +6,10 @@
 # pod's VRAM with the Linux dmem cgroup (dmem.max = share x VRAM) on nodes whose kernel supports it (6.14+); elsewhere,
 # or with AMD_VRAM_CAP=none, the share is soft (OIF_GPU_MEMORY_FRACTION and PyTorch's cap tell the workload).
 # Patch 0007 (T-132) fixes KAI's topology plugin for a required level in a pool inside one domain; it is built here too.
-# Needs a node whose GPUs are AMD only (multi-node, T-123); AMD_FRACTIONS=none puts KAI's stock images back.
+# T-141 (ADR-032 amendment 2026-11-14): the patched KAI runs on every cluster with an AMD GPU, also when its AMD GPUs
+# share a node with NVIDIA GPUs (patch 0006, T-116: one vendor's whole GPUs must fit that vendor's free GPUs). AMD GPUs
+# are shared (oif-amd-share, fractiond) only on nodes whose GPUs are all AMD (multi-node, T-123). A cluster without AMD
+# GPUs keeps KAI's stock images; AMD_FRACTIONS=none puts them back everywhere.
 
 KAI_STOCK_REGISTRY=ghcr.io/kai-scheduler/kai-scheduler
 KAI_PATCH_REGISTRY=oif.local/kai-scheduler
@@ -17,9 +20,21 @@ amd_fractions_build_rev() {   # what decides the images: their tag
     "$OIF_HOME"/images/oif-amd-share/*.go "$OIF_HOME"/images/oif-amd-share/go.* "$OIF_HOME/platform/gpu-amd/amd-fractions-build-job.yaml" \
     | { cat; echo "$GO_BUILD_IMAGE $CRANE_VERSION $CRANE_SHA256 $KAI_VERSION $KAI_SOURCE_SHA256 $AMD_SHARE_BASE_IMAGE $GPU_FRACTIONING_REF $GPU_FRACTIONING_SHA256"; } \
     | sha256sum | cut -c1-12; }
-amd_fractions_rev() {   # the stage reruns when the images, the plugins' manifests, AMD_FRACTIONS or AMD_VRAM_CAP change
+amd_fractions_rev() {   # the stage reruns when the images, the plugins' manifests, AMD_FRACTIONS, AMD_VRAM_CAP or the plan change
   { amd_fractions_build_rev; cat "$OIF_HOME/platform/gpu-amd/amd-share.yaml" "$OIF_HOME/platform/gpu-amd/amd-vram-cap.yaml"
-    echo "${AMD_FRACTIONS:-} ${AMD_VRAM_CAP:-} no-gpu-memory-label"; } | sha256sum | cut -c1-12; }
+    echo "${AMD_FRACTIONS:-} ${AMD_VRAM_CAP:-} no-gpu-memory-label $(kai_patch_plan)"; } | sha256sum | cut -c1-12; }
+kai_patch_plan() {   # stock: KAI's own images; kai: patched KAI only (AMD GPUs on mixed nodes); kai+share: also AMD fractions
+  # "unknown" and a failure when the nodes cannot be listed: never fall back to stock KAI on an API error
+  [ "${AMD_FRACTIONS:-}" = none ] && { echo stock; return 0; }
+  local j; j=$(kc get nodes -o json 2>/dev/null) && [ -n "$j" ] || { echo unknown; return 1; }
+  python3 -c 'import json,sys
+amd = mixed = only = 0
+for n in json.loads(sys.stdin.read())["items"]:
+    a = n["status"].get("allocatable", {})
+    if int(a.get("amd.com/gpu", "0")) > 0:
+        if int(a.get("nvidia.com/gpu", "0")) > 0: mixed += 1
+        else: only += 1
+print("kai+share" if only else ("kai" if mixed else "stock"))' <<< "$j"; }
 amd_only_nodes() {   # nodes whose GPUs are all AMD: where oif shares an AMD GPU
   kc get nodes -o json | python3 -c 'import json,sys
 for n in json.load(sys.stdin)["items"]:
@@ -28,10 +43,14 @@ for n in json.load(sys.stdin)["items"]:
 
 register_stage amd-fractions amd_fractions_rev
 stage_amd_fractions() {
-  if [ "${AMD_FRACTIONS:-}" = none ]; then amd_fractions_off; ok "GPU fractions on AMD GPUs off (AMD_FRACTIONS=none)"; return 0; fi
-  local nodes; nodes=$(amd_only_nodes | paste -sd' ')
-  [ -n "$nodes" ] || { amd_fractions_off; ok "no node with AMD GPUs only: AMD GPUs are shared only there (whole GPUs elsewhere)"; return 0; }
-  local tag c img
+  local plan nodes tag c img
+  plan=$(kai_patch_plan) || die "cannot list the nodes to choose KAI's images (kubectl get nodes)"
+  if [ "$plan" = stock ]; then
+    amd_fractions_off
+    if [ "${AMD_FRACTIONS:-}" = none ]; then ok "GPU fractions on AMD GPUs off (AMD_FRACTIONS=none): KAI's stock images"
+    else ok "no AMD GPU in the cluster: KAI's stock images"; fi
+    return 0
+  fi
   tag=$KAI_VERSION-oif-$(amd_fractions_build_rev)
   export AMD_SHARE_IMAGE=oif.local/oif/oif-amd-share:$tag FRACTIOND_IMAGE=oif.local/oif/oif-fractiond:$tag
   amd_fractions_build "$tag"
@@ -52,7 +71,13 @@ PY
       "kubectl --kubeconfig $KCFG -n runai get deploy $c -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -qxF '$img' && kubectl --kubeconfig $KCFG -n runai rollout status deploy/$c --timeout=10s" \
       || die "$c did not roll out $img (kubectl -n runai describe deploy $c)"
   done
-  ok "KAI scheduler and binder patched for AMD GPU fractions ($tag)"
+  ok "KAI scheduler and binder patched for AMD GPUs ($tag)"
+  if [ "$plan" = kai ]; then
+    amd_share_off
+    ok "AMD GPUs only on nodes with NVIDIA GPUs too: whole GPUs, one vendor per pod (patch 0006); AMD GPUs are shared only on nodes whose GPUs are all AMD"
+    return 0
+  fi
+  nodes=$(amd_only_nodes | paste -sd' ')
   export KAI_BINDER_USER
   KAI_BINDER_USER=system:serviceaccount:runai:$(kc -n runai get deploy binder -o jsonpath='{.spec.template.spec.serviceAccountName}')
   [ "$KAI_BINDER_USER" != system:serviceaccount:runai: ] || die "cannot find KAI binder's service account"
@@ -157,11 +182,14 @@ amd_fractions_import() {   # tarball-name image: into containerd on this node
 }
 amd_fractions_off() {   # KAI's stock images back; the plugins and the policy removed (no pod is given a shared AMD GPU)
   local p
-  amd_vram_cap_off
-  amd_gpu_memory_unlabel ""
+  amd_share_off
   for p in /spec/runai-scheduler/image /spec/binder/image /spec/binder/resourceReservation/image; do
     kc -n runai patch runaiconfig runai --type json -p "[{\"op\":\"remove\",\"path\":\"$p\"}]" >> "$LOG" 2>&1 || true
   done
+}
+amd_share_off() {   # the plugins and the policy removed, the patched KAI kept (no pod is given a shared AMD GPU)
+  amd_vram_cap_off
+  amd_gpu_memory_unlabel ""
   kc delete validatingadmissionpolicybinding oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
   kc delete validatingadmissionpolicy oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
   # waits until the plugin is gone, so "off" is true when the stage ends and turning it on again finds no namespace
