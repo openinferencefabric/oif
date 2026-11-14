@@ -13,6 +13,12 @@ prometheus:
           resources:
             requests:
               storage: 50Gi
+# T-135: node and pod labels kube-state-metrics copies into kube_node_labels / kube_pod_labels, for the oif:domain_*
+# and oif:aijob_* rules (accelerator domain of a node, AIJob of a pod)
+kube-state-metrics:
+  metricLabelsAllowlist:
+    - nodes=[oif.ai/accelerator-domain]
+    - pods=[oif.ai/aijob]
 grafana:
   admin:
     existingSecret: grafana-admin       # created by oif from GRAFANA_ADMIN_PASSWORD

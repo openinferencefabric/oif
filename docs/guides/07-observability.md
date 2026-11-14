@@ -77,6 +77,8 @@ On several nodes (T-137), Run:ai keeps one queue per project and node pool (`tea
 
 ![OIF Scheduling dashboard](img/07-scheduling.png)
 
+**Accelerator domains and AIJobs** (T-135, a row at the bottom of OIF Scheduling): GPUs per accelerator domain (allocatable, in use by Running pods, and the share used; guide 17), GPUs of AIJob pods by vendor and phase (guide 19), and the count of AIJobs on more than one vendor, which stays 0 (oif-aijob refuses cross-vendor jobs; anything above 0 needs a look). `sudo tests/lab/t135-observability.sh` checks the series against the AcceleratorDomain view and a running AIJob.
+
 ## The oif:* schema
 
 All GPU series carry `{vendor, model, gpu, node}`.
@@ -99,6 +101,9 @@ All GPU series carry `{vendor, model, gpu, node}`.
 | `oif:gpu_quota` | kube-state-metrics, ResourceQuota `oif-gpu-vendor` | vendor, namespace, type (hard, used) |
 | `oif:project_pool_gpu_deserved`, `_allocated`, `_pending` | Run:ai queue metrics, one queue per project and node pool (no quota, `-1`, counts as 0) | project, nodepool |
 | `oif:project_gpu_deserved`, `_allocated`, `_pending` | the sum over a project's node pools (both vendors in one count) | project |
+| `oif:domain_gpu_allocatable`, `oif:domain_gpu_in_use`, `oif:domain_gpu_util_ratio` | kube-state-metrics: node allocatable and Running pods' requests, joined on the node label `oif.ai/accelerator-domain` (T-135) | domain, vendor |
+| `oif:aijob_gpu_requested` | kube-state-metrics: requests of Running and Pending pods with the label `oif.ai/aijob` | vendor, namespace, phase |
+| `oif:aijob_cross_vendor` | AIJobs whose pods ask for more than one vendor (0 expected) | none |
 
 Query them directly in Grafana's **Explore**, for example `oif:gpu_power_watts` or `sum by (vendor) (oif:gpu_requested{phase="Running"})`.
 
@@ -132,4 +137,5 @@ Nothing on the host itself: a PrometheusRule, a ConfigMap, a TLS secret and an i
 | Dashboards missing in Grafana | `kubectl -n monitoring logs deploy/kps-grafana -c grafana-sc-dashboard`; the ConfigMap must carry `grafana_dashboard=1`. |
 | Browser warns about the certificate | Import `~/oif-ca.crt` (guide 5); the Grafana name is covered by the Run:ai wildcard certificate. |
 | `observability-verify` waits on `oif:gpu_*` | Rules are evaluated every 15-30 s after loading; a series missing for one vendor is printed with the vendors it has. |
+| `oif:domain_*` or `oif:aijob_*` empty | kube-state-metrics must copy the labels: `kubectl -n monitoring get deploy -l app.kubernetes.io/name=kube-state-metrics -o yaml \| grep allowlist` shows `oif.ai/accelerator-domain` and `oif.ai/aijob` (kps-values.yaml; the prometheus stage reruns when the values change). |
 | Run:ai's Nodes page shows more GPUs allocated than it has | Stock Run:ai counts the AMD GPU's allocation but lists only NVIDIA GPUs in its inventory (ADR-015); the runai-patches stage (guide 8) fixes the inventory. Use the "GPUs by vendor" row for the split. |

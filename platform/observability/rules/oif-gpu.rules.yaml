@@ -129,3 +129,42 @@ groups:
         expr: sum by (project) (oif:project_pool_gpu_allocated)
       - record: oif:project_gpu_pending
         expr: sum by (project) (oif:project_pool_gpu_pending)
+
+      # T-135 accelerator domains (guide 17): node label oif.ai/accelerator-domain, which kube-state-metrics copies as
+      # label_oif_ai_accelerator_domain (metricLabelsAllowlist in kps-values.yaml). In use = Running pods; the
+      # AcceleratorDomain objects also count pods that are placed and still starting.
+      - record: oif:domain_gpu_allocatable
+        expr: |
+          sum by (domain, vendor) (oif:gpu_allocatable
+            * on (node) group_left (domain) label_replace(kube_node_labels{label_oif_ai_accelerator_domain!=""},
+              "domain", "$1", "label_oif_ai_accelerator_domain", "(.+)"))
+      - record: oif:domain_gpu_in_use
+        expr: |
+          sum by (domain, vendor) (label_replace(
+              kube_pod_container_resource_requests{resource=~"(nvidia|amd)_com_gpu", node!=""},
+              "vendor", "$1", "resource", "(nvidia|amd)_com_gpu")
+            * on (namespace, pod) group_left () (kube_pod_status_phase{phase="Running"} == 1)
+            * on (node) group_left (domain) label_replace(kube_node_labels{label_oif_ai_accelerator_domain!=""},
+              "domain", "$1", "label_oif_ai_accelerator_domain", "(.+)"))
+          or oif:domain_gpu_allocatable * 0
+      - record: oif:domain_gpu_util_ratio
+        expr: oif:domain_gpu_in_use / (oif:domain_gpu_allocatable > 0)
+
+      # T-135 AIJobs (guide 19): pods of an AIJob carry oif.ai/aijob (label_oif_ai_aijob). GPUs they ask for, per vendor,
+      # namespace and phase; and AIJobs whose pods ask for more than one vendor (oif-aijob never makes one: a value
+      # above 0 is a bug or a hand-made Job with that label).
+      - record: oif:aijob_gpu_requested
+        expr: |
+          sum by (vendor, namespace, phase) (label_replace(
+              kube_pod_container_resource_requests{resource=~"(nvidia|amd)_com_gpu"},
+              "vendor", "$1", "resource", "(nvidia|amd)_com_gpu")
+            * on (namespace, pod) group_left (phase) (kube_pod_status_phase{phase=~"Running|Pending"} == 1)
+            * on (namespace, pod) group_left () kube_pod_labels{label_oif_ai_aijob!=""})
+      - record: oif:aijob_cross_vendor
+        expr: |
+          count(count by (namespace, aijob) (count by (namespace, aijob, vendor) (label_replace(
+              kube_pod_container_resource_requests{resource=~"(nvidia|amd)_com_gpu"},
+              "vendor", "$1", "resource", "(nvidia|amd)_com_gpu")
+            * on (namespace, pod) group_left (aijob) label_replace(kube_pod_labels{label_oif_ai_aijob!=""},
+              "aijob", "$1", "label_oif_ai_aijob", "(.+)"))) > 1)
+          or vector(0)

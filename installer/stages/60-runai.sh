@@ -5,7 +5,9 @@
 RUNAI_CLUSTER_NAME=oif
 PKI=$STATE/pki
 
-register_stage prometheus KPS_VERSION
+prometheus_rev() {   # the chart version and oif's values: a change in either upgrades the release (T-135)
+  echo "$KPS_VERSION $(cat "$OIF_HOME"/platform/observability/kps-values*.yaml | sha256sum | cut -c1-12)"; }
+register_stage prometheus prometheus_rev
 stage_prometheus() {
   local chart=$STATE/charts/kube-prometheus-stack-$KPS_VERSION.tgz pw; mkdir -p "$STATE/charts"
   [ -s "$chart" ] || fetch_pinned "https://github.com/prometheus-community/helm-charts/releases/download/kube-prometheus-stack-$KPS_VERSION/kube-prometheus-stack-$KPS_VERSION.tgz" "$KPS_SHA256" "$chart"

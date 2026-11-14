@@ -207,3 +207,80 @@ tests:
             value: 1
           - labels: 'oif:project_pool_gpu_allocated{project="team-c", nodepool="amd"}'
             value: 0.5
+
+  # T-135: accelerator domains and AIJobs, on the lab's shape: an NVIDIA and an AMD worker, each its own domain (node
+  # label oif.ai/accelerator-domain, copied by kube-state-metrics as label_oif_ai_accelerator_domain), a control-plane
+  # node without one; an AIJob pod running on AMD, a plain NVIDIA pod still pending, and a made-up AIJob "split" whose
+  # two pods ask for both vendors (oif-aijob never does that; oif:aijob_cross_vendor is there to catch it).
+  - interval: 15s
+    input_series:
+      - series: 'kube_node_labels{node="gpu-nvidia", label_oif_ai_accelerator_domain="gpu-nvidia"}'
+        values: '1x4'
+      - series: 'kube_node_labels{node="gpu-amd", label_oif_ai_accelerator_domain="gpu-amd"}'
+        values: '1x4'
+      - series: 'kube_node_labels{node="cp1"}'
+        values: '1x4'
+      - series: 'kube_node_status_allocatable{node="gpu-nvidia", resource="nvidia_com_gpu", unit="integer"}'
+        values: '1x4'
+      - series: 'kube_node_status_allocatable{node="gpu-amd", resource="amd_com_gpu", unit="integer"}'
+        values: '1x4'
+      - series: 'kube_pod_container_resource_requests{namespace="runai-team-c", pod="aj1-x", container="main", node="gpu-amd", resource="amd_com_gpu", unit="integer"}'
+        values: '1x4'
+      - series: 'kube_pod_status_phase{namespace="runai-team-c", pod="aj1-x", phase="Running"}'
+        values: '1x4'
+      - series: 'kube_pod_labels{namespace="runai-team-c", pod="aj1-x", label_oif_ai_aijob="aj1"}'
+        values: '1x4'
+      - series: 'kube_pod_container_resource_requests{namespace="runai-team-c", pod="plain", container="p", node="gpu-nvidia", resource="nvidia_com_gpu", unit="integer"}'
+        values: '1x4'
+      - series: 'kube_pod_status_phase{namespace="runai-team-c", pod="plain", phase="Pending"}'
+        values: '1x4'
+      - series: 'kube_pod_labels{namespace="runai-team-c", pod="plain"}'
+        values: '1x4'
+      - series: 'kube_pod_container_resource_requests{namespace="runai-team-c", pod="split-0", container="main", node="gpu-amd", resource="amd_com_gpu", unit="integer"}'
+        values: '1x4'
+      - series: 'kube_pod_status_phase{namespace="runai-team-c", pod="split-0", phase="Pending"}'
+        values: '1x4'
+      - series: 'kube_pod_labels{namespace="runai-team-c", pod="split-0", label_oif_ai_aijob="split"}'
+        values: '1x4'
+      - series: 'kube_pod_container_resource_requests{namespace="runai-team-c", pod="split-1", container="main", node="gpu-nvidia", resource="nvidia_com_gpu", unit="integer"}'
+        values: '1x4'
+      - series: 'kube_pod_status_phase{namespace="runai-team-c", pod="split-1", phase="Pending"}'
+        values: '1x4'
+      - series: 'kube_pod_labels{namespace="runai-team-c", pod="split-1", label_oif_ai_aijob="split"}'
+        values: '1x4'
+    promql_expr_test:
+      - expr: oif:domain_gpu_allocatable
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:domain_gpu_allocatable{domain="gpu-nvidia", vendor="nvidia"}'
+            value: 1
+          - labels: 'oif:domain_gpu_allocatable{domain="gpu-amd", vendor="amd"}'
+            value: 1
+      - expr: oif:domain_gpu_in_use
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:domain_gpu_in_use{domain="gpu-amd", vendor="amd"}'
+            value: 1
+          - labels: 'oif:domain_gpu_in_use{domain="gpu-nvidia", vendor="nvidia"}'
+            value: 0
+      - expr: oif:domain_gpu_util_ratio
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:domain_gpu_util_ratio{domain="gpu-amd", vendor="amd"}'
+            value: 1
+          - labels: 'oif:domain_gpu_util_ratio{domain="gpu-nvidia", vendor="nvidia"}'
+            value: 0
+      - expr: oif:aijob_gpu_requested
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:aijob_gpu_requested{vendor="amd", namespace="runai-team-c", phase="Running"}'
+            value: 1
+          - labels: 'oif:aijob_gpu_requested{vendor="amd", namespace="runai-team-c", phase="Pending"}'
+            value: 1
+          - labels: 'oif:aijob_gpu_requested{vendor="nvidia", namespace="runai-team-c", phase="Pending"}'
+            value: 1
+      - expr: oif:aijob_cross_vendor
+        eval_time: 1m
+        exp_samples:
+          - labels: 'oif:aijob_cross_vendor'
+            value: 1

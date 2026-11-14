@@ -98,6 +98,8 @@ false is possible) and `preferSameDomain` (Run:ai already prefers packing every 
 sudo tests/lab/t134-policy.sh
 ```
 
+In Grafana (T-135, guide 7): OIF Scheduling, row "Accelerator domains and AIJobs": AIJob GPUs by vendor and phase (`oif:aijob_gpu_requested`) and the count of AIJobs on more than one vendor (`oif:aijob_cross_vendor`, 0).
+
 ## Check it worked
 
 ```bash
