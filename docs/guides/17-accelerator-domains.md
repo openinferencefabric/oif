@@ -103,9 +103,11 @@ Stage `runai-topology` (after `topology`) creates Run:ai **network topology** `o
 - **KAI v0.18.3 bug, fixed by oif:** when every node of the pool sits inside one domain below the required level (a
   one-node pool, or a pool inside one NVL72 rack with a required zone), stock KAI never places the workload ("node-group(s)
   didn't have enough resources: GPUs ... pods", T-132 lab). oif's KAI patch 0007 fixes it (upstream K10,
-  docs/UPSTREAM.md). The patched KAI is built by stage `amd-fractions`, so only on clusters with an AMD-only node and
-  without `AMD_FRACTIONS=none`; elsewhere a required level works only when the pool's nodes span several of its domains
-  (T-141).
+  docs/UPSTREAM.md). The patched KAI runs on every cluster with an AMD GPU (stage `amd-fractions`, T-141), unless
+  `AMD_FRACTIONS=none`. **An NVIDIA-only cluster keeps KAI's stock images** (owner decision, ADR-032 amendment
+  2026-11-14): there a required level works only when the pool's nodes span several of its domains. In a pool inside one
+  domain, leave the required annotation out: every placement already lands in that domain. oif's AIJob (T-133) does
+  this itself; the fix reaches stock KAI with upstream PR KAI#2594, and patch 0007 is dropped when Run:ai ships it.
 - **A plain Kubernetes Job** is one gang only when it says so: add `kai.scheduler/batch-min-member: "<pods>"`, or KAI
   places it one pod at a time and picks the domain for the first pod (spike S-9). Run:ai's distributed workloads are
   gangs already.
