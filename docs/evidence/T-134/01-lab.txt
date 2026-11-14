@@ -1,0 +1,36 @@
+# T-134 on the lab cluster, 2026-11-14 (owner): branch feat/t134-placement-policy on cp1.
+
+== Round 1 (b9e33d0, 08:53): sudo ./oif install -> stage aijob stopped: "oif-aijob rejected"
+The AIJob CRD of T-133 had `description: e.g. bf16, fp8; passed as OIF_PRECISION` unquoted inside {...}: valid YAML,
+but a key "fp8; passed as OIF_PRECISION" with no value in the schema. Created in T-133 without complaint; the update
+was refused ("strict decoding error: unknown field ...precision.fp8; passed as OIF_PRECISION"). The rest of the file
+was applied (new controller, PlacementPolicy CRD), so t134-policy.sh passed 10/10; t133-aijob.sh run straight after
+got 13/17: T-134's pods were still stopping, the domain view counted them, and t133-soft found no vendor with room and
+waited on AMD (the choice is made once; guide 19).
+Fix 35ab10a: description quoted; test_render.sh fails on any null in a CRD schema (it fails on the old line); both lab
+scripts wait until the GPUs are free.
+
+== Round 2 (35ab10a): install at 09:08 (owner), then again at 09:15 (nothing left to do), then the checks
+2026-11-14 09:08:17 == stage: aijob (6a95dbb63229 -> 16fbc66e7b4e)
+  [ok] AIJobs: a job that names no GPU vendor runs on one (kubectl get aijobs -A; controller oif-aijob, pools nvidia=nvidia,amd=amd)
+Live CRD after it (read-only check): precision {"description":"e.g. bf16, fp8; passed as OIF_PRECISION","type":"string"};
+requireSameDomain "all pods inside one accelerator domain; unset: the PlacementPolicy's".
+
+T-134 PlacementPolicy, project namespace runai-team-c: 10/10
+  PASS  both GPUs free before the test
+  PASS  an unknown vendor is refused
+  PASS  a vendor twice is refused
+        NAME      VENDOR-PRIORITY    REQUIRE-SAME-DOMAIN
+        default   ["amd","nvidia"]
+  PASS  no vendor, namespace policy amd first: AMD (within 1 min)
+  INFO  t134-ns: amd: it has room for 1 GPUs (PlacementPolicy runai-team-c/default)
+  PASS  the status names the policy
+  PASS  no vendor, no namespace policy, cluster policy amd: AMD (within 1 min)
+  PASS  the status names the cluster's policy
+  PASS  policy requireSameDomain: the Job gets KAI's topology (within 1 min)
+  PASS  one domain per vendor on the lab: no required level (stock KAI would never place it)
+  PASS  the AIJob's own requireSameDomain: false wins: no topology on its Job
+
+T-133 regression, straight after: 17/17 (t133-soft: "nvidia: it has room for 1 GPUs", a soft preference)
+
+Acceptance check 5 (PlacementPolicy default) shown; with T-133, checks 1-7 of T-133/T-134 are shown on the lab.

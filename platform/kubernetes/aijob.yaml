@@ -2,6 +2,8 @@
 # vendor (preferVendor when it has room, else one with room, from the AcceleratorDomain view) and creates a plain Job in
 # that vendor's Run:ai node pool, owned by the AIJob; KAI places it under the project's quota. The pod is limited to
 # image, command, args and env. allowCrossVendor: true is refused (no engine runs one job on both vendors yet).
+# T-134: PlacementPolicy "default" in a project's namespace (else in oif-aijob, for every project) sets the order vendors
+# are tried in and whether AIJobs that do not say must stay in one domain.
 # Rendered by stage aijob; ${...} from the installer.
 apiVersion: v1
 kind: Namespace
@@ -41,7 +43,7 @@ spec:
                 - {rule: self == oldSelf, message: "an AIJob's spec cannot change: delete it and create it again"}
               properties:
                 model: {type: string, description: the model the job works with; passed to the container as OIF_MODEL}
-                precision: {type: string, description: e.g. bf16, fp8; passed as OIF_PRECISION}
+                precision: {type: string, description: "e.g. bf16, fp8; passed as OIF_PRECISION"}
                 gpuCount: {type: integer, minimum: 1, description: GPUs per pod}
                 workers: {type: integer, minimum: 1, description: "pods, started together (one gang); default 1"}
                 template:
@@ -65,7 +67,7 @@ spec:
                     - {rule: "!has(self.allowCrossVendor) || !self.allowCrossVendor", message: "cross-vendor jobs (allowCrossVendor: true) are not supported yet"}
                   properties:
                     preferVendor: {type: string, enum: [nvidia, amd], description: a soft preference; another vendor is used when this one has no room}
-                    requireSameDomain: {type: boolean, description: all pods inside one accelerator domain}
+                    requireSameDomain: {type: boolean, description: "all pods inside one accelerator domain; unset: the PlacementPolicy's"}
                     allowCrossVendor: {type: boolean, description: must be false for now}
             status:
               type: object
@@ -77,6 +79,38 @@ spec:
                 crossVendor: {type: boolean}
                 message: {type: string}
 ---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: placementpolicies.oif.ai
+  labels: {app.kubernetes.io/managed-by: oif}
+spec:
+  group: oif.ai
+  scope: Namespaced
+  names: {kind: PlacementPolicy, plural: placementpolicies, singular: placementpolicy}
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - {name: Vendor-priority, type: string, jsonPath: .spec.vendorPriority}
+        - {name: Require-same-domain, type: boolean, jsonPath: .spec.requireSameDomain}
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: Defaults for the AIJobs of a namespace (the one named default; in oif-aijob, for every namespace without one).
+          properties:
+            spec:
+              type: object
+              properties:
+                vendorPriority:
+                  type: array
+                  description: the order vendors are tried in when an AIJob has no preferVendor; vendors left out come last
+                  maxItems: 2
+                  x-kubernetes-list-type: set
+                  items: {type: string, enum: [nvidia, amd]}
+                requireSameDomain: {type: boolean, description: for AIJobs that do not set it}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -87,6 +121,17 @@ metadata:
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
 rules:
   - {apiGroups: [oif.ai], resources: [aijobs], verbs: [get, list, watch, create, delete]}
+  - {apiGroups: [oif.ai], resources: [placementpolicies], verbs: [get, list, watch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oif-placementpolicy-admin
+  labels:
+    app.kubernetes.io/managed-by: oif
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"   # a namespace's admins set its policy; editors only read it
+rules:
+  - {apiGroups: [oif.ai], resources: [placementpolicies], verbs: [get, list, watch, create, update, patch, delete]}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -100,7 +145,7 @@ metadata:
   name: oif-aijob
   labels: {app.kubernetes.io/managed-by: oif}
 rules:
-  - {apiGroups: [oif.ai], resources: [aijobs, acceleratordomains], verbs: [list]}
+  - {apiGroups: [oif.ai], resources: [aijobs, acceleratordomains, placementpolicies], verbs: [list]}
   - {apiGroups: [oif.ai], resources: [aijobs/status], verbs: [patch]}
   - {apiGroups: [""], resources: [nodes, pods, namespaces], verbs: [list]}
   - {apiGroups: [batch], resources: [jobs], verbs: [list, create]}

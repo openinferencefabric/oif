@@ -34,7 +34,7 @@ func TestChooseVendor(t *testing.T) {
 		{"no GPUs at all", "", 1, nil, ""},
 	}
 	for _, c := range cases {
-		if got, _ := ChooseVendor(c.prefer, c.gpus, c.domains); got != c.want {
+		if got, _ := ChooseVendor(c.prefer, c.gpus, c.domains, defaultOrder); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
 		}
 	}
@@ -114,7 +114,8 @@ func TestJobFor(t *testing.T) {
 
 	// four pods that must stay in one domain, in a pool with several domains: a gang with the required level
 	a3 := a
-	a3.Spec.Workers, a3.Spec.GPUCount, a3.Spec.Placement.RequireSameDomain = 4, 2, true
+	yes := true
+	a3.Spec.Workers, a3.Spec.GPUCount, a3.Spec.Placement.RequireSameDomain = 4, 2, &yes
 	m = job(t, a3, "nvidia", "nvidia", 3)
 	want := map[string]any{"kai.scheduler/batch-min-member": "4", "kai.scheduler/topology": "oif-accelerator",
 		"kai.scheduler/topology-required-placement": "oif.ai/accelerator-domain", "kai.scheduler/topology-preferred-placement": "kubernetes.io/hostname"}
@@ -168,5 +169,47 @@ func TestStatusOf(t *testing.T) {
 		if c.nodes != nil && !reflect.DeepEqual(s.Domains, []string{"gpu-nvidia"}) {
 			t.Errorf("%s: domains %v", c.name, s.Domains)
 		}
+	}
+}
+
+// T-134: the order a vendor is tried in comes from the AIJob's preferVendor, then the namespace's PlacementPolicy, then
+// the cluster's, then nvidia, amd; requireSameDomain from the AIJob when it says, else the policies.
+func TestEffective(t *testing.T) {
+	yes, no := true, false
+	amdFirst := &Policy{VendorPriority: []string{"amd", "nvidia"}}
+	nsOnlyDomain := &Policy{RequireSameDomain: &yes}
+	cases := []struct {
+		name     string
+		aijob    *bool
+		ns, cl   *Policy
+		order    string
+		same     bool
+		fromWhat string
+	}{
+		{"no policy", nil, nil, nil, "nvidia,amd", false, ""},
+		{"cluster policy", nil, nil, amdFirst, "amd,nvidia", false, "PlacementPolicy oif-aijob/default"},
+		{"namespace policy wins", nil, &Policy{VendorPriority: []string{"nvidia"}}, amdFirst, "nvidia,amd", false, "PlacementPolicy team/default"},
+		{"namespace says only the domain: order from the cluster", nil, nsOnlyDomain, amdFirst, "amd,nvidia", true, "PlacementPolicy team/default"},
+		{"the AIJob's own requireSameDomain: false wins", &no, nsOnlyDomain, nil, "nvidia,amd", false, "PlacementPolicy team/default"},
+		{"the AIJob's own requireSameDomain: true", &yes, nil, nil, "nvidia,amd", true, ""},
+	}
+	for _, c := range cases {
+		e := Effective(c.aijob, "team", c.ns, c.cl, "oif-aijob")
+		if strings.Join(e.Order, ",") != c.order || e.RequireSameDomain != c.same || e.Source != c.fromWhat {
+			t.Errorf("%s: %+v", c.name, e)
+		}
+	}
+}
+
+func TestChooseVendorOrder(t *testing.T) {
+	lab := []Domain{dom("nvidia", 1, 0), dom("amd", 1, 0)}
+	if v, _ := ChooseVendor("", 1, lab, []string{"amd", "nvidia"}); v != "amd" {
+		t.Errorf("policy order amd first: %s", v)
+	}
+	if v, _ := ChooseVendor("nvidia", 1, lab, []string{"amd", "nvidia"}); v != "nvidia" {
+		t.Errorf("the AIJob's preferVendor before the policy: %s", v)
+	}
+	if v, _ := ChooseVendor("", 1, []Domain{dom("nvidia", 1, 0), dom("amd", 1, 1)}, []string{"amd", "nvidia"}); v != "nvidia" {
+		t.Errorf("policy order is soft too: %s", v)
 	}
 }

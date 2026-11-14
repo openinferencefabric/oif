@@ -34,7 +34,7 @@ a=$(aijob_rev); MULTI=yes; b=$(aijob_rev)
 
 NV=0; AMD=0; run
 grep -q "^build" "$CALLS" && fail "no GPUs: nothing built"
-grep -q "kubectl delete crd aijobs.oif.ai" "$CALLS" || fail "no GPUs: the CRD (and every AIJob) removed"
+grep -q "kubectl delete crd aijobs.oif.ai placementpolicies.oif.ai" "$CALLS" || fail "no GPUs: the CRDs (and every AIJob and policy) removed"
 grep -q "kubectl delete namespace oif-aijob" "$CALLS" || fail "no GPUs: the controller removed"
 
 out=$(AIJOB_IMAGE=img:x AIJOB_POOLS=nvidia=nvidia,amd=amd SYSTEM_LABEL=node-role.kubernetes.io/runai-system render "$ROOT/platform/kubernetes/aijob.yaml")
@@ -45,4 +45,10 @@ grep -q "command: \[/oif-aijob, \"--pools=nvidia=nvidia,amd=amd\"" <<< "$out" ||
 grep -q "rbac.authorization.k8s.io/aggregate-to-edit: \"true\"" <<< "$out" || fail "namespace editors may use AIJobs"
 grep -q "{apiGroups: \[batch\], resources: \[jobs\], verbs: \[list, create\]}" <<< "$out" || fail "the controller may only list and create Jobs"
 grep -q "privileged\|hostPath" <<< "$out" && fail "the AIJob template offers no privileges or host paths"
+grep -q "x-kubernetes-list-type: set" <<< "$out" || fail "PlacementPolicy: no vendor twice in the order"
+grep -q "items: {type: string, enum: \[nvidia, amd\]}" <<< "$out" || fail "PlacementPolicy: only known vendors"
+role=$(grep -A6 "name: oif-placementpolicy-admin" <<< "$out")
+grep -q "aggregate-to-admin" <<< "$role" || fail "namespace admins set the policy"
+grep -q "aggregate-to-edit" <<< "$role" && fail "editors do not set the policy"
+grep -q "resources: \[aijobs, acceleratordomains, placementpolicies\], verbs: \[list\]" <<< "$out" || fail "the controller only lists policies"
 finish
