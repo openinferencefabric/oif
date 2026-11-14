@@ -23,7 +23,7 @@ export HOST_IP=192.0.2.10 POD_CIDR=10.244.0.0/16 SERVICE_CIDR=172.30.0.0/16 KUBE
   KAI_STOCK_REGISTRY=stock KAI_PATCH_REGISTRY=patched KAI_PATCH_TAG=x AMD_SHARE_BASE_IMAGE GO_BUILD_IMAGE AMD_FRACTIONS_OUT=/tmp/out \
   FRACTIOND_IMAGE=oif.local/oif/oif-fractiond:x GPU_FRACTIONING_REF GPU_FRACTIONING_SHA256 \
   NAME=oif-vendor-pool IMAGE=oif.local/oif/oif-vendor-pool:x BASE_IMAGE=base:x GO_IMAGE_OUT=/tmp/out \
-  VENDOR_POOL_IMAGE=oif.local/oif/oif-vendor-pool:x VENDOR_POOL_CA=Y2E= TOPOLOGY_IMAGE=oif.local/oif/oif-topology:x
+  VENDOR_POOL_IMAGE=oif.local/oif/oif-vendor-pool:x VENDOR_POOL_CA=Y2E= TOPOLOGY_IMAGE=oif.local/oif/oif-topology:x AIJOB_IMAGE=oif.local/oif/oif-aijob:x AIJOB_POOLS=nvidia=nvidia,amd=amd
 for t in "$ROOT"/platform/*/*.yaml; do
   out=$(render "$t") || { fail "render $t"; continue; }
   grep -qE '\$\{[A-Z_]+\}' <<< "$out" && fail "placeholder left in $t"

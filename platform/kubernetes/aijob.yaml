@@ -1,0 +1,142 @@
+# T-133 (ADR-019): AIJob, a job that says what to run and how many GPUs, not whose. Controller oif-aijob picks the
+# vendor (preferVendor when it has room, else one with room, from the AcceleratorDomain view) and creates a plain Job in
+# that vendor's Run:ai node pool, owned by the AIJob; KAI places it under the project's quota. The pod is limited to
+# image, command, args and env. allowCrossVendor: true is refused (no engine runs one job on both vendors yet).
+# Rendered by stage aijob; ${...} from the installer.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oif-aijob
+  labels: {app.kubernetes.io/managed-by: oif}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: aijobs.oif.ai
+  labels: {app.kubernetes.io/managed-by: oif}
+spec:
+  group: oif.ai
+  scope: Namespaced
+  names: {kind: AIJob, plural: aijobs, singular: aijob}
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources: {status: {}}
+      additionalPrinterColumns:
+        - {name: Vendor, type: string, jsonPath: .status.vendor}
+        - {name: Phase, type: string, jsonPath: .status.phase}
+        - {name: Domains, type: string, jsonPath: .status.domains}
+        - {name: Nodes, type: string, jsonPath: .status.nodes}
+        - {name: Age, type: date, jsonPath: .metadata.creationTimestamp}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [gpuCount, template]
+              x-kubernetes-validations:
+                - {rule: self == oldSelf, message: "an AIJob's spec cannot change: delete it and create it again"}
+              properties:
+                model: {type: string, description: the model the job works with; passed to the container as OIF_MODEL}
+                precision: {type: string, description: e.g. bf16, fp8; passed as OIF_PRECISION}
+                gpuCount: {type: integer, minimum: 1, description: GPUs per pod}
+                workers: {type: integer, minimum: 1, description: "pods, started together (one gang); default 1"}
+                template:
+                  type: object
+                  required: [image]
+                  properties:
+                    image: {type: string, minLength: 1}
+                    command: {type: array, items: {type: string}}
+                    args: {type: array, items: {type: string}}
+                    env:
+                      type: array
+                      items:
+                        type: object
+                        required: [name]
+                        properties:
+                          name: {type: string}
+                          value: {type: string}
+                placement:
+                  type: object
+                  x-kubernetes-validations:
+                    - {rule: "!has(self.allowCrossVendor) || !self.allowCrossVendor", message: "cross-vendor jobs (allowCrossVendor: true) are not supported yet"}
+                  properties:
+                    preferVendor: {type: string, enum: [nvidia, amd], description: a soft preference; another vendor is used when this one has no room}
+                    requireSameDomain: {type: boolean, description: all pods inside one accelerator domain}
+                    allowCrossVendor: {type: boolean, description: must be false for now}
+            status:
+              type: object
+              properties:
+                phase: {type: string}
+                vendor: {type: string}
+                domains: {type: array, items: {type: string}}
+                nodes: {type: array, items: {type: string}}
+                crossVendor: {type: boolean}
+                message: {type: string}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oif-aijob-edit
+  labels:
+    app.kubernetes.io/managed-by: oif
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"   # whoever may edit a namespace may use AIJobs there
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - {apiGroups: [oif.ai], resources: [aijobs], verbs: [get, list, watch, create, delete]}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oif-aijob
+  namespace: oif-aijob
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oif-aijob
+  labels: {app.kubernetes.io/managed-by: oif}
+rules:
+  - {apiGroups: [oif.ai], resources: [aijobs, acceleratordomains], verbs: [list]}
+  - {apiGroups: [oif.ai], resources: [aijobs/status], verbs: [patch]}
+  - {apiGroups: [""], resources: [nodes, pods, namespaces], verbs: [list]}
+  - {apiGroups: [batch], resources: [jobs], verbs: [list, create]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oif-aijob
+  labels: {app.kubernetes.io/managed-by: oif}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: oif-aijob}
+subjects:
+  - {kind: ServiceAccount, name: oif-aijob, namespace: oif-aijob}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oif-aijob
+  namespace: oif-aijob
+  labels: {app.kubernetes.io/managed-by: oif, app: oif-aijob}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: oif-aijob}
+  template:
+    metadata:
+      labels: {app: oif-aijob}
+    spec:
+      serviceAccountName: oif-aijob
+      nodeSelector:
+        ${SYSTEM_LABEL}: "true"
+      containers:
+        - name: controller
+          image: ${AIJOB_IMAGE}
+          imagePullPolicy: IfNotPresent   # built by oif, loaded on every node
+          command: [/oif-aijob, "--pools=${AIJOB_POOLS}", --interval=10s]
+          securityContext: {runAsNonRoot: true, runAsUser: 65532, readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {memory: 64Mi}
