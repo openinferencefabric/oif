@@ -21,6 +21,7 @@ import (
 func main() {
 	every := flag.Duration("interval", 10*time.Second, "how often to look again")
 	poolsFlag := flag.String("pools", "nvidia=nvidia,amd=amd", "each vendor's Run:ai node pool; empty = the default pool")
+	policyNS := flag.String("policy-namespace", "oif-aijob", "where PlacementPolicy default applies to every project without its own")
 	flag.Parse()
 	pools := map[string]string{}
 	for _, kv := range strings.Split(*poolsFlag, ",") {
@@ -34,7 +35,7 @@ func main() {
 	}
 	last := ""
 	for {
-		if msg, err := sync(k, pools); err != nil {
+		if msg, err := sync(k, pools, *policyNS); err != nil {
 			log.Printf("aijobs: %v", err)
 		} else if msg != last {
 			log.Print(msg)
@@ -53,7 +54,7 @@ type meta struct {
 	Labels    map[string]string `json:"labels"`
 }
 
-func sync(k *kube, pools map[string]string) (string, error) {
+func sync(k *kube, pools map[string]string, policyNS string) (string, error) {
 	var al struct {
 		Items []struct {
 			Metadata meta            `json:"metadata"`
@@ -147,6 +148,22 @@ func sync(k *kube, pools map[string]string) (string, error) {
 		project[n.Metadata.Name] = true
 	}
 
+	var ppl struct {
+		Items []struct {
+			Metadata meta   `json:"metadata"`
+			Spec     Policy `json:"spec"`
+		} `json:"items"`
+	}
+	if err := k.do(http.MethodGet, "/apis/oif.ai/v1alpha1/placementpolicies", "", nil, &ppl); err != nil {
+		return "", err
+	}
+	policies := map[string]*Policy{} // namespace: its PlacementPolicy "default"
+	for i, p := range ppl.Items {
+		if p.Metadata.Name == "default" {
+			policies[p.Metadata.Namespace] = &ppl.Items[i].Spec
+		}
+	}
+
 	var report []string
 	for _, a := range al.Items {
 		key := a.Metadata.Namespace + "/" + a.Metadata.Name
@@ -158,11 +175,16 @@ func sync(k *kube, pools map[string]string) (string, error) {
 		} else if !project[a.Metadata.Namespace] {
 			st = Status{Phase: "Failed", Message: "namespace " + a.Metadata.Namespace + " is not a Run:ai project (no runai/queue label)"}
 		} else {
-			vendor, why := ChooseVendor(a.Spec.Placement.PreferVendor, a.Spec.GPUCount*a.Spec.workers(), domains)
+			r := Effective(a.Spec.Placement.RequireSameDomain, a.Metadata.Namespace, policies[a.Metadata.Namespace], policies[policyNS], policyNS)
+			vendor, why := ChooseVendor(a.Spec.Placement.PreferVendor, a.Spec.GPUCount*a.Spec.workers(), domains, r.Order)
+			if r.Source != "" {
+				why += " (" + r.Source + ")"
+			}
 			if vendor == "" {
 				st = Status{Phase: "Failed", Message: why}
 			} else {
 				aj := AIJob{Name: a.Metadata.Name, Namespace: a.Metadata.Namespace, UID: a.Metadata.UID, Spec: a.Spec}
+				aj.Spec.Placement.RequireSameDomain = &r.RequireSameDomain
 				body, _ := json.Marshal(JobFor(aj, vendor, pools[vendor], domainsOf[vendor]))
 				st = Status{Phase: "Pending", Vendor: vendor, Message: why}
 				if err := k.do(http.MethodPost, "/apis/batch/v1/namespaces/"+url.PathEscape(a.Metadata.Namespace)+"/jobs", "application/json", body, nil); err != nil {

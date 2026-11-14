@@ -28,8 +28,14 @@ func TestSync(t *testing.T) {
 			  {"metadata": {"name": "running", "namespace": "runai-team-a", "uid": "u2"}, "spec": {"gpuCount": 1, "template": {"image": "i"}},
 			   "status": {"phase": "Pending", "vendor": "nvidia", "crossVendor": false, "message": "nvidia: it has room for 1 GPUs"}},
 			  {"metadata": {"name": "stray", "namespace": "default", "uid": "u3"}, "spec": {"gpuCount": 1, "template": {"image": "i"}}},
+			  {"metadata": {"name": "ordered", "namespace": "runai-team-a", "uid": "u5"}, "spec": {"gpuCount": 1, "template": {"image": "i"}}},
+			  {"metadata": {"name": "together", "namespace": "runai-team-b", "uid": "u6"}, "spec": {"gpuCount": 1, "workers": 2, "template": {"image": "i"}}},
 			  {"metadata": {"name": "same", "namespace": "runai-team-a", "uid": "u4"}, "spec": {"gpuCount": 1, "template": {"image": "i"}},
 			   "status": {"crossVendor": false, "message": "m0", "phase": "Succeeded", "vendor": "amd", "nodes": ["gpu-amd"], "domains": ["gpu-amd"]}}]}`)
+		case r.URL.Path == "/apis/oif.ai/v1alpha1/placementpolicies":
+			io.WriteString(w, `{"items": [{"metadata": {"name": "default", "namespace": "oif-aijob"}, "spec": {"vendorPriority": ["amd", "nvidia"]}},
+			  {"metadata": {"name": "default", "namespace": "runai-team-b"}, "spec": {"requireSameDomain": true}},
+			  {"metadata": {"name": "other", "namespace": "runai-team-a"}, "spec": {"vendorPriority": ["nvidia"]}}]}`)
 		case r.URL.Path == "/apis/oif.ai/v1alpha1/acceleratordomains":
 			io.WriteString(w, `{"items": [
 			  {"status": {"capacity": {"nvidia": 1}, "allocatable": {"nvidia": 1}, "inUse": {"nvidia": 1}}},
@@ -51,11 +57,11 @@ func TestSync(t *testing.T) {
 			if !strings.Contains(r.URL.RawQuery, "runai%2Fqueue") {
 				t.Errorf("namespaces not filtered by runai/queue: %s", r.URL.RawQuery)
 			}
-			io.WriteString(w, `{"items": [{"metadata": {"name": "runai-team-a"}}]}`)
+			io.WriteString(w, `{"items": [{"metadata": {"name": "runai-team-a"}}, {"metadata": {"name": "runai-team-b"}}]}`)
 		case r.Method == "POST":
 			var j map[string]any
 			_ = json.Unmarshal(body, &j)
-			posted[r.URL.Path] = j
+			posted[lookup(j, "metadata", "name").(string)] = j
 			w.WriteHeader(http.StatusCreated)
 		case r.Method == "PATCH":
 			var p []struct {
@@ -68,18 +74,23 @@ func TestSync(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	msg, err := sync(&kube{base: srv.URL, http: srv.Client()}, map[string]string{"nvidia": "nvidia", "amd": "amd"})
+	msg, err := sync(&kube{base: srv.URL, http: srv.Client()}, map[string]string{"nvidia": "nvidia", "amd": "amd"}, "oif-aijob")
 	if err != nil {
 		t.Fatal(err)
 	}
-	j := posted["/apis/batch/v1/namespaces/runai-team-a/jobs"]
-	if j == nil || lookup(j, "metadata", "name") != "new" || lookup(j, "metadata", "labels", "runai/node-pool") != "amd" {
+	if j := posted["new"]; j == nil || lookup(j, "metadata", "labels", "runai/node-pool") != "amd" {
 		t.Errorf("Job for new: %v", j)
 	}
-	if len(posted) != 1 {
-		t.Errorf("only the new AIJob gets a Job: %v", posted)
+	if len(posted) != 3 {
+		t.Errorf("new, ordered and together get a Job: %v", posted)
 	}
-	if s := statuses["new"]; s.Phase != "Pending" || s.Vendor != "amd" || !strings.HasPrefix(s.Message, "amd: the preferred vendor") {
+	if s := statuses["ordered"]; s.Vendor != "amd" || s.Message != "amd: it has room for 1 GPUs (PlacementPolicy oif-aijob/default)" {
+		t.Errorf("ordered (the cluster policy's order, amd first; team-a's policy is not named default): %+v", s)
+	}
+	if lookup(posted["together"], "metadata", "annotations", "kai.scheduler/topology") != "oif-accelerator" {
+		t.Errorf("together (team-b's policy requires one domain): %v", lookup(posted["together"], "metadata", "annotations"))
+	}
+	if s := statuses["new"]; s.Phase != "Pending" || s.Vendor != "amd" || s.Message != "amd: the preferred vendor, it has room (PlacementPolicy oif-aijob/default)" {
 		t.Errorf("new: %+v", s)
 	}
 	if s := statuses["running"]; s.Phase != "Running" || s.Vendor != "nvidia" || strings.Join(s.Domains, ",") != "gpu-nvidia" || s.Message != "nvidia: it has room for 1 GPUs" {

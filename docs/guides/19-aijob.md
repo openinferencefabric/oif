@@ -11,7 +11,8 @@ that vendor, and Run:ai's scheduler places it under the project's GPU quota, as 
 - **Vendor choice**, before the Job exists (a pod must name `nvidia.com/gpu` or `amd.com/gpu`; the scheduler cannot
   choose between them): `preferVendor` when it has room for all the job's GPUs, else a vendor with room, else the
   preferred (or first) vendor, where the job waits. Room comes from the AcceleratorDomain view (guide 17), refreshed
-  every 30 s. Without a preference NVIDIA is tried first (T-134 adds a per-project order).
+  every 30 s. Without a preference the vendors are tried in the project's PlacementPolicy order (below), else NVIDIA
+  first.
 - **One vendor per job**, always: `allowCrossVendor: true` is refused, because no engine runs one job on both yet.
 - **One domain**, when asked: `requireSameDomain: true` keeps all pods inside one accelerator domain (KAI topology,
   guide 17). `workers` greater than 1 starts the pods together (one gang) or not at all.
@@ -61,6 +62,42 @@ finetune-qwen   amd      Running   ["gpu-amd"]   ["gpu-amd"]   40s
 `kubectl -n runai-team-a get aijob finetune-qwen -o jsonpath='{.status.message}'` says why: `amd: the preferred vendor,
 it has room`. The Job has the AIJob's name: `kubectl -n runai-team-a logs job/finetune-qwen`.
 
+## Defaults per project: PlacementPolicy (T-134)
+
+A PlacementPolicy named `default` in a project's namespace sets what that project's AIJobs get when they do not say;
+one named `default` in namespace `oif-aijob` applies to every project without its own. The namespace's wins, field by
+field, and an AIJob's own fields win over both.
+
+```yaml
+apiVersion: oif.ai/v1alpha1
+kind: PlacementPolicy
+metadata:
+  name: default
+  namespace: runai-team-a
+spec:
+  vendorPriority: [amd, nvidia]   # the order vendors are tried in when an AIJob has no preferVendor; left out: last
+  requireSameDomain: true         # for AIJobs that do not set it
+```
+
+```bash
+kubectl -n runai-team-a get placementpolicy
+```
+
+```text
+NAME      VENDOR-PRIORITY      REQUIRE-SAME-DOMAIN
+default   ["amd","nvidia"]     true
+```
+
+The order is soft like `preferVendor`: a vendor without room is passed over. Only `nvidia` and `amd` are accepted, each
+once. A namespace's admins set its policy; editors can read it. The AIJob's status message names the policy that
+applied (`amd: it has room for 1 GPUs (PlacementPolicy runai-team-a/default)`). A policy applies when the AIJob is
+created: changing it later does not move a job. Not offered (they would do nothing today): `allowCrossVendor` (only
+false is possible) and `preferSameDomain` (Run:ai already prefers packing every workload, guide 17).
+
+```bash
+sudo tests/lab/t134-policy.sh
+```
+
 ## Check it worked
 
 ```bash
@@ -74,8 +111,8 @@ NVIDIA), one with no vendor, the status fields, and that a plain GPU pod is not 
 
 - CRD `aijobs.oif.ai`, namespace `oif-aijob` with Deployment `oif-aijob` (image built by oif from images/oif-aijob,
   one replica on a system node; it lists AIJobs, Jobs, pods, nodes, namespaces and AcceleratorDomains, and creates Jobs),
-  ClusterRoles `oif-aijob` and `oif-aijob-edit`.
-- Without GPUs the stage removes all of it, with every AIJob and its Job. `oif uninstall` removes it with the cluster.
+  ClusterRoles `oif-aijob`, `oif-aijob-edit` and `oif-placementpolicy-admin`; CRD `placementpolicies.oif.ai` (T-134).
+- Without GPUs the stage removes all of it, with every AIJob, its Job and every PlacementPolicy. `oif uninstall` removes it with the cluster.
 
 ## Troubleshooting
 

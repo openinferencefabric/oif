@@ -36,7 +36,7 @@ type EnvVar struct {
 // Placement: soft vendor preference and the domain requirement; allowCrossVendor true is refused by the CRD.
 type Placement struct {
 	PreferVendor      string `json:"preferVendor,omitempty"`
-	RequireSameDomain bool   `json:"requireSameDomain,omitempty"`
+	RequireSameDomain *bool  `json:"requireSameDomain,omitempty"` // unset: the PlacementPolicy's
 	AllowCrossVendor  bool   `json:"allowCrossVendor,omitempty"`
 }
 
@@ -59,11 +59,62 @@ type Domain struct {
 	InUse       map[string]int `json:"inUse"`
 }
 
-var vendors = []string{"nvidia", "amd"} // the order without a preference, until T-134's vendorPriority
+var defaultOrder = []string{"nvidia", "amd"} // without a PlacementPolicy
 
-// ChooseVendor: the preferred vendor when it has room for all the job's GPUs, else a vendor with room, else the
-// preferred (or first) vendor the cluster has, where the job waits for room. "" when the cluster has no GPUs.
-func ChooseVendor(prefer string, gpus int, domains []Domain) (string, string) {
+// Policy: a PlacementPolicy's spec (T-134). "default" in a project's namespace applies there, "default" in the
+// controller's namespace to every project without one.
+type Policy struct {
+	VendorPriority    []string `json:"vendorPriority,omitempty"`
+	RequireSameDomain *bool    `json:"requireSameDomain,omitempty"`
+}
+
+// Placement after the defaults: the order vendors are tried in, the domain requirement, and the policy that applied.
+type Resolved struct {
+	Order             []string
+	RequireSameDomain bool
+	Source            string
+}
+
+// Effective: the AIJob's own requireSameDomain when set, else the namespace policy's, else the cluster policy's; the
+// vendor order from the namespace policy, else the cluster's, else nvidia, amd (vendors a policy leaves out come last).
+func Effective(own *bool, ns string, nsPolicy, clusterPolicy *Policy, clusterNS string) Resolved {
+	r := Resolved{Order: defaultOrder}
+	for _, p := range []struct {
+		pol  *Policy
+		name string
+	}{{clusterPolicy, clusterNS}, {nsPolicy, ns}} { // the namespace's last: it wins
+		if p.pol == nil {
+			continue
+		}
+		r.Source = "PlacementPolicy " + p.name + "/default"
+		if len(p.pol.VendorPriority) > 0 {
+			r.Order = p.pol.VendorPriority
+		}
+		if p.pol.RequireSameDomain != nil {
+			r.RequireSameDomain = *p.pol.RequireSameDomain
+		}
+	}
+	if own != nil {
+		r.RequireSameDomain = *own
+	}
+	r.Order = dedupe(append(append([]string{}, r.Order...), defaultOrder...))
+	return r
+}
+
+func dedupe(in []string) []string {
+	seen, out := map[string]bool{}, []string{}
+	for _, v := range in {
+		if !seen[v] {
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// ChooseVendor: the preferred vendor when it has room for all the job's GPUs, else the first vendor in order with
+// room, else the preferred (or first) vendor the cluster has, where the job waits for room. "" without GPUs.
+func ChooseVendor(prefer string, gpus int, domains []Domain, order []string) (string, string) {
 	free, present := map[string]int{}, map[string]bool{}
 	for _, d := range domains {
 		for v, c := range d.Capacity {
@@ -73,9 +124,8 @@ func ChooseVendor(prefer string, gpus int, domains []Domain) (string, string) {
 			free[v] += d.Allocatable[v] - d.InUse[v]
 		}
 	}
-	order := vendors
 	if prefer != "" {
-		order = append([]string{prefer}, vendors...)
+		order = append([]string{prefer}, order...)
 	}
 	for _, v := range order {
 		if present[v] && free[v] >= gpus {
@@ -105,7 +155,7 @@ func JobFor(a AIJob, vendor, pool string, domains int) map[string]any {
 	if n > 1 {
 		ann["kai.scheduler/batch-min-member"] = strconv.Itoa(n) // one gang: all pods or none (spike S-9)
 	}
-	if a.Spec.Placement.RequireSameDomain {
+	if p := a.Spec.Placement.RequireSameDomain; p != nil && *p {
 		// both, or KAI ignores the required level (T-132); Run:ai adds no topology to a workload with its own kai.scheduler/ keys
 		ann["kai.scheduler/topology"] = "oif-accelerator"
 		ann["kai.scheduler/topology-preferred-placement"] = "kubernetes.io/hostname"

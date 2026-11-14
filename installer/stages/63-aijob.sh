@@ -3,6 +3,7 @@
 # platform/kubernetes/aijob.yaml) picks the vendor from the AcceleratorDomain view (T-131) and creates a plain Job in
 # that vendor's node pool, which Run:ai's scheduler places under the project's quota. Without GPUs it is removed; the
 # CRD goes with it, and with it every AIJob and the Jobs they own.
+# T-134: CRD PlacementPolicy, the defaults the controller applies (vendor order, one domain).
 
 AIJOB_SRC=$OIF_HOME/images/oif-aijob
 aijob_build_rev() {   # what decides the image: its tag
@@ -33,7 +34,7 @@ stage_after aijob runai-topology
 
 aijob_off() {   # no controller, no CRD (its AIJobs and their Jobs go with it)
   kc delete namespace oif-aijob --ignore-not-found >> "$LOG" 2>&1 || true
-  kc delete crd aijobs.oif.ai --ignore-not-found >> "$LOG" 2>&1 || true
+  kc delete crd aijobs.oif.ai placementpolicies.oif.ai --ignore-not-found >> "$LOG" 2>&1 || true
   kc delete clusterrolebinding oif-aijob --ignore-not-found >> "$LOG" 2>&1 || true
-  kc delete clusterrole oif-aijob oif-aijob-edit --ignore-not-found >> "$LOG" 2>&1 || true
+  kc delete clusterrole oif-aijob oif-aijob-edit oif-placementpolicy-admin --ignore-not-found >> "$LOG" 2>&1 || true
 }
