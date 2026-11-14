@@ -2,7 +2,7 @@
 # Settings: read from .env (never executed), validated, missing values asked, saved to $CONF (mode 600).
 
 CONFIG_KEYS=(HOST_IP METALLB_RANGE INSTALL_DIR NVIDIA_GPUS AMD_GPUS ISOLATE_GPUS
-             HF_TOKEN RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD MODEL_ID RUNAI_PATCHES AMD_FRACTIONS AMD_VRAM_CAP DYNAMO
+             RUNAI_DOMAIN RUNAI_ADMIN_EMAIL RUNAI_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD RUNAI_PATCHES AMD_FRACTIONS AMD_VRAM_CAP DYNAMO
              OIF_NODES OIF_API_VIP OIF_NODE_USER ADMIN_KEY_ON_CONTROL)
 
 env_parse() {   # file: print KEY<TAB>VALUE for the known keys; values are data, never evaluated
@@ -167,13 +167,11 @@ config_collect() {   # all questions first; nothing on the host changes here
   valid_or_ask RUNAI_ADMIN_EMAIL "   Run:ai administrator e-mail" "" check_email
   valid_or_ask RUNAI_ADMIN_PASSWORD "   Run:ai administrator password (12+ characters: upper and lower case, a digit, a symbol)" "" check_runai_password secret
   valid_or_ask GRAFANA_ADMIN_PASSWORD "   Grafana admin password (12+ characters)" "" check_password secret
-  [ -n "${HF_TOKEN:-}" ] || HF_TOKEN=$(ask_secret "   Hugging Face token (only for gated models; empty = none)")
-  MODEL_ID=${MODEL_ID:-Qwen/Qwen3-0.6B}
 
   echo; echo "${c_b}Summary${c_0}"
   echo "   Host $HOST_IP, user $INSTALL_USER, MetalLB $METALLB_RANGE, data in $INSTALL_DIR"
   echo "   NVIDIA GPUs: ${NVIDIA_GPUS:-all}; AMD GPUs (from 1.2): ${AMD_GPUS:-all supported}; isolated: ${ISOLATE_GPUS:-none}"
-  echo "   Run:ai admin $RUNAI_ADMIN_EMAIL; HF token $([ -n "$HF_TOKEN" ] && echo set || echo 'not set')"
+  echo "   Run:ai admin $RUNAI_ADMIN_EMAIL"
   multi_node && echo "   Nodes: $OIF_NODES; API address $OIF_API_VIP; your key on the control plane: $ADMIN_KEY_ON_CONTROL"
   echo "   Stages: ${STAGES[*]}"
   REBOOT_OK=no

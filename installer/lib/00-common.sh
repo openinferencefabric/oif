@@ -9,7 +9,6 @@ LOG=/var/log/oif-install.log              # readable by the installing user: no 
 UNINSTALL_LOG=/var/log/oif-uninstall.log
 TLOG=$LOG                                 # where on-screen lines are copied (/dev/null when stdout is the log)
 RESUME_UNIT=/etc/systemd/system/oif-resume.service
-MARK=oif                                  # marker for blocks oif adds to shared files
 INTERACTIVE=1; [ -t 0 ] || INTERACTIVE=0
 
 c_b=$'\e[1m'; c_g=$'\e[32m'; c_y=$'\e[33m'; c_r=$'\e[31m'; c_0=$'\e[0m'
@@ -36,8 +35,8 @@ save() { touch "$CONF"; chmod 600 "$CONF"; grep -v "^$1=" "$CONF" > "$CONF.tmp" 
 
 # ---------------------------------------------------------------- manifest: every host change, reversed by uninstall
 # Record kinds (one per line, replayed newest first):
-#   PKG name | FILE path | DIR path | DATADIR path | RESTORE backup target | BLOCK file tag | LINE file text
-#   SWAP | GROUP user group | SERVICE unit | ENABLED unit | INITRAMFS | TEARDOWN name (calls teardown_<name>)
+#   PKG name | FILE path | DIR path | DATADIR path | RESTORE backup target | SWAP | SERVICE unit | INITRAMFS
+#   TEARDOWN name (calls teardown_<name>) | NODE address label | NODEKEY address user | ADMINKEY address key
 rec() { grep -qxF "$*" "$MANIFEST" 2>/dev/null || echo "$*" >> "$MANIFEST"; }
 recorded() { grep -qxF "$*" "$MANIFEST" 2>/dev/null; }
 
@@ -48,11 +47,6 @@ backup_file() { local f=$1 b; b=$STATE/backup$(echo "$f" | tr / _)
 
 # write a whole file oif owns (recorded as new, or backed up first if it existed)
 put_file() { local f=$1 mode=${3:-644}; backup_file "$f"; mkdir -p "$(dirname "$f")"; printf '%s' "$2" > "$f"; chmod "$mode" "$f"; }
-
-# marker-delimited block in a shared file (fstab, sysctl files): added once, removed exactly by uninstall
-block_set() { local f=$1 tag=$2 body=$3
-  touch "$f"; sed -i "\|^# BEGIN $MARK $tag\$|,\|^# END $MARK $tag\$|d" "$f"
-  printf '# BEGIN %s %s\n%s\n# END %s %s\n' "$MARK" "$tag" "$body" "$MARK" "$tag" >> "$f"; rec "BLOCK $f $tag"; }
 
 # ---------------------------------------------------------------- stages: idempotent steps, skipped once done
 STAGES=()

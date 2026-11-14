@@ -84,7 +84,7 @@ PY
   render "$OIF_HOME/platform/gpu-amd/amd-share.yaml" | kc apply -f - >> "$LOG" || die "oif-amd-share rejected"
   kc -n oif-system rollout status ds/oif-amd-share --timeout=300s >> "$LOG" 2>&1 \
     || die "oif-amd-share not running on every AMD GPU node (kubectl -n oif-system get pods -o wide)"
-  amd_gpu_memory_unlabel ""
+  amd_gpu_memory_unlabel
   amd_vram_cap "$nodes"
   ok "AMD GPUs on $nodes can be shared: Run:ai GPU fractions in pool $(pool_for amd); $VRAM_CAP_MSG"
 }
@@ -92,10 +92,10 @@ PY
 # it to AMD's own beta.amd.com/gpu.vram (93 GB reported for a 48 GB W7900) and KAI's pod-group controller refuses nodes
 # with both, so KAI now reads the AMD label itself (patches/kai, 0005); the stage removes the label it set before.
 AMD_MEM_MARK=oif.ai/gpu-memory-label
-amd_gpu_memory_unlabel() {   # [nodes to keep]: remove the GPU memory label oif set (T-140, first version) from every other node
+amd_gpu_memory_unlabel() {   # remove the GPU memory label oif set (T-140, first version) from every node
   local n
   for n in $(kc get nodes -l "$AMD_MEM_MARK" -o name 2>/dev/null | sed 's|^node/||'); do
-    [[ " ${1:-} " == *" $n "* ]] || kc label node "$n" nvidia.com/gpu.memory- "$AMD_MEM_MARK-" >> "$LOG" 2>&1 || true
+    kc label node "$n" nvidia.com/gpu.memory- "$AMD_MEM_MARK-" >> "$LOG" 2>&1 || true
   done
 }
 amd_node_run() {   # node-name command: run the command on that Kubernetes node (this host, or over SSH with the cluster key)
@@ -189,7 +189,7 @@ amd_fractions_off() {   # KAI's stock images back; the plugins and the policy re
 }
 amd_share_off() {   # the plugins and the policy removed, the patched KAI kept (no pod is given a shared AMD GPU)
   amd_vram_cap_off
-  amd_gpu_memory_unlabel ""
+  amd_gpu_memory_unlabel
   kc delete validatingadmissionpolicybinding oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
   kc delete validatingadmissionpolicy oif-amd-share-annotations --ignore-not-found >> "$LOG" 2>&1 || true
   # waits until the plugin is gone, so "off" is true when the stage ends and turning it on again finds no namespace

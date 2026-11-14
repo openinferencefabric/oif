@@ -68,7 +68,7 @@ for eng, dyn in PAIRS:
                      "d_ttft_p50_pct": pct(a["ttft_p50_ms"], b["ttft_p50_ms"]), "d_ttft_p99_pct": pct(a["ttft_p99_ms"], b["ttft_p99_ms"]),
                      "d_itl_p50_pct": pct(a["itl_p50_ms"], b["itl_p50_ms"]), "d_e2e_p99_pct": pct(a["e2e_p99_ms"], b["e2e_p99_ms"]),
                      "noise_pct": noise if (a["cv_pct"] is not None and b["cv_pct"] is not None) else None,
-                     "within_noise": verdict == "noise", "verdict": verdict,
+                     "verdict": verdict,
                      "few_requests": bool(reqs) and min(reqs) < MIN_REQUESTS})
 
 

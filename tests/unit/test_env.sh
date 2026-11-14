@@ -8,8 +8,8 @@ cat > "$SANDBOX/a.env" <<'EOF'
 HOST_IP=10.0.0.5          # inline comment
 METALLB_RANGE="10.0.0.240-10.0.0.244"
 INSTALL_DIR='/data/oif'
-export MODEL_ID=Qwen/Qwen3-0.6B
-HF_TOKEN='$(touch SANDBOX_PWNED)'
+export RUNAI_DOMAIN=runai.example.com
+RUNAI_ADMIN_PASSWORD='$(touch SANDBOX_PWNED)'
 GRAFANA_ADMIN_PASSWORD='p@ss word#1'
 UNKNOWN_KEY=x
 NVIDIA_GPUS=
@@ -19,8 +19,8 @@ env_load "$SANDBOX/a.env" 2>/dev/null
 eq "$HOST_IP" 10.0.0.5 "inline comment stripped:"
 eq "$METALLB_RANGE" 10.0.0.240-10.0.0.244 "double quotes:"
 eq "$INSTALL_DIR" /data/oif "single quotes:"
-eq "$MODEL_ID" Qwen/Qwen3-0.6B "export prefix:"
-eq "$HF_TOKEN" '$(touch SANDBOX_PWNED)' "command substitution is data, not code:"
+eq "$RUNAI_DOMAIN" runai.example.com "export prefix:"
+eq "$RUNAI_ADMIN_PASSWORD" '$(touch SANDBOX_PWNED)' "command substitution is data, not code:"
 [ -e SANDBOX_PWNED ] && fail ".env value was executed"
 eq "$GRAFANA_ADMIN_PASSWORD" 'p@ss word#1' "quoted value with space and #:"
 eq "${NVIDIA_GPUS-unset}" unset "empty value is not set:"
