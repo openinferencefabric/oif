@@ -98,6 +98,7 @@ install_run() {
   config_load_saved
   config_validate
   local until=""; [ -f "$STATE/until" ] && until=$(cat "$STATE/until")
+  nv_drift   # T-143: a node that lost its NVIDIA driver since the last run gets its driver stages again
   run_stages "$until"
   if [ -n "$until" ]; then rm -f "$STATE/until"; log "stopped after stage $until (--until); run 'sudo $SELF install' to continue"; return 0; fi
   if [ -f "$RESUME_UNIT" ]; then systemctl disable oif-resume >/dev/null 2>&1 || true; rm -f "$RESUME_UNIT"; systemctl daemon-reload; fi

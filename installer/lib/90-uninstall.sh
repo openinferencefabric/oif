@@ -17,11 +17,28 @@ status() {
       elif [ -f "$CLUSTER_KEY" ] && node_ok "$addr"; then echo "  $node $role: reachable with the cluster key"
       else echo "  $node $role: not reachable with the cluster key"; fi
     done 3< <(nodes_list); fi
+  nv_status
   if [ -s "$MANIFEST" ]; then echo "Recorded host changes:"; grep -v '^PKG ' "$MANIFEST" | sed 's/^/  /'
     echo "  + $(grep -c '^PKG ' "$MANIFEST" || true) packages"; fi
   systemctl is-active -q oif-install 2>/dev/null && echo "An install job is running: sudo tail -f $LOG"
   return 0
 }
+
+nv_status() {   # T-143: per node with an NVIDIA GPU, the driver and whether the kernel it boots next has NVIDIA modules
+  [ -f "$DONE/nvidia-driver" ] || return 0
+  local out name addr chk p l
+  out=$(nv_nodes_check) || { echo "NVIDIA drivers: cannot list the GPUs of every node"; return 0; }
+  [ -n "$out" ] || return 0
+  echo "NVIDIA drivers:"
+  while read -r name addr chk; do
+    [ -n "$name" ] || continue
+    if [ "$chk" = unreachable ]; then echo "  [?] $name: not reachable"; continue; fi
+    p=$(nv_problems <<< "$chk")
+    if [ -z "$p" ]; then echo "  [ok] $name: driver ${chk%% *}; kernel $(cut -d' ' -f2 <<< "$chk"), booted next, has its modules"; continue; fi
+    while read -r l; do echo "  [!] $name: $l"; done <<< "$p"
+    if [[ $chk == "none "* ]]; then echo "      fix: sudo $SELF install (adds the modules, loads the driver, restarts the GPU Operator there)"
+    else echo "      fix, on that node: sudo apt-get install linux-modules-nvidia-$NVIDIA_DRIVER_BRANCH-open-$(cut -d' ' -f2 <<< "$chk"), or do not reboot it yet"; fi
+  done <<< "$out"; }
 
 plan() {   # read-only preview of uninstall
   [ -s "$MANIFEST" ] || { echo "Nothing recorded: oif has not changed this host."; return 0; }

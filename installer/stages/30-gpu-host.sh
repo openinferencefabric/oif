@@ -13,26 +13,62 @@ nv_other_branches() {   # installed packages of NVIDIA driver branches other tha
     b=$(grep -oE -- '-[0-9]{3}(-server)?' <<< "$p" | head -1) || true; b=${b#-}
     [ -n "$b" ] && [ "$b" != "$NVIDIA_DRIVER_BRANCH" ] && echo "$p"
   done; return 0; }
+# T-143: the prebuilt modules are per kernel. A kernel update (unattended-upgrades) without NVIDIA modules for the new
+# kernel leaves the node without its driver after the next reboot, and the GPU Operator then waits for a driver
+# container forever. The flavour's modules package (linux-modules-nvidia-<branch>-open-<flavour>) brings the modules
+# for every new kernel; the checks below find a node where that did not happen.
+# NV_CHECK prints "<loaded driver or none> <newest installed kernel> <yes|no: it has NVIDIA modules>"; plain sh, it runs
+# on other nodes over SSH too. Tests point NV_MODULE, NV_BOOT and NV_MODULES at fake folders.
+# shellcheck disable=SC2016   # expanded where it runs
+NV_CHECK='v=$(cat "${NV_MODULE:-/sys/module/nvidia/version}" 2>/dev/null) || v=""; k=$(ls "${NV_BOOT:-/boot}" | sed -n "s/^vmlinuz-//p" | sort -V | tail -1); m=no; [ -n "$k" ] && [ -n "$(find "${NV_MODULES:-/lib/modules}/$k" -name "nvidia.ko*" 2>/dev/null | head -1)" ] && m=yes; echo "${v:-none} ${k:-unknown} $m"'
+nv_problems() {   # stdin: an NV_CHECK line -> what is wrong, one per line (nothing: all well)
+  local v k m; read -r v k m || return 0
+  [ "$v" = none ] && echo "NVIDIA driver not loaded"
+  [ "$m" = no ] && echo "kernel $k has no NVIDIA modules: the GPU stops working when the node boots it"
+  return 0; }
+nv_kernel_meta() {   # the flavour's package that adds the NVIDIA modules for each new kernel (empty: the archive has none)
+  local k p; k=$(uname -r); p="linux-modules-nvidia-$NVIDIA_DRIVER_BRANCH-open-${k#*-*-}"   # 7.0.0-43-generic: generic
+  if apt-cache show "$p" >/dev/null 2>&1; then echo "$p"; fi; return 0; }
+nv_driver_rev() {   # the stage's pin: the branch, plus what is wrong now, so either change runs the stage again
+  local s=$NVIDIA_DRIVER_BRANCH m
+  [ -n "$(nv_targets)" ] || { echo "$s"; return 0; }
+  nv_driver_ok || s+=" no-driver"
+  m=$(nv_kernel_meta); [ -z "$m" ] || dpkg -s "$m" >/dev/null 2>&1 || s+=" no-$m"
+  echo "$s"; }
+nv_follow_kernel() {   # the flavour's modules package, so the next kernel update brings NVIDIA modules too
+  local m; m=$(nv_kernel_meta)
+  if [ -z "$m" ]; then warn "no NVIDIA modules package for the kernel flavour of $(uname -r): a kernel update brings no NVIDIA modules; check 'oif status' after each one"
+  elif ! dpkg -s "$m" >/dev/null 2>&1; then apt_install "$m"; ok "NVIDIA modules follow kernel updates ($m)"; fi
+}
 iso_list() { echo "${ISOLATE_GPUS//,/ }"; }
 iso_ok() { local b f; for b in $(iso_list); do for f in $(slot_functions "$b"); do [ "$(drv "$f")" = vfio-pci ] || return 1; done; done; }
 
-register_stage nvidia-driver NVIDIA_DRIVER_BRANCH   # a new branch reaches installed nodes too (ADR-032)
+register_stage nvidia-driver nv_driver_rev   # a new branch reaches installed nodes too (ADR-032); so does a lost driver (T-143)
 stage_nvidia_driver() {
   [ -n "$(nv_targets)" ] || { warn "no NVIDIA GPU: driver skipped"; return 0; }
-  if nv_driver_ok; then ok "NVIDIA driver loaded: $(nv_loaded) (branch $NVIDIA_DRIVER_BRANCH or newer)"; return 0; fi
-  local br=$NVIDIA_DRIVER_BRANCH old p f=/etc/modprobe.d/90-oif-nouveau.conf
+  local br=$NVIDIA_DRIVER_BRANCH old p f=/etc/modprobe.d/90-oif-nouveau.conf k; k=$(uname -r)
+  if nv_driver_ok; then ok "NVIDIA driver loaded: $(nv_loaded) (branch $br or newer)"; nv_follow_kernel; return 0; fi
   [ "${br%%-*}" -ge "$NVIDIA_DRIVER_MIN" ] || die "NVIDIA_DRIVER_BRANCH $br is older than $NVIDIA_DRIVER_MIN"
+  # T-143: the driver is installed, but the kernel running now came later and has no NVIDIA modules: add them and load it
+  if [ -z "$(nv_loaded)" ] && dpkg -s "nvidia-headless-no-dkms-$br-open" >/dev/null 2>&1 && apt-cache show "linux-modules-nvidia-$br-open-$k" >/dev/null 2>&1; then
+    log "the NVIDIA $br driver is installed but kernel $k has no NVIDIA modules (a kernel update): adding them"
+    apt_install "linux-modules-nvidia-$br-open-$k"
+    modprobe nvidia >> "$LOG" 2>&1 && wait_for "NVIDIA driver loaded" 30 2 nv_driver_ok \
+      || die "the NVIDIA driver did not load on kernel $k (sudo dmesg | grep -i nvidia); reboot the node, then run oif install again"
+    ok "NVIDIA driver loaded again: $(nv_loaded) on kernel $k"; nv_follow_kernel; return 0
+  fi
   old=$(nv_other_branches | paste -sd' ')
   if [ -n "$(nv_loaded)" ]; then log "upgrading the NVIDIA driver $(nv_loaded) to the $br branch (one reboot)"
-  else log "installing the NVIDIA $br driver (headless, open kernel modules, prebuilt for kernel $(uname -r))"; fi
-  # the modules built for the running kernel: the -generic package follows the newest kernel in the archive and would
-  # install that kernel too, which the node then boots and uninstall later removes from under it
-  local mods; mods="linux-modules-nvidia-$br-open-$(uname -r)"
-  if ! apt-cache show "$mods" >/dev/null 2>&1; then
-    mods="linux-modules-nvidia-$br-open-generic"
-    warn "no prebuilt NVIDIA modules for kernel $(uname -r): $mods brings the newest kernel too (uninstall keeps whichever kernel runs)"
-  fi
-  apt_install "nvidia-headless-no-dkms-$br-open" "$mods" "nvidia-utils-$br" "nvidia-compute-utils-$br"
+  else log "installing the NVIDIA $br driver (headless, open kernel modules, prebuilt for kernel $k)"; fi
+  # the modules built for the running kernel, and the flavour's package that adds them for each later kernel (T-143). That
+  # package follows the newest kernel in the archive, so on a node behind on updates it installs that kernel too (the
+  # node boots it; uninstall never removes the kernel that runs)
+  local mods=() meta; meta=$(nv_kernel_meta)
+  apt-cache show "linux-modules-nvidia-$br-open-$k" >/dev/null 2>&1 && mods+=("linux-modules-nvidia-$br-open-$k")
+  [ -n "$meta" ] && mods+=("$meta")
+  [ ${#mods[@]} -gt 0 ] || die "no prebuilt NVIDIA $br modules for kernel $k in the archive (apt-cache search linux-modules-nvidia-$br)"
+  [ -n "$meta" ] || warn "no NVIDIA modules package for the kernel flavour of $k: a kernel update brings no NVIDIA modules; check 'oif status' after each one"
+  apt_install "nvidia-headless-no-dkms-$br-open" "${mods[@]}" "nvidia-utils-$br" "nvidia-compute-utils-$br"
   if [ -n "$old" ]; then   # apt replaced most of them; the rest would load the old branch's modules or firmware
     old=$(for p in $old; do if dpkg -s "$p" >/dev/null 2>&1; then echo "$p"; fi; done | paste -sd' ')   # a false test last must not fail the loop
     # shellcheck disable=SC2086   # a list of package names

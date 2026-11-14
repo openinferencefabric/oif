@@ -32,11 +32,45 @@ nvidia_runtime_leftovers() {   # called by teardown_containerd: GPU pods need nv
   rmdir /etc/containerd/conf.d /etc/cdi /var/run/cdi 2>/dev/null || true
 }
 
+# T-143: a node can lose its NVIDIA driver after the install (a kernel update without NVIDIA modules, then a reboot).
+# Before the stages of a re-run the first node checks every node with an NVIDIA GPU (NV_CHECK, 30-gpu-host.sh). A node
+# with a problem gets its node stages again, where nvidia-driver repairs it; where the driver was gone, the GPU
+# Operator's toolkit decided at boot that no driver is installed on the host and waits for a driver container forever,
+# so gpu-verify restarts it there and checks the GPUs again.
+NV_REPAIR_FILE=nvidia-repair   # under $STATE: the addresses of nodes whose driver was gone
+nv_nodes_check() {   # "label address check" per node with an NVIDIA GPU; check is an NV_CHECK line, or "unreachable"
+  local inv name addr kind _r out seen=" "
+  inv=$( (gpu_inventory) 2>/dev/null ) || return 1
+  while read -r name addr kind _r; do
+    [ "$kind" = nvidia ] || continue; [[ $seen == *" $addr "* ]] && continue; seen+="$addr "
+    out=$(on_gpu_node "$addr" "$NV_CHECK" 2>/dev/null) || out=unreachable
+    echo "$name $addr ${out:-unreachable}"
+  done <<< "$inv"; }
+nv_drift() {   # install_run, before the stages
+  [ -f "$DONE/gpu-verify" ] || return 0   # not installed yet: the stages install the driver anyway
+  local out name addr chk
+  out=$(nv_nodes_check) || { warn "NVIDIA driver check skipped: cannot list the GPUs of every node"; return 0; }
+  while read -r name addr chk; do
+    [[ $chk == "none "* ]] || continue   # unreachable nodes are left to the nodes stage
+    warn "$name: NVIDIA driver not loaded (a kernel update without NVIDIA modules?): its driver stage runs again"
+    [ -n "$(host_prefix "$addr")" ] || rm -f "$DONE/nodes"   # this host: the driver stage's pin (nv_driver_rev) sees it
+    echo "$addr" >> "$STATE/$NV_REPAIR_FILE"; rm -f "$DONE/gpu-verify"
+  done <<< "$out"; }
+nv_operator_restart() {   # the toolkit on each repaired node; its daemonset starts a new one, which finds the host driver
+  local a n
+  for a in $(sort -u "$STATE/$NV_REPAIR_FILE"); do
+    n=$(node_name_of "$a"); [ -n "$n" ] || continue
+    kc -n "$GPU_NS" delete pod -l app=nvidia-container-toolkit-daemonset --field-selector "spec.nodeName=$n" --wait=false >> "$LOG" 2>&1 || true
+    ok "$n: GPU Operator toolkit restarted (it gave up on the host driver while it was missing)"
+  done; }
+
 register_stage gpu-verify GPU_OPERATOR_VERSION
 stage_gpu_verify() {
   local want n node; want=$(gpu_count nvidia); [ "$want" -gt 0 ] || return 0
+  if [ -s "$STATE/$NV_REPAIR_FILE" ]; then nv_operator_restart; fi   # T-143
   wait_for "nvidia.com/gpu advertised ($want in the cluster)" 300 10 gpu_resource_is nvidia.com/gpu "$want" \
-    || die "the cluster does not advertise $want nvidia.com/gpu (kubectl describe nodes | grep -A6 Allocatable)"
+    || die "the cluster does not advertise $want nvidia.com/gpu (kubectl describe nodes | grep -A6 Allocatable; kubectl -n $GPU_NS get pods -o wide)"
+  rm -f "$STATE/$NV_REPAIR_FILE"
   node=$(node_with nvidia.com/gpu)
   n=$(kc get node "$node" -o jsonpath='{.metadata.labels.nvidia\.com/gpu\.product}')
   [ -n "$n" ] || die "GPU feature discovery labels missing (kubectl get node $node --show-labels)"
