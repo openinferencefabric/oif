@@ -1,0 +1,38 @@
+# T-143 on the lab cluster, 2026-11-14: found after the T-141 install rerun (main d1d36af). Read-only checks from cp1
+# (kubectl) and on the NVIDIA worker gpu-nvidia; the owner ran the repair commands.
+
+== Symptom
+- kubectl get node gpu-nvidia: allocatable nvidia.com/gpu 0 (node Ready for 34 h, nothing warned)
+- gpu-operator pods on gpu-nvidia Unknown since 2026-11-12 19:55 (gpu-feature-discovery, nvidia-container-toolkit,
+  nvidia-dcgm-exporter, nvidia-device-plugin, nvidia-operator-validator); runai gpu-fractioning-fractiond and -mpsd too
+- events: FailedCreatePodSandBox ... no runtime for "nvidia" is configured; /etc/containerd/conf.d empty
+- nvidia-smi on the node: couldn't communicate with the NVIDIA driver
+
+== Cause
+- uname -r 7.0.0-42-generic; booted 2026-11-12 19:55 (VM restart)
+- dpkg log: nvidia 615-server installed 2026-11-02 with linux-modules-nvidia-615-server-open-7.0.0-38-generic only
+  (oif's driver stage: modules for the running kernel); unattended-upgrades installed kernel 7.0.0-42 (2026-11-03,
+  linux-image-virtual) and 7.0.0-43 (2026-11-13) without NVIDIA modules; lsmod: no nvidia
+- apt-cache: linux-modules-nvidia-615-server-open-7.0.0-42-generic and -43 available; the flavour package
+  linux-modules-nvidia-615-server-open-generic depends only on linux-modules-nvidia-615-server-open-7.0.0-43-generic and
+  nvidia-kernel-common-615-server (the modules package depends on linux-image-7.0.0-43-generic, installed already)
+- the toolkit pod's driver-validation init container, at boot: "No pre-installed driver detected on the host: exit
+  status 9", "Validating containerized driver installation", then "failed to validate the driver, retrying after 5
+  seconds" for 34 h: it never checks the host again, so loading the driver alone does not bring the GPU back
+
+== Repair (owner)
+gpu-nvidia: sudo apt-get install -y linux-modules-nvidia-615-server-open-7.0.0-42-generic linux-modules-nvidia-615-server-open-generic
+            (also installed linux-modules-nvidia-615-server-open-7.0.0-43-generic)
+            sudo modprobe nvidia; nvidia-smi: NVIDIA RTX A6000, driver 615.71.09, no reboot
+cp1:        kubectl -n gpu-operator delete pod nvidia-container-toolkit-daemonset-6zzj4 (and the other four stuck
+            gpu-operator pods, and the two gpu-fractioning pods in runai)
+06:28 toolkit Running, nvidia-cuda-validator Completed; 06:31 nvidia.com/gpu 1, every gpu-operator and gpu-fractioning
+pod on gpu-nvidia Ready
+
+== What T-143 changes (unit test tests/unit/test_nvidia_kernel.sh)
+- stage nvidia-driver also installs linux-modules-nvidia-<branch>-open-<flavour>, so each kernel update brings the
+  NVIDIA modules; on installed nodes it runs again once to add it (the stage's pin names what is missing)
+- a node whose driver is gone: the stage adds the running kernel's modules and loads the driver without a reboot
+- oif install, before the stages: a node with an NVIDIA GPU and no driver gets its node stages again, then gpu-verify
+  restarts the GPU Operator toolkit there and checks the GPUs (CUDA test pod)
+- oif status: per NVIDIA node, the driver and whether the kernel it boots next has NVIDIA modules

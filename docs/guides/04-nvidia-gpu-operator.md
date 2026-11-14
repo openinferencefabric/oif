@@ -158,4 +158,5 @@ Guide 6 shows the same for the AMD GPU, and how each pod sees only its own GPU.
 | `nvidia-operator-validator` stuck in `Init` | The host driver is not loaded: check `nvidia-smi` on the host and guide 2. |
 | `the node does not advertise 1 nvidia.com/gpu` | `kubectl -n gpu-operator logs ds/nvidia-device-plugin-daemonset`. A GPU bound to `vfio-pci` is not visible to the device plugin. |
 | `CUDA vectorAdd did not pass` | `kubectl -n oif-gpu-test logs cuda -c vectoradd`. A CUDA error usually means a driver and toolkit mismatch; check the validator logs. |
+| GPU Operator pods `Unknown`, events `no runtime for "nvidia" is configured`, toolkit log `failed to validate the driver, retrying` | The node booted a kernel without NVIDIA modules (guide 2, "After a kernel update"). `sudo ./oif install` repairs it; by hand: install the modules for `uname -r`, `sudo modprobe nvidia`, then delete the node's `nvidia-container-toolkit-daemonset` pod. |
 | `no DCGM metrics` | `kubectl -n gpu-operator logs ds/nvidia-dcgm-exporter`. |

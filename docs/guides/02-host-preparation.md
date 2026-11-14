@@ -132,11 +132,31 @@ active
 
 `nvidia-smi` reports **CUDA Version: 13.2**, which meets Dynamo's requirement of driver 580 or newer with CUDA 13.
 
+## After a kernel update (T-143)
+
+The NVIDIA kernel modules are built per kernel. Ubuntu installs new kernels by itself (unattended-upgrades), and a
+node that boots a kernel without NVIDIA modules has no NVIDIA driver; the GPU Operator then waits for a driver
+container and the node offers no `nvidia.com/gpu` (seen on the lab on 2026-11-12, [evidence](../evidence/T-143/01-lab.txt)).
+oif prevents and repairs this:
+
+- The driver stage installs `linux-modules-nvidia-<branch>-open-<flavour>` (e.g. `linux-modules-nvidia-615-server-open-generic`),
+  which brings the NVIDIA modules with each new kernel. A node installed before T-143 gets it on the next `oif install`.
+- `sudo ./oif status` shows, per node with an NVIDIA GPU, whether the driver runs and whether the kernel it boots next
+  has NVIDIA modules:
+
+  ```text
+  NVIDIA drivers:
+    [ok] gpu-nvidia: driver 615.71.09; kernel 7.0.0-43-generic, booted next, has its modules
+  ```
+
+- A node that lost its driver is repaired by `sudo ./oif install`: it adds the modules for the running kernel, loads
+  the driver without a reboot, restarts the GPU Operator toolkit on that node and runs the CUDA test pod again.
+
 ## What changed on the host
 
 | Change | Reversed by `oif uninstall` |
 | --- | --- |
-| Packages: conntrack, curl, ipset, socat; containerd 2.2.2, runc 1.4.0; NVIDIA 595-server headless driver, prebuilt open kernel modules, utilities (18 packages with dependencies) | Purged, unless a package the OS had before depends on one |
+| Packages: conntrack, curl, ipset, socat; containerd 2.2.2, runc 1.4.0; NVIDIA 595-server headless driver, prebuilt open kernel modules for the running kernel and the package that adds them for later kernels (T-143), utilities (18 packages with dependencies) | Purged, unless a package the OS had before depends on one |
 | `/etc/modules-load.d/90-oif.conf`, `/etc/sysctl.d/90-oif.conf` | Deleted |
 | Swap line in `/etc/fstab` commented out (`# disabled by oif:`) | `/etc/fstab` restored from its backup, swap on |
 | `/etc/containerd/config.toml`: systemd cgroups, data in `<INSTALL_DIR>/containerd` | Containers stopped, mounts detached, file and data deleted |
@@ -155,6 +175,7 @@ Preview the uninstall at any time without changing anything: `sudo ./oif plan`.
 | `0000:xx:00.0 is not an NVIDIA GPU` | Give only addresses from the NVIDIA lines of the GPU table, or press Enter for all. |
 | `is a compute GPU and AMD_GPUS (empty) means all of them` | To isolate an AMD compute GPU, list the AMD GPUs you do want in `AMD_GPUS`. |
 | `still needed after the reboot ... not rebooting again` | The driver or `vfio-pci` did not take over. Check `lsmod \| grep -E 'nvidia\|nouveau'`, `journalctl -k \| grep -i nvidia` and `lspci -nnk -s <address>`. oif never reboots twice for the same reason. |
+| `the NVIDIA driver did not load on kernel ...` | The modules for the running kernel were added but `modprobe nvidia` failed: check `sudo dmesg \| grep -i nvidia`, reboot the node, then run `sudo ./oif install` again. |
 | `IOMMU is off` | Enable AMD-Vi (or VT-d on Intel) in the BIOS, or set `ISOLATE_GPUS=none`. |
 | `has the same device id as a GPU to isolate` | `vfio-pci` binds by device id, so two cards of the same model cannot be split this way. Leave that card unisolated. |
 | You answered `n` to the reboot question | Reboot when convenient with `sudo reboot`; the install continues by itself afterwards. |
