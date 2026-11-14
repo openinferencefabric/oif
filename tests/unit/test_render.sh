@@ -29,6 +29,28 @@ for t in "$ROOT"/platform/*/*.yaml; do
   grep -qE '\$\{[A-Z_]+\}' <<< "$out" && fail "placeholder left in $t"
   [ -n "$out" ] || fail "empty output for $t"
 done
+# CRD schemas hold no null value. An unquoted "description: a, b" inside {...} is still valid YAML but adds a key "b"
+# with no value; the API server takes it on create and refuses it on the next update (T-134 lab).
+if python3 -c 'import yaml' 2>/dev/null; then   # PyYAML: in CI with yamllint, on Ubuntu hosts
+  for t in "$ROOT"/platform/*/*.yaml; do
+    grep -q "kind: CustomResourceDefinition" "$t" || continue
+    bad=$(render "$t" | python3 -c '
+import sys, yaml
+def walk(node, path):
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if v is None:
+                print(path + "." + str(k))
+            walk(v, path + "." + str(k))
+    elif isinstance(node, list):
+        for x in node:
+            walk(x, path)
+for doc in yaml.safe_load_all(sys.stdin):
+    if doc and doc.get("kind") == "CustomResourceDefinition":
+        walk(doc["spec"], doc["metadata"]["name"])')
+    [ -z "$bad" ] || fail "null in the CRD schema of ${t##*/} (quote a description with a comma): $bad"
+  done
+fi
 export ROCM_PYTORCH_IMAGE JUPYTERLAB_VERSION
 for t in "$ROOT"/platform/runai/templates/*.json; do   # Run:ai templates: rendered, valid JSON with kind, meta.name and an AMD GPU
   out=$(render "$t") || { fail "render $t"; continue; }

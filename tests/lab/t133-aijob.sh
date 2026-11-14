@@ -46,6 +46,7 @@ cleanup; wait_for "old test jobs gone" 120 5 bash -c '[ -z "$(kubectl --kubeconf
 
 echo "T-133 AIJob (controller oif-aijob), project namespace $NS"
 check "oif-aijob running" bash -c '[ "$(kubectl --kubeconfig "$1" -n oif-aijob get deploy oif-aijob -o jsonpath="{.status.readyReplicas}")" = 1 ]' _ "$KCFG"
+wait_for "GPUs free (an earlier test's pods may still be stopping)" 180 5 both_free >/dev/null 2>&1
 check "both GPUs free before the test" both_free
 
 # admission

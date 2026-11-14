@@ -43,7 +43,7 @@ spec:
                 - {rule: self == oldSelf, message: "an AIJob's spec cannot change: delete it and create it again"}
               properties:
                 model: {type: string, description: the model the job works with; passed to the container as OIF_MODEL}
-                precision: {type: string, description: e.g. bf16, fp8; passed as OIF_PRECISION}
+                precision: {type: string, description: "e.g. bf16, fp8; passed as OIF_PRECISION"}
                 gpuCount: {type: integer, minimum: 1, description: GPUs per pod}
                 workers: {type: integer, minimum: 1, description: "pods, started together (one gang); default 1"}
                 template:

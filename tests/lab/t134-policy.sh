@@ -33,7 +33,7 @@ both_free() { in_use_is "$nv_dom" 0 && in_use_is "$amd_dom" 0; }
 cleanup() { kc -n "$NS" delete aijobs -l app.kubernetes.io/part-of=oif-t134 --ignore-not-found --wait=false >/dev/null 2>&1
   kc -n "$NS" delete placementpolicy default --ignore-not-found >/dev/null 2>&1
   kc -n oif-aijob delete placementpolicy default --ignore-not-found >/dev/null 2>&1; }
-trap cleanup EXIT
+trap 'cleanup; wait_for "GPUs free again" 180 5 both_free >/dev/null 2>&1' EXIT   # the next test starts clean
 policy() {   # namespace spec-JSON
   echo "{\"apiVersion\": \"oif.ai/v1alpha1\", \"kind\": \"PlacementPolicy\", \"metadata\": {\"name\": \"default\", \"namespace\": \"$1\"}, \"spec\": $2}"; }
 aijob() {   # name [placement JSON]: one pod, one GPU, no vendor

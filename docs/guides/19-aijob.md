@@ -123,3 +123,4 @@ NVIDIA), one with no vendor, the status fields, and that a plain GPU pod is not 
 | Phase `Failed`, message `not a Run:ai project` | Create the AIJob in a project's namespace (`kubectl get ns -l runai/queue`). |
 | Phase `Pending` for long | The project's quota or the vendor's GPUs are taken: `kubectl -n <ns> describe pod -l oif.ai/aijob=<name>` shows the scheduler's reason. |
 | The vendor is not the preferred one | The preferred vendor had no room when the AIJob was created (status message). The choice is made once. |
+| `Pending` on a busy vendor while the other is free | When the AIJob was created neither had room in the view (it is up to 30 s old, and pods that are stopping still count), so it waits on the first in order. The choice is not revisited: delete the AIJob and create it again. |
