@@ -5,8 +5,8 @@ Credentials come from the environment (RUNAI_URL, RUNAI_USER, RUNAI_PASSWORD, RU
 never printed. Commands:
   check                                  log in and print the clusters
   nodes                                  print each node with its GPU type and count as Run:ai sees them
-  project NAME GPU_DESERVED GPU_LIMIT [POOL]  create the project if missing (GPU_LIMIT -1 = no limit; quota in node pool
-                                         POOL, default "default"), print its namespace
+  project NAME GPU_DESERVED GPU_LIMIT    create the project if missing (GPU_LIMIT -1 = no limit; quota in node pool
+                                         "default"), print its namespace
   project-pools NAME POOL=GPUS...        create the project if missing with a GPU quota per node pool, print its namespace
   node-pool NAME LABEL_KEY LABEL_VALUE   create the node pool if missing (nodes with that label) and wait until it is Ready
   pools                                  print each node pool: name, phase, nodes and GPU count
@@ -17,7 +17,6 @@ never printed. Commands:
   template FILE                          create or update the workload template in FILE (JSON)
   templates                              list the workload templates (name, kind)
   template-delete NAME                   delete the workload template NAME, if there is one
-  submit KIND NAME PROJECT TEMPLATE [COMMAND [ARGS]]  submit a training or workspace (KIND trainings, workspaces) from a template
   workloads                              list the workloads as Run:ai shows them: name, type, phase, project
   compute-presets FILE KIND...           create or update the compute presets in FILE whose vendor is one of KIND
                                          (nvidia, amd, amd-fractions), delete oif's presets of the other kinds
@@ -263,27 +262,6 @@ def template_delete(token: str, name: str) -> None:
     print(f"template {name} not present")
 
 
-def submit(token: str, kind: str, name: str, project_name: str, template_name: str, command: str = "", args: str = "") -> None:
-    """Submit a workload (kind: trainings or workspaces) from a template, optionally with another command."""
-    status, out = call("GET", "/api/v1/org-unit/projects", token=token)
-    proj = next((p for p in out.get("projects", []) if p.get("name") == project_name), None) if status == 200 else None
-    if not proj:
-        sys.exit(f"project {project_name} not found")
-    status, out = call("GET", "/api/v1/workload-templates", token=token)
-    tmpl = next((e for e in out.get("entries", []) if e["meta"]["name"] == template_name), None) if status == 200 else None
-    if not tmpl:
-        sys.exit(f"template {template_name} not found")
-    body = {"name": name, "projectId": str(proj["id"]), "clusterId": proj["clusterId"], "templateId": tmpl["meta"]["id"], "spec": {}}
-    if command:
-        body["spec"]["command"] = command
-    if args:
-        body["spec"]["args"] = args
-    status, out = call("POST", f"/api/v1/workloads/{kind}", body, token)
-    if status not in (200, 201, 202):
-        sys.exit(f"submit {name}: HTTP {status} {out}")
-    print(f"{kind[:-1]} {name} submitted in project {project_name} from template {template_name}")
-
-
 # read-only fields of a department as GET returns it; PUT takes the rest back unchanged
 DEPT_READ_ONLY = {"id", "name", "clusterId", "createdAt", "createdBy", "updatedAt", "updatedBy", "effective", "parent",
                   "parentId", "status", "totalResources", "overtimeData", "children", "projectsAggregatedResources"}
@@ -452,9 +430,8 @@ def main() -> None:
             print(c.get("name"), c.get("uuid"), c.get("version", ""), c.get("lastLiveness", ""))
     elif cmd == "nodes":
         nodes(token)
-    elif cmd == "project" and len(sys.argv) in (5, 6):
-        pool = sys.argv[5] if len(sys.argv) == 6 else "default"
-        project(token, sys.argv[2], {pool: (float(sys.argv[3]), float(sys.argv[4]))})
+    elif cmd == "project" and len(sys.argv) == 5:
+        project(token, sys.argv[2], {"default": (float(sys.argv[3]), float(sys.argv[4]))})
     elif cmd == "project-pools" and len(sys.argv) >= 4:
         quotas = {}
         for q in sys.argv[3:]:
@@ -490,8 +467,6 @@ def main() -> None:
         network_topologies(token)
     elif cmd == "network-topology-delete" and len(sys.argv) == 3:
         network_topology_delete(token, sys.argv[2])
-    elif cmd == "submit" and 6 <= len(sys.argv) <= 8:
-        submit(token, *sys.argv[2:])
     else:
         sys.exit(__doc__)
 

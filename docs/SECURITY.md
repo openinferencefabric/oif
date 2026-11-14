@@ -15,7 +15,7 @@ Security requirements from the start, not before release.
 
 ## Secrets
 
-- Secrets (Hugging Face token, Run:ai admin password, Grafana admin password) are read from `.env` at install time and stored only as Kubernetes Secrets. `.env` is untracked.
+- Secrets (Run:ai admin password, Grafana admin password) are read from `.env` at install time and stored only as Kubernetes Secrets. `.env` is untracked.
 - Scripts never echo secrets; logs are checked for token patterns in CI.
 - The repository is public: no real IP addresses, host names, user names or tokens in tracked files. CI runs gitleaks on every push.
 

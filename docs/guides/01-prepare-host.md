@@ -115,7 +115,6 @@ nano .env
 | `RUNAI_ADMIN_EMAIL` | Run:ai administrator login | `admin@example.com` |
 | `RUNAI_ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` | Your own passwords, 12 characters or more | |
 | `NGC_API_KEY` | NVIDIA NGC key, for the Run:ai images and charts | |
-| `HF_TOKEN` | Hugging Face token, only for gated models | empty |
 
 Values may be quoted. The file is read as data, never run as a script. Anything left empty is asked during `oif install`; passwords are asked without showing them.
 

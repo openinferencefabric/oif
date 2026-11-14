@@ -67,7 +67,7 @@ kc() {
   case "$*" in *"get nodes -l oif.ai/gpu-memory-label -o name"*) for n in $MARKED; do echo "node/$n"; done ;; esac
   return 0
 }
-rm -f "$CALLS"; MARKED="amd-1"; amd_gpu_memory_unlabel "" > /dev/null
+rm -f "$CALLS"; MARKED="amd-1"; amd_gpu_memory_unlabel > /dev/null
 grep -q "kubectl label node amd-1 nvidia.com/gpu.memory- oif.ai/gpu-memory-label-" "$CALLS" || fail "fractions off: label removed"
 
 out=$(render "$ROOT/platform/gpu-amd/amd-vram-cap.yaml")

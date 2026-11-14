@@ -51,9 +51,8 @@ describe_records() {   # stdin: manifest lines -> what uninstall does with each
   local kind rest
   while read -r kind rest; do case $kind in
     FILE) echo "delete file $rest" ;;  DIR|DATADIR) echo "delete folder $rest" ;;
-    RESTORE) echo "restore ${rest#* } from its backup" ;;  BLOCK) echo "remove oif block '${rest#* }' from ${rest%% *}" ;;
-    LINE) echo "remove a line from ${rest%% *}" ;;  SWAP) echo "re-enable swap" ;;  GROUP) echo "remove user from group: $rest" ;;
-    SERVICE) echo "stop and disable $rest" ;;  ENABLED) echo "disable $rest" ;;  INITRAMFS) echo "rebuild the boot image" ;;
+    RESTORE) echo "restore ${rest#* } from its backup" ;;  SWAP) echo "re-enable swap" ;;
+    SERVICE) echo "stop and disable $rest" ;;  INITRAMFS) echo "rebuild the boot image" ;;
     TEARDOWN) echo "tear down: $rest" ;;  NODE) echo "uninstall node ${rest#* } (${rest%% *}) to its OS default" ;;
     NODEKEY) echo "remove oif's cluster key from ${rest%% *}" ;;  ADMINKEY) echo "remove your SSH key oif added on ${rest%% *}" ;;
     *) echo "$kind $rest" ;;
@@ -100,18 +99,10 @@ replay_manifest() {   # reverse every recorded change, newest first; package rem
   while read -r -u 3 kind rest; do   # records on fd 3: a command in the loop cannot read them away
     case $kind in
       SERVICE)  systemctl disable --now "$rest" >/dev/null 2>&1 || true; ok "stopped $rest" ;;
-      ENABLED)  systemctl disable "$rest" >/dev/null 2>&1 || true ;;
-      BLOCK)    local bf=${rest%% *} bt=${rest#* }
-                if [ "$bf" = /etc/fstab ]; then sed -n "\|^# BEGIN $MARK $bt\$|,\|^# END $MARK $bt\$|p" "$bf" | awk '$1 !~ /^#/ {print $2}' \
-                  | sort -r | xargs -r -n1 umount -l 2>/dev/null || true; fi
-                if [ -f "$bf" ]; then sed -i "\|^# BEGIN $MARK $bt\$|,\|^# END $MARK $bt\$|d" "$bf"; fi ;;
-      LINE)     local lf=${rest%% *} ll=${rest#* }
-                if [ -f "$lf" ]; then grep -vxF -- "$ll" "$lf" > "$lf.oif.tmp" || true; cat "$lf.oif.tmp" > "$lf"; rm -f "$lf.oif.tmp"; fi ;;
       SWAP)     sed -i -E 's/^# disabled by oif: //' /etc/fstab; swapon -a 2>/dev/null || true; ok "swap re-enabled" ;;
       RESTORE)  local rb=${rest%% *} rd=${rest#* }; if [ -f "$rb" ]; then cp -p "$rb" "$rd"; fi ;;
       FILE)     rm -f -- "$rest" ;;
       DIR|DATADIR) datadirs+=("$rest") ;;
-      GROUP)    gpasswd -d "${rest% *}" "${rest#* }" >/dev/null 2>&1 || true ;;
       INITRAMFS) redo=yes ;;
       NODE)     node_uninstall "${rest%% *}" ;;   # another node of the cluster: its own record, replayed there
       ADMINKEY) node_ssh "${rest%% *}" "$(authorized_del "${rest#* }")" >/dev/null 2>&1 || warn "${rest%% *}: admin key not removed" ;;
