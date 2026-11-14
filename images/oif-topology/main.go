@@ -2,6 +2,7 @@
 // accelerator domain (the GPUs a job can use over one scale-up fabric), the fabric and the scale-out zone, for KAI's
 // topology-aware scheduling. Reads sysfs (read only) and the node's own labels and annotations; changes only its three
 // labels, on its own node (ValidatingAdmissionPolicy oif-topology-own-node).
+// With --domains (T-131) it is instead the one-replica AcceleratorDomain view of the cluster (domains.go).
 package main
 
 import (
@@ -23,7 +24,24 @@ func main() {
 	sys := flag.String("sys", "/host/sys", "the node's sysfs")
 	every := flag.Duration("interval", time.Minute, "how often to look again")
 	once := flag.Bool("once", false, "print the decision for this node and exit, changing nothing")
+	domains := flag.Bool("domains", false, "keep the AcceleratorDomain objects up to date instead (one replica per cluster)")
 	flag.Parse()
+	if *domains {
+		k, err := newKube()
+		if err != nil {
+			log.Fatalf("oif-topology: no service account: %v", err)
+		}
+		last := ""
+		for {
+			if msg, err := syncDomains(k); err != nil {
+				log.Printf("domains: %v", err)
+			} else if msg != last {
+				log.Print(msg)
+				last = msg
+			}
+			time.Sleep(*every)
+		}
+	}
 	name := os.Getenv("NODE_NAME")
 	if name == "" {
 		log.Fatal("oif-topology: NODE_NAME not set")
@@ -116,7 +134,7 @@ func (k *kube) do(method, path, contentType string, body []byte, out any) error 
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode/100 != 2 {
 		var st struct {
 			Message string `json:"message"`
 		}

@@ -4,6 +4,9 @@
 #   AMD xGMI hive from the driver's sysfs (read only), else the node; node annotations with the same keys win (a Helios
 #   rack's UALink domain, which no driver reports yet). Nodes without GPUs get none.
 # - Policy oif-topology-own-node: the agent may change only the node it runs on, and only those three labels.
+# - T-131: AcceleratorDomain objects (oif.ai/v1alpha1), a read-only view of those domains: Deployment oif-domains
+#   (the same image, --domains) keeps one object per domain with its vendor, fabric, nodes and GPUs (capacity,
+#   allocatable, in use). The scheduler never reads them; it reads the node labels.
 # Rendered by stage topology; ${...} from the installer.
 apiVersion: v1
 kind: Namespace
@@ -113,3 +116,105 @@ spec:
           volumeMounts: [{name: sys, mountPath: /host/sys, readOnly: true}]
       volumes:
         - {name: sys, hostPath: {path: /sys, type: Directory}}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: acceleratordomains.oif.ai
+  labels: {app.kubernetes.io/managed-by: oif}
+spec:
+  group: oif.ai
+  scope: Cluster
+  names: {kind: AcceleratorDomain, plural: acceleratordomains, singular: acceleratordomain, shortNames: [adom]}
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources: {status: {}}
+      additionalPrinterColumns:
+        - {name: Vendor, type: string, jsonPath: .status.vendor}
+        - {name: Fabric, type: string, jsonPath: .status.fabric}
+        - {name: Nodes, type: string, jsonPath: .status.nodes}
+        - {name: GPUs, type: integer, jsonPath: .status.allocatableGPUs}
+        - {name: In-use, type: integer, jsonPath: .status.inUseGPUs}
+        - {name: Ready, type: string, jsonPath: '.status.conditions[?(@.type=="Ready")].status'}
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: An accelerator domain (the GPUs a job can use over one scale-up fabric), as the node label oif.ai/accelerator-domain defines it. Read-only, kept by oif-domains.
+          properties:
+            status:
+              type: object
+              properties:
+                domain: {type: string, description: the oif.ai/accelerator-domain label value}
+                vendor: {type: string, enum: [nvidia, amd, mixed]}
+                fabric: {type: string}
+                zone: {type: string}
+                nodes: {type: array, items: {type: string}}
+                capacity: {type: object, additionalProperties: {type: integer}, description: GPUs per vendor}
+                allocatable: {type: object, additionalProperties: {type: integer}}
+                inUse: {type: object, additionalProperties: {type: integer}, description: GPUs requested by unfinished pods on the domain's nodes}
+                allocatableGPUs: {type: integer}
+                inUseGPUs: {type: integer}
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status]
+                    properties:
+                      type: {type: string}
+                      status: {type: string}
+                      reason: {type: string}
+                      message: {type: string}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oif-domains
+  namespace: oif-topology
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oif-domains
+  labels: {app.kubernetes.io/managed-by: oif}
+rules:
+  - {apiGroups: [""], resources: [nodes, pods], verbs: [list]}
+  - {apiGroups: [oif.ai], resources: [acceleratordomains], verbs: [list, create, delete]}
+  - {apiGroups: [oif.ai], resources: [acceleratordomains/status], verbs: [patch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oif-domains
+  labels: {app.kubernetes.io/managed-by: oif}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: oif-domains}
+subjects:
+  - {kind: ServiceAccount, name: oif-domains, namespace: oif-topology}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oif-domains
+  namespace: oif-topology
+  labels: {app.kubernetes.io/managed-by: oif, app: oif-domains}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: oif-domains}
+  template:
+    metadata:
+      labels: {app: oif-domains}
+    spec:
+      serviceAccountName: oif-domains
+      nodeSelector:
+        ${SYSTEM_LABEL}: "true"
+      containers:
+        - name: domains
+          image: ${TOPOLOGY_IMAGE}
+          imagePullPolicy: IfNotPresent   # built by oif, loaded on every node
+          command: [/oif-topology, --domains, --interval=30s]
+          securityContext: {runAsNonRoot: true, runAsUser: 65532, readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {memory: 64Mi}

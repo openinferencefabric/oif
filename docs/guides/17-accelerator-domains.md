@@ -1,6 +1,6 @@
 # Guide 17: Accelerator domains
 
-Step T-130 (ADR-019, amendment 2026-11-05). Tested on the lab cluster (guide 10) on 2026-11-05 with
+Steps T-130, T-131 and T-132 (ADR-019, amendment 2026-11-05). Tested on the lab cluster (guide 10) on 2026-11-05 with
 `tests/lab/t130-topology-labels.sh` (12/12, docs/evidence/T-130/); packing (T-132) tested on 2026-11-06 with
 `tests/lab/t132-runai-topology.sh` (8/8) and `S9_TOPOLOGY=oif-accelerator tests/lab/s9-fake-topology.sh` (14/14),
 docs/evidence/T-132/.
@@ -78,6 +78,33 @@ sudo tests/lab/t130-topology-labels.sh               # labels, override, and the
 ```
 
 Without GPUs the stage removes the agent, the policy and the labels. `oif uninstall` removes them with the cluster.
+
+## See the domains: AcceleratorDomain (T-131)
+
+Each domain also appears as a cluster object, `AcceleratorDomain` (`oif.ai/v1alpha1`, short name `adom`): a
+**read-only view** for people and tools. The scheduler never reads it; it reads the node labels above. Deployment
+`oif-domains` (the agent's image, run with `--domains`, one replica on a system node) looks every 30 s and keeps one
+object per domain: vendor (`nvidia`, `amd`, or `mixed` for a node with both), fabric, zone, nodes, and per vendor the
+GPUs' capacity, allocatable and in use (GPUs requested by unfinished pods on the domain's nodes, KAI's reservation pods
+behind GPU fractions included), with a `Ready` condition that names any node that is not.
+
+```bash
+kubectl get acceleratordomains
+```
+
+```text
+NAME         VENDOR   FABRIC   NODES            GPUS   IN-USE   READY   AGE
+gpu-amd      amd      pcie     ["gpu-amd"]      1      0        True    5m
+gpu-nvidia   nvidia   pcie     ["gpu-nvidia"]   1      0        True    5m
+```
+
+`kubectl get adom gpu-amd -o yaml` shows the per-vendor numbers. Stage `topology` deploys it with the agent and waits
+until every domain has its object; editing an object changes nothing for long (oif-domains writes it back), and it
+goes with the agent when the cluster has no GPUs, and with `oif uninstall`. GPU memory per domain is not shown yet.
+
+```bash
+sudo tests/lab/t131-domains.sh     # the objects, and in-use following a GPU pod on the NVIDIA node
+```
 
 ## Packing workloads by domain (T-132)
 
