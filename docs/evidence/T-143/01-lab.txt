@@ -36,3 +36,10 @@ pod on gpu-nvidia Ready
 - oif install, before the stages: a node with an NVIDIA GPU and no driver gets its node stages again, then gpu-verify
   restarts the GPU Operator toolkit there and checks the GPUs (CUDA test pod)
 - oif status: per NVIDIA node, the driver and whether the kernel it boots next has NVIDIA modules
+
+== Lab run of T-143 (owner, 2026-11-14, main 01cdcdc): sudo ./oif install, then sudo ./oif status on cp1
+Install finished (nodes stage re-ran on every node: its code changed). Status, new section:
+NVIDIA drivers:
+  [ok] <gpu-nvidia>: driver 615.71.09; kernel 7.0.0-43-generic, booted next, has its modules
+Every stage [x]. Only the normal path is proven on hardware (the driver had been repaired by hand); the repair path
+(lost driver -> modules, modprobe, toolkit restart) is unit-tested (test_nvidia_kernel.sh).
