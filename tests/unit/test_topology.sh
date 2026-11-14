@@ -1,6 +1,7 @@
 #!/bin/bash
 # T-130 stage topology: the agent is built and deployed when the cluster has GPUs, removed (with its labels) otherwise;
 # what reruns it; the manifest keeps the agent off simulated nodes and limits it to its own node and its three labels.
+# T-131: the AcceleratorDomain view (Deployment oif-domains, CRD): deployed, waited for, removed with the agent.
 # kubectl and the build are stubbed; the calls are recorded. The labelling rules are tested in Go
 # (images/oif-topology/topology_test.go, run by the image build).
 # shellcheck source=lib.sh
@@ -11,10 +12,12 @@ for f in "$ROOT"/installer/stages/60-runai.sh "$ROOT"/installer/stages/61-vendor
   . "$f" || { echo "      FAIL: cannot load $f"; exit 1; }
 done
 CALLS=$SANDBOX/calls
-UNLABELLED=""
+UNLABELLED=""; OBJECTS=$'gpu-amd\ngpu-nvidia'
 kc() {
   echo "kubectl $*" >> "$CALLS"
   case "$*" in
+    "get nodes -l oif.ai/accelerator-domain -o jsonpath="*"accelerator-domain}"*) printf 'gpu-nvidia\ngpu-amd\n' ;;
+    "get acceleratordomains -o jsonpath="*) echo "$OBJECTS" ;;
     *"apply -f -"*) cat > /dev/null ;;
     "get nodes -l type notin (kwok) -o jsonpath="*) printf 'cp1  \ngpu-nvidia 1 gpu-nvidia\ngpu-amd 1 %s\n' "$UNLABELLED" ;;
   esac
@@ -32,6 +35,12 @@ grep -q "^build oif-topology oif.local/oif/oif-topology:" "$CALLS" || fail "GPUs
 grep -q "^spread oif-topology " "$CALLS" || fail "image copied to the other nodes"
 grep -q "kubectl apply -f $OIF_STATE/topology.yaml" "$CALLS" || fail "manifest applied"
 grep -q "rollout status ds/oif-topology" "$CALLS" || fail "waits for the agent"
+grep -q "rollout status deploy/oif-domains" "$CALLS" || fail "waits for the domain view"
+grep -q "rollout restart ds/oif-topology deploy/oif-domains" "$CALLS" || fail "a rebuilt image restarts both"
+grep -q "AcceleratorDomain view up to date" "$SANDBOX/out" || fail "the view: message"
+[ "$(domains_missing)" = "" ] || fail "every domain has its object"
+OBJECTS=gpu-nvidia; [ "$(domains_missing)" = gpu-amd ] || fail "a domain without its object is reported"
+OBJECTS=$'gpu-amd\ngpu-nvidia'
 [ "$(topology_unlabelled)" = "" ] || fail "a labelled GPU node is not reported"
 UNLABELLED=""
 [ "$(topology_unlabelled)" = gpu-amd ] || fail "a GPU node without a domain is reported, a node without GPUs is not"
@@ -41,6 +50,7 @@ grep -q "^build" "$CALLS" && fail "no GPUs: nothing built"
 grep -q "kubectl delete validatingadmissionpolicy oif-topology-own-node" "$CALLS" || fail "no GPUs: policy removed"
 grep -q "kubectl label nodes -l type notin (kwok) oif.ai/accelerator-domain- oif.ai/accelerator-fabric- oif.ai/scaleout-zone-" "$CALLS" \
   || fail "no GPUs: the agent's labels removed from real nodes"
+grep -q "kubectl delete crd acceleratordomains.oif.ai" "$CALLS" || fail "no GPUs: the AcceleratorDomain view removed"
 
 a=$(topology_rev); echo "// x" >> "$SANDBOX/extra.go"
 b=$(TOPOLOGY_SRC=$SANDBOX topology_rev 2>/dev/null)
@@ -54,4 +64,7 @@ grep -q "object.spec == oldObject.spec" <<< "$out" || fail "the policy keeps tai
 grep -q "validationActions: \[Deny\]" <<< "$out" || fail "the policy denies"
 grep -q "readOnly: true" <<< "$out" || fail "sysfs mounted read only"
 grep -q "verbs: \[get, patch\]" <<< "$out" || fail "the agent may only read and patch nodes"
+grep -q "resources: \[nodes, pods\], verbs: \[list\]" <<< "$out" || fail "the view only lists nodes and pods"
+grep -q "command: \[/oif-topology, --domains" <<< "$out" || fail "the view runs the same image with --domains"
+grep -q "subresources: {status: {}}" <<< "$out" || fail "the view writes status only through its subresource"
 finish

@@ -1,0 +1,39 @@
+# T-131 on the lab cluster, 2026-11-14 (owner): branch feat/t131-accelerator-domains (44a7f07) on cp1,
+#   sudo ./oif install; sudo tests/lab/t131-domains.sh; sudo tests/lab/t130-topology-labels.sh (regression)
+
+== oif install: stage topology (91280e64d203 -> e2c5b89c818d), 07:26:06 to 07:27:41
+  [ok] oif-topology build finished (go test in the build Job: ok)
+  [ok] patched image oif.local/oif/oif-topology:fc3751ca4c6c on every node (4 loaded now)
+customresourcedefinition.apiextensions.k8s.io/acceleratordomains.oif.ai created
+serviceaccount/oif-domains created
+clusterrole.rbac.authorization.k8s.io/oif-domains created
+clusterrolebinding.rbac.authorization.k8s.io/oif-domains created
+deployment.apps/oif-domains created
+daemon set "oif-topology" successfully rolled out
+  [ok] every GPU node has an accelerator domain
+deployment "oif-domains" successfully rolled out
+  [ok] an AcceleratorDomain object for every domain
+    NAME         VENDOR   FABRIC   NODES            GPUS   IN-USE   READY
+    gpu-amd      amd      pcie     ["gpu-amd"]      1      0        True
+    gpu-nvidia   nvidia   pcie     ["gpu-nvidia"]   1      0        True
+  [ok] AcceleratorDomain view up to date (kubectl get acceleratordomains; read only, kept by oif-domains)
+
+== tests/lab/t131-domains.sh: 12/12
+  PASS  oif-domains running
+  PASS  kubectl get acceleratordomains works
+  PASS  gpu-amd: object gpu-amd exists
+  PASS  gpu-amd: vendor amd, nodes [gpu-amd], 1 GPU allocatable, Ready
+  PASS  gpu-nvidia: object gpu-nvidia exists
+  PASS  gpu-nvidia: vendor nvidia, nodes [gpu-nvidia], 1 GPU allocatable, Ready
+  PASS  one object per domain, none for nodes without GPUs
+  PASS  gpu-nvidia: nothing in use before the test
+  PASS  a GPU pod runs on gpu-nvidia
+  PASS  gpu-nvidia: 1 GPU in use (within 90 s)
+  PASS  gpu-nvidia: 0 in use again after the pod is gone (within 90 s)
+  PASS  gpu-nvidia: the same object throughout (kept, not re-created)
+  INFO  oif-domains log: domains: gpu-amd amd 0/1 in use; gpu-nvidia nvidia 0/1 in use (created 0, updated 1, deleted 0)
+
+== tests/lab/t130-topology-labels.sh (regression, the agent in the same image): 12/12
+
+== Not shown on the lab: a mixed node and multi-node domains (Go unit tests only); GPU fractions counted through KAI's
+reservation pods (not exercised); the Ready condition going False (not tried: it needs a node down).
