@@ -1,0 +1,88 @@
+# 19. Run a job without naming a GPU vendor: AIJob
+
+> Status: done (T-133). Tested on the lab cluster on 2026-11-14: `tests/lab/t133-aijob.sh` 17/17
+> ([evidence](../evidence/T-133/01-lab.txt)). The lab has one GPU per worker: every job there is one pod with one GPU.
+
+## What you get
+
+An `AIJob` says what to run and how many GPUs, not whose. oif picks NVIDIA or AMD, creates a plain Kubernetes Job on
+that vendor, and Run:ai's scheduler places it under the project's GPU quota, as any other job in the project.
+
+- **Vendor choice**, before the Job exists (a pod must name `nvidia.com/gpu` or `amd.com/gpu`; the scheduler cannot
+  choose between them): `preferVendor` when it has room for all the job's GPUs, else a vendor with room, else the
+  preferred (or first) vendor, where the job waits. Room comes from the AcceleratorDomain view (guide 17), refreshed
+  every 30 s. Without a preference NVIDIA is tried first (T-134 adds a per-project order).
+- **One vendor per job**, always: `allowCrossVendor: true` is refused, because no engine runs one job on both yet.
+- **One domain**, when asked: `requireSameDomain: true` keeps all pods inside one accelerator domain (KAI topology,
+  guide 17). `workers` greater than 1 starts the pods together (one gang) or not at all.
+- **Status:** phase, vendor, the domains and nodes the pods run on, `crossVendor: false`, and why that vendor.
+- The container gets `OIF_GPU_VENDOR`, and `OIF_MODEL` and `OIF_PRECISION` when the AIJob names them.
+
+An AIJob sets only image, command, args and env: no host paths, privileges or other pod fields. Its spec cannot change;
+delete it and create it again. Deleting it deletes its Job and pods.
+
+## Before you start
+
+- oif installed with GPUs (stage `aijob` runs after `runai-topology`), and a Run:ai project: create AIJobs in its
+  namespace (`runai-<project>`). Elsewhere the AIJob fails with "not a Run:ai project".
+- Anyone who may edit the namespace may create AIJobs there (the `edit` and `admin` roles include them).
+
+## Submit one
+
+```yaml
+apiVersion: oif.ai/v1alpha1
+kind: AIJob
+metadata:
+  name: finetune-qwen
+  namespace: runai-team-a
+spec:
+  model: Qwen/Qwen3-8B          # optional: passed as OIF_MODEL
+  precision: bf16               # optional: passed as OIF_PRECISION
+  gpuCount: 1                   # GPUs per pod
+  workers: 1                    # pods (default 1)
+  template:
+    image: docker.io/library/busybox:1.37.0
+    command: ["sh", "-c", "echo running on $OIF_GPU_VENDOR; sleep 600"]
+  placement:                    # all optional
+    preferVendor: amd           # nvidia | amd: a preference, not a rule
+    requireSameDomain: false
+```
+
+```bash
+kubectl apply -f finetune-qwen.yaml
+kubectl -n runai-team-a get aijobs
+```
+
+```text
+NAME            VENDOR   PHASE     DOMAINS       NODES         AGE
+finetune-qwen   amd      Running   ["gpu-amd"]   ["gpu-amd"]   40s
+```
+
+`kubectl -n runai-team-a get aijob finetune-qwen -o jsonpath='{.status.message}'` says why: `amd: the preferred vendor,
+it has room`. The Job has the AIJob's name: `kubectl -n runai-team-a logs job/finetune-qwen`.
+
+## Check it worked
+
+```bash
+sudo tests/lab/t133-aijob.sh
+```
+
+It checks the admission rules, a job that prefers AMD (runs on AMD), one that prefers AMD while AMD is busy (runs on
+NVIDIA), one with no vendor, the status fields, and that a plain GPU pod is not touched.
+
+## What changed on the cluster
+
+- CRD `aijobs.oif.ai`, namespace `oif-aijob` with Deployment `oif-aijob` (image built by oif from images/oif-aijob,
+  one replica on a system node; it lists AIJobs, Jobs, pods, nodes, namespaces and AcceleratorDomains, and creates Jobs),
+  ClusterRoles `oif-aijob` and `oif-aijob-edit`.
+- Without GPUs the stage removes all of it, with every AIJob and its Job. `oif uninstall` removes it with the cluster.
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `cross-vendor jobs (allowCrossVendor: true) are not supported yet` | Leave `allowCrossVendor` out or set it to false. |
+| `an AIJob's spec cannot change` | Delete the AIJob and create it again. |
+| Phase `Failed`, message `not a Run:ai project` | Create the AIJob in a project's namespace (`kubectl get ns -l runai/queue`). |
+| Phase `Pending` for long | The project's quota or the vendor's GPUs are taken: `kubectl -n <ns> describe pod -l oif.ai/aijob=<name>` shows the scheduler's reason. |
+| The vendor is not the preferred one | The preferred vendor had no room when the AIJob was created (status message). The choice is made once. |
