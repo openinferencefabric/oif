@@ -26,9 +26,13 @@ cleanup() { kc delete namespace oif-t131 --ignore-not-found --wait=false >/dev/n
 trap cleanup EXIT
 
 GPU_NODES=$(kc get nodes -l 'type notin (kwok)' -o jsonpath='{range .items[*]}{.metadata.name} {.status.allocatable.nvidia\.com/gpu}{.status.allocatable.amd\.com/gpu}{"\n"}{end}' | awk '$2 != "" && $2 != "0" {print $1}')
+view_current() { local n; for n in $GPU_NODES; do   # an object for each GPU node's domain label
+  kc get acceleratordomain "$(kc get node "$n" -o jsonpath='{.metadata.labels.oif\.ai/accelerator-domain}')" >/dev/null 2>&1 || return 1; done; }
 
 echo "T-131 AcceleratorDomain view (oif-domains)"
 check "oif-domains running" bash -c '[ "$(kubectl --kubeconfig "$1" -n oif-topology get deploy oif-domains -o jsonpath="{.status.readyReplicas}")" = 1 ]' _ "$KCFG"
+# an earlier test (T-130's annotation) may have just changed a domain label; the view follows within 30 s
+wait_for "the view follows the node labels" 90 5 view_current >/dev/null 2>&1
 check "kubectl get acceleratordomains works" kc get acceleratordomains
 kc get acceleratordomains 2>&1 | sed 's/^/        /'
 for n in $GPU_NODES; do
