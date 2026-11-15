@@ -51,7 +51,12 @@ rt=$(ip -4 route show proto 80 2>/dev/null)
 [ -n "$rt" ] && trace "$(wc -l <<< "$rt") Calico route(s) left ($(head -1 <<< "$rt"))"
 ses=(/sys/class/iscsi_session/*); [ -e "${ses[0]}" ] && trace "${#ses[@]} iSCSI session(s) still open (Longhorn volumes): ${ses[*]##*/}"
 [ "$left" = "$n" ] && clean "no Kubernetes services, network interfaces or swap changes"
-info "firewall rules need root to read: sudo iptables-save | grep -cE 'KUBE-|cali-' should print 0"
+if [ "$(id -u)" = 0 ] && command -v iptables-save >/dev/null; then   # run with sudo: read the rules too
+  fw=$(iptables-save 2>/dev/null | grep -cE 'KUBE-|cali-')
+  [ "$fw" = 0 ] && clean "no Kubernetes firewall rules" || trace "$fw Kubernetes firewall rule(s) left (iptables-save | grep -E 'KUBE-|cali-')"
+else
+  info "firewall rules need root to read: sudo iptables-save | grep -cE 'KUBE-|cali-' should print 0"
+fi
 
 echo "GPUs (driver per PCI address)"
 for d in /sys/bus/pci/devices/*; do

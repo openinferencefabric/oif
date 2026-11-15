@@ -1,0 +1,37 @@
+# T-901 option A, 2026-11-15 15:26 UTC (owner): sudo ./oif uninstall on the single node "ref" (main a2727cb), reboot,
+# then sudo tests/host/verify-clean.sh (17:15 UTC). The script was stored without its executable bit, so it first
+# failed with "Permission denied"; fixed with tests/unit/test_exec_bits.sh.
+
+== oif uninstall (summary of /var/log/oif-uninstall.log)
+  [!] DeviceConfig deletion stuck: removing its finalizer        (AMD GPU Operator, after the wait timed out)
+  [ok] AMD GPU Operator removed
+  [ok] GPU Operator removed
+  [ok] Kubernetes removed from the host                          (kubeadm reset: containerd socket already closed)
+  [ok] containerd stopped, oif-conntrack-reaper stopped, boot image rebuilt, /data/oif and the oif folders removed
+  [ok] removed 25 packages oif installed
+  kept (the OS depends on them): linux-image-7.0.0-43-generic: the running kernel (boot the OS kernel, then run oif uninstall again)
+  kept (the OS depends on them): linux-main-modules-v4l2loopback-7.0.0-43-generic: removing it would also remove linux-virtual linux-image-virtual
+  kept (the OS depends on them): linux-main-modules-zfs-7.0.0-43-generic: removing it would also remove linux-virtual linux-image-virtual
+  kept (the OS depends on them): linux-modules-7.0.0-43-generic: the running kernel (boot the OS kernel, then run oif uninstall again)
+Uninstall complete.
+
+== tests/host/verify-clean.sh (after the reboot)
+Packages
+  [ok]   no Kubernetes, containerd or NVIDIA packages
+  [info] base tools oif may have added (kept when the OS had them): ethtool jq
+Files and folders
+  [ok]   no oif files
+Services
+Kernel and network
+  [info] no swap configured
+  [ok]   no Kubernetes services, network interfaces or swap changes
+  [info] firewall rules need root to read: sudo iptables-save | grep -cE 'KUBE-|cali-' should print 0
+GPUs (driver per PCI address)
+  [ok]   0000:03:00.0 VGA compatible controller: NVIDIA Corporation GA102GL [RTX A6000] (rev: nouveau
+  [ok]   0000:05:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Navi: no driver
+
+Host is clean: no oif traces.
+
+# The W7900 has no driver after uninstall: oif installed linux-firmware-amd-graphics (the VM's virtual kernel flavour
+# lacks it) and uninstall removed it, as on the clean OS. The firewall line was printed under sudo; verify-clean now
+# reads the rules itself when run as root.
