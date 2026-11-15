@@ -1,0 +1,38 @@
+# T-901 option A, 2026-11-15 15:20 UTC (owner): T-130 and T-131 back to back on the single node "ref", branch
+# test/t901-single-node at 69ae4c0 (T-131 waits for the domain view to follow the node labels):
+#   cd ~/oif && git pull && sudo tests/lab/t130-topology-labels.sh && sudo tests/lab/t131-domains.sh
+# The same command at b4ecbdc failed T-131 6/10 twice (15:12, 15:16), as in 01-lab-single-node.txt.
+
+Updating b4ecbdc..69ae4c0
+Fast-forward
+ tests/lab/t131-domains.sh | 4 ++++
+ 1 file changed, 4 insertions(+)
+T-130 accelerator domains as node labels (agent oif-topology)
+  PASS  agent running on every real node
+  PASS  the lab has GPU nodes (ref)
+  INFO  ref: domain ref, fabric pcie, zone default
+  PASS  ref: its own domain over PCIe (one GPU), zone default
+  PASS  nodes without GPUs carry no domain ()
+  PASS  annotation on ref: domain t130-rack, fabric ualoe (within 2 min)
+  PASS  annotation removed: ref is its own domain again (within 2 min)
+  PASS  the agent may set its labels on its own node
+  INFO  one node: no other node to try the policy on (T-901)
+  PASS  the agent may not change other labels of its node
+  PASS  the agent may not taint its node
+  INFO  agent log on ref:
+T-130: 9/9 checks passed
+T-131 AcceleratorDomain view (oif-domains)
+  PASS  oif-domains running
+  PASS  kubectl get acceleratordomains works
+        NAME   VENDOR   FABRIC   NODES     GPUS   IN-USE   READY
+        ref    mixed    pcie     ["ref"]   2      0        True
+  PASS  ref: object ref exists
+  PASS  ref: vendor mixed, nodes [ref], 2 GPU allocatable, Ready
+  PASS  one object per domain, none for nodes without GPUs
+  PASS  ref: nothing in use before the test
+  PASS  a GPU pod runs on ref
+  PASS  ref: 1 GPU in use (within 90 s)
+  PASS  ref: 0 in use again after the pod is gone (within 90 s)
+  PASS  ref: the same object throughout (kept, not re-created)
+  INFO  oif-domains log: 2026/11/15 15:21:00 domains: ref mixed 0/2 in use (created 0, updated 1, deleted 0)
+T-131: 10/10 checks passed

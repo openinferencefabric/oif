@@ -1,0 +1,130 @@
+# T-901 option A, 2026-11-15 (owner): one clean Ubuntu 26.04 VM ("ref") with an NVIDIA RTX A6000 and an AMD Radeon
+# Pro W7900 passed through, single node; oif main a2727cb (PR #60) installed, then branch test/t901-single-node (b4ecbdc):
+#   for t in t122-gpus t130-topology-labels t131-domains t133-aijob t134-policy t135-observability t116-mixed-node; do
+#     sudo tests/lab/$t.sh; done
+# The node's IP address is replaced by <node-ip>, the GPU UUID by <uuid>.
+
+T-122 GPUs on their nodes (1 NVIDIA, 1 AMD)
+        ref <node-ip> nvidia 0000:03:00.0 2230 nvidia
+        ref <node-ip> amd 0000:05:00.0 7448 amdgpu
+  PASS  at least one NVIDIA and one AMD GPU in the cluster
+  PASS  ref: 0000:03:00.0 on the nvidia driver
+  PASS  ref: nvidia-smi sees the GPU
+  PASS  ref: node ref offers nvidia.com/gpu
+  PASS  ref: 0000:05:00.0 on the amdgpu driver
+  PASS  ref: /dev/kfd present
+  PASS  ref: node ref offers amd.com/gpu
+  PASS  the cluster offers exactly 1 nvidia.com/gpu
+  PASS  the cluster offers exactly 1 amd.com/gpu
+  PASS  NVIDIA GPU Operator ready (ClusterPolicy)
+  PASS  AMD device plugin running on every AMD node
+        NVIDIA pod on ref: GPU 0: NVIDIA RTX A6000 (UUID: <uuid>)
+        AMD pod on ref: /dev/kfd card0 renderD128 ls: /dev/nvidia0: No such file or directory
+  PASS  NVIDIA pod ran on the NVIDIA node
+  PASS  NVIDIA pod sees its GPU and no /dev/kfd
+  PASS  AMD pod ran on the AMD node
+  PASS  AMD pod has /dev/kfd and a render device, no /dev/nvidia0
+  PASS  DCGM exporter reports the NVIDIA GPU
+  PASS  AMD metrics exporter reports the AMD GPU
+
+T-122: PASS (17 checks)
+T-130 accelerator domains as node labels (agent oif-topology)
+  PASS  agent running on every real node
+  PASS  the lab has GPU nodes (ref)
+  INFO  ref: domain ref, fabric pcie, zone default
+  PASS  ref: its own domain over PCIe (one GPU), zone default
+  PASS  nodes without GPUs carry no domain ()
+  PASS  annotation on ref: domain t130-rack, fabric ualoe (within 2 min)
+  PASS  annotation removed: ref is its own domain again (within 2 min)
+  PASS  the agent may set its labels on its own node
+  INFO  one node: no other node to try the policy on (T-901)
+  PASS  the agent may not change other labels of its node
+  PASS  the agent may not taint its node
+  INFO  agent log on ref:
+T-130: 9/9 checks passed
+T-131 AcceleratorDomain view (oif-domains)
+  PASS  oif-domains running
+  PASS  kubectl get acceleratordomains works
+        NAME        VENDOR   FABRIC   NODES     GPUS   IN-USE   READY
+        t130-rack   mixed    ualoe    ["ref"]   2      0        True
+  FAIL  ref: object ref exists
+  FAIL  ref: vendor mixed, nodes [ref], 2 GPU allocatable, Ready
+  PASS  one object per domain, none for nodes without GPUs
+  FAIL  ref: nothing in use before the test
+  PASS  a GPU pod runs on ref
+  PASS  ref: 1 GPU in use (within 90 s)
+  PASS  ref: 0 in use again after the pod is gone (within 90 s)
+  FAIL  ref: the same object throughout (kept, not re-created)
+  INFO  oif-domains log: 2026/11/15 11:27:31 domains: ref mixed 0/2 in use (created 0, updated 1, deleted 0)
+T-131: 6/10 checks passed
+T-133 AIJob (controller oif-aijob), project namespace runai-team-c
+  PASS  oif-aijob running
+  PASS  both GPUs free before the test
+  PASS  allowCrossVendor: true is refused
+  PASS  an AIJob's spec cannot change
+  PASS  t133-amd (prefers AMD): Running within 3 min
+  INFO  t133-amd: t133-amd   amd   Running   ["ref"]   ["ref"]   15s; amd: the preferred vendor, it has room
+  PASS  t133-amd: vendor amd, domain ref, nodes [ref], crossVendor false
+  PASS  its Job asks for amd.com/gpu: 1, in pool default
+  PASS  the container got OIF_GPU_VENDOR and OIF_MODEL
+  PASS  the domain view shows the AMD GPU in use (within 90 s)
+  PASS  t133-soft (prefers AMD, AMD busy): Running within 3 min
+  INFO  t133-soft: nvidia: it has room for 1 GPUs
+  PASS  t133-soft: vendor nvidia, domain ref (a soft preference)
+  PASS  its Job asks for nvidia.com/gpu: 1 with runtime class nvidia
+  PASS  deleting an AIJob deletes its Job
+  PASS  t133-any (no vendor): Running within 3 min
+  INFO  t133-any: t133-any   nvidia   Running   ["ref"]   ["ref"]   16s; nvidia: it has room for 1 GPUs
+  PASS  t133-any: a vendor, its domain, crossVendor false
+  PASS  a plain amd GPU pod still runs (within 3 min)
+  PASS  and carries no AIJob label
+  INFO  oif-aijob log: 2026/11/15 11:29:18 aijobs: runai-team-c/t133-any nvidia Running
+T-133: 17/17 checks passed
+T-134 PlacementPolicy, project namespace runai-team-c
+  PASS  both GPUs free before the test
+  PASS  an unknown vendor is refused
+  PASS  a vendor twice is refused
+        NAME      VENDOR-PRIORITY    REQUIRE-SAME-DOMAIN
+        default   ["amd","nvidia"]
+  PASS  no vendor, namespace policy amd first: AMD (within 1 min)
+  INFO  t134-ns: amd: it has room for 1 GPUs (PlacementPolicy runai-team-c/default)
+  PASS  the status names the policy
+  PASS  no vendor, no namespace policy, cluster policy amd: AMD (within 1 min)
+  PASS  the status names the cluster's policy
+  PASS  policy requireSameDomain: the Job gets KAI's topology (within 1 min)
+  PASS  one domain per vendor on the lab: no required level (stock KAI would never place it)
+  PASS  the AIJob's own requireSameDomain: false wins: no topology on its Job
+  INFO  oif-aijob log: 2026/11/15 11:30:18 aijobs: runai-team-c/t134-dom nvidia Pending; runai-team-c/t134-own nvidia Pending
+T-134: 10/10 checks passed
+T-135 oif:domain_* and oif:aijob_* series, Grafana
+  PASS  kube-state-metrics copies the domain and AIJob labels
+  PASS  every GPU node's domain in kube_node_labels (within 2 min)
+  PASS  ref: oif:domain_gpu_allocatable = 2, as the AcceleratorDomain view (within 2 min)
+  INFO  ref (nvidia) 1;ref (amd) 1
+  PASS  AIJob t135 running (within 3 min)
+  INFO  t135: vendor nvidia, domain ref
+  PASS  oif:aijob_gpu_requested{vendor=nvidia, phase=Running} = 1 (within 2 min)
+  PASS  oif:domain_gpu_in_use{domain=ref} = 1 (within 2 min)
+  PASS  oif:aijob_cross_vendor = 0
+  PASS  after the AIJob: its domain's use back to 0 (within 3 min)
+  PASS  Grafana: OIF Scheduling has "Accelerator domains and AIJobs"
+  PASS  Grafana: OIF Scheduling has "GPUs per accelerator domain"
+  PASS  Grafana: OIF Scheduling has "AIJob GPUs by vendor"
+  PASS  Grafana: OIF Scheduling has "AIJobs on more than one vendor"
+T-135: 12/12 checks passed
+T-116 one vendor's GPUs on a mixed node (ref), KAI patch 0006
+  INFO  scheduler image: oif.local/kai-scheduler/scheduler:v0.18.3-oif-1cdf72aa1f29
+  PASS  team-a holds the NVIDIA GPU (within 3 min)
+  PASS  a second NVIDIA pod waits on no node, 0006's reason (within 2 min)
+  INFO  t116-nv: node ref has 0 free nvidia.com/gpu of the 1 requested; its other free GPUs are another vendor's
+  PASS  team-a holds the AMD GPU (within 3 min)
+  PASS  a second AMD pod waits on no node, 0006's reason (within 2 min)
+  INFO  t116-amd: node ref has 0 free amd.com/gpu of the 1 requested; its other free GPUs are another vendor's
+  PASS  an NVIDIA pod runs while the AMD GPU is taken (within 3 min)
+T-116: 5/5 checks passed
+
+# T-131's 4 FAILs are a race in the test, not in oif-domains: T-131 started right after T-130 had put the node's domain
+# label back to "ref", and the view (refreshed every 30 s) still held T-130's t130-rack (read-only check afterwards:
+# one object "ref", created 11:26:30, during T-131's run). On several nodes other scripts run in between. Reproduced
+# twice with t130 + t131 back to back; fixed in 69ae4c0 (T-131 waits up to 90 s for the view to follow the node
+# labels): 02-t131-after-fix.txt.
