@@ -44,6 +44,7 @@ check "operator available" kc -n "$DYNAMO_NS" wait deploy --all --for=condition=
 check "no Grove or bundled KAI running" bash -c "[ -z \"\$(kubectl --kubeconfig $KCFG -n $DYNAMO_NS get deploy,statefulset,daemonset -o name | grep -Ei 'grove|kai')\" ]"
 check "oif's values in use (bundled KAI off)" bash -c "helm --kubeconfig $KCFG -n $DYNAMO_NS get values $DYNAMO_RELEASE -o json | python3 -c 'import json,sys; g=json.load(sys.stdin)[\"global\"]; sys.exit(g[\"kai-scheduler\"][\"install\"] or g[\"grove\"][\"install\"])'"
 [ "$MODE" = --platform ] && finish_
+multi_node || { info "one node: the deployment checks need pool nvidia (several nodes); --platform only"; finish_; }
 
 # ---------------------------------------------------------------- a deployment through kubectl, under Run:ai
 submit() {   # name: the S-4 deployment under another name, applied to team-c's namespace

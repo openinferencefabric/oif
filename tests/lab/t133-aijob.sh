@@ -60,8 +60,9 @@ check "t133-amd (prefers AMD): Running within 3 min" wait_for "t133-amd running"
 info "t133-amd: $(kc -n "$NS" get aijob t133-amd --no-headers 2>&1); $(st t133-amd message)"
 check "t133-amd: vendor amd, domain $amd_dom, nodes [$amd_node], crossVendor false" \
   bash -c '[ "$1" = "amd [\"$2\"] [\"$3\"] false" ]' _ "$(st t133-amd vendor) $(st t133-amd domains) $(st t133-amd nodes) $(st t133-amd crossVendor)" "$amd_dom" "$amd_node"
-check "its Job asks for amd.com/gpu: 1, in pool amd" bash -c '[ "$1" = "1 amd" ]' _ \
-  "$(kc -n "$NS" get job t133-amd -o jsonpath='{.spec.template.spec.containers[0].resources.limits.amd\.com/gpu} {.metadata.labels.runai/node-pool}')"
+pool=$(multi_node && echo amd)   # one node: no vendor pools, so no pool label (T-901)
+check "its Job asks for amd.com/gpu: 1, in pool ${pool:-default}" bash -c '[ "$1" = "1 $2" ]' _ \
+  "$(kc -n "$NS" get job t133-amd -o jsonpath='{.spec.template.spec.containers[0].resources.limits.amd\.com/gpu} {.metadata.labels.runai/node-pool}')" "$pool"
 check "the container got OIF_GPU_VENDOR and OIF_MODEL" bash -c 'kubectl --kubeconfig "$1" -n "$2" logs job/t133-amd | grep -qx "amd Qwen/Qwen3-0.6B"' _ "$KCFG" "$NS"
 
 # preferVendor amd, AMD busy: NVIDIA (soft); the controller reads the AcceleratorDomain view, refreshed every 30 s
