@@ -153,6 +153,6 @@ One OpenAI-compatible API in front of every model on both vendors, with API keys
 
 ## Release
 
-- [ ] T-901 End-to-end test on the reference host from a clean OS (TEST_PLAN.md). **Parked** (owner, 2026-11-05) until P1.4 is further along; it also carries the hardware proof of T-116 and the mixed-node case of P1.4 (since T-141 the reference host runs the patched KAI, without AMD sharing)
+- [~] T-901 End-to-end test on the reference host from a clean OS (TEST_PLAN.md). **Parked** (owner, 2026-11-05) until P1.4 is further along; it also carries the hardware proof of T-116 and the mixed-node case of P1.4 (since T-141 the reference host runs the patched KAI, without AMD sharing). 2026-11-15 (owner, option A): a clean Ubuntu 26.04 VM on the lab host with the A6000 and the W7900 passed through, single node. First install stopped at stage topology: oif-domains (T-131) and oif-aijob (T-133) were pinned to the platform-node label, which only a multi-node install sets; fixed (selector only on several nodes, unit tests in test_topology.sh and test_aijob.sh)
 - [ ] T-902 Install and comparison guides with screenshots on the guides site
 - [ ] T-903 Tag v0.1.0 after Project 1, v0.2.0 after Project 2

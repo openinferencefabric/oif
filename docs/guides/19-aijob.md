@@ -143,7 +143,7 @@ NVIDIA), one with no vendor, the status fields, and that a plain GPU pod is not 
 ## What changed on the cluster
 
 - CRD `aijobs.oif.ai`, namespace `oif-aijob` with Deployment `oif-aijob` (image built by oif from images/oif-aijob,
-  one replica on a system node; it lists AIJobs, Jobs, pods, nodes, namespaces and AcceleratorDomains, and creates Jobs),
+  one replica, on a platform node when there are several nodes; it lists AIJobs, Jobs, pods, nodes, namespaces and AcceleratorDomains, and creates Jobs),
   ClusterRoles `oif-aijob`, `oif-aijob-edit` and `oif-placementpolicy-admin`; CRD `placementpolicies.oif.ai` (T-134).
 - Without GPUs the stage removes all of it, with every AIJob, its Job and every PlacementPolicy. `oif uninstall` removes it with the cluster.
 

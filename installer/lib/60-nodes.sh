@@ -28,7 +28,9 @@ platform_sc() { if platform_ha; then echo longhorn; else echo local-path; fi; } 
 longhorn_here() {   # does this node hold Longhorn replicas? (the first node decides; a node reads its setting)
   if [ "${OIF_NODE:-0}" = 1 ]; then [ "${LONGHORN_NODE:-no}" = yes ]; else platform_ha; fi; }
 platform_render() {   # template under platform/: into the state folder, with the platform's node label and StorageClass
-  export SYSTEM_LABEL PLATFORM_SC; PLATFORM_SC=$(platform_sc)
+  # SYSTEM_NODE_SELECTOR: a pod's nodeSelector for a platform node; one node has none labelled (stage system-nodes)
+  export SYSTEM_LABEL PLATFORM_SC SYSTEM_NODE_SELECTOR; PLATFORM_SC=$(platform_sc) SYSTEM_NODE_SELECTOR="{}"
+  multi_node && SYSTEM_NODE_SELECTOR="{$SYSTEM_LABEL: \"true\"}"
   render "$OIF_HOME/platform/$1" > "$STATE/${1##*/}" || die "cannot render platform/$1"; }
 node_name_of() {   # address: the Kubernetes node name of the node with that address
   kc get nodes -o jsonpath="{range .items[*]}{.metadata.name} {.status.addresses[?(@.type=='InternalIP')].address}{'\n'}{end}" \

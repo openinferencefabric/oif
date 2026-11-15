@@ -37,7 +37,7 @@ grep -q "^build" "$CALLS" && fail "no GPUs: nothing built"
 grep -q "kubectl delete crd aijobs.oif.ai placementpolicies.oif.ai" "$CALLS" || fail "no GPUs: the CRDs (and every AIJob and policy) removed"
 grep -q "kubectl delete namespace oif-aijob" "$CALLS" || fail "no GPUs: the controller removed"
 
-out=$(AIJOB_IMAGE=img:x AIJOB_POOLS=nvidia=nvidia,amd=amd SYSTEM_LABEL=node-role.kubernetes.io/runai-system render "$ROOT/platform/kubernetes/aijob.yaml")
+out=$(AIJOB_IMAGE=img:x AIJOB_POOLS=nvidia=nvidia,amd=amd SYSTEM_NODE_SELECTOR="{}" render "$ROOT/platform/kubernetes/aijob.yaml")
 grep -q 'rule: "!has(self.allowCrossVendor) || !self.allowCrossVendor"' <<< "$out" || fail "allowCrossVendor: true refused"
 grep -q "rule: self == oldSelf" <<< "$out" || fail "the spec cannot change"
 grep -q "enum: \[nvidia, amd\]" <<< "$out" || fail "preferVendor is a known vendor"
@@ -51,4 +51,10 @@ role=$(grep -A6 "name: oif-placementpolicy-admin" <<< "$out")
 grep -q "aggregate-to-admin" <<< "$role" || fail "namespace admins set the policy"
 grep -q "aggregate-to-edit" <<< "$role" && fail "editors do not set the policy"
 grep -q "resources: \[aijobs, acceleratordomains, placementpolicies\], verbs: \[list\]" <<< "$out" || fail "the controller only lists policies"
+# the controller runs on a platform node; one node has none labelled (stage system-nodes is multi-node only)
+for m in no yes; do
+  ( MULTI=$m; AIJOB_IMAGE=img:x AIJOB_POOLS=x platform_render kubernetes/aijob.yaml ) || fail "render ($m)"
+  n=$(grep -c "runai-system" "$OIF_STATE/aijob.yaml")
+  if [ "$m" = yes ]; then eq "$n" 1 "several nodes: oif-aijob on a platform node:"; else eq "$n" 0 "one node: oif-aijob without a node selector:"; fi
+done
 finish

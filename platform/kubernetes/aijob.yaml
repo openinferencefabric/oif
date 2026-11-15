@@ -174,8 +174,7 @@ spec:
       labels: {app: oif-aijob}
     spec:
       serviceAccountName: oif-aijob
-      nodeSelector:
-        ${SYSTEM_LABEL}: "true"
+      nodeSelector: ${SYSTEM_NODE_SELECTOR}
       containers:
         - name: controller
           image: ${AIJOB_IMAGE}

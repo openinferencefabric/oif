@@ -207,8 +207,7 @@ spec:
       labels: {app: oif-domains}
     spec:
       serviceAccountName: oif-domains
-      nodeSelector:
-        ${SYSTEM_LABEL}: "true"
+      nodeSelector: ${SYSTEM_NODE_SELECTOR}
       containers:
         - name: domains
           image: ${TOPOLOGY_IMAGE}
