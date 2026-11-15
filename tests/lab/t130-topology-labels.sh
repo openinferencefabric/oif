@@ -56,9 +56,12 @@ check "annotation removed: $T is its own domain again (within 2 min)" \
 O=$(printf '%s\n%s\n' "$GPU_NODES" "$OTHER_NODES" | grep -vx "$T" | grep . | head -1)   # another real node
 check "the agent may set its labels on its own node" \
   kc label node "$T" oif.ai/scaleout-zone=default --overwrite --as="$AGENT" --as-user-extra="authentication.kubernetes.io/node-name=$T"
-check "another real node to try: $O" kc get node "$O"
-check "the agent may not change another node ($O)" \
-  bash -c '! kubectl --kubeconfig "$1" label node "$2" oif.ai/scaleout-zone=t130 --overwrite --as="$3" --as-user-extra="authentication.kubernetes.io/node-name=$4"' _ "$KCFG" "$O" "$AGENT" "$T"
+if [ -n "$O" ]; then
+  check "the agent may not change another node ($O)" \
+    bash -c '! kubectl --kubeconfig "$1" label node "$2" oif.ai/scaleout-zone=t130 --overwrite --as="$3" --as-user-extra="authentication.kubernetes.io/node-name=$4"' _ "$KCFG" "$O" "$AGENT" "$T"
+else
+  info "one node: no other node to try the policy on (T-901)"
+fi
 check "the agent may not change other labels of its node" \
   bash -c '! kubectl --kubeconfig "$1" label node "$2" oif.ai/gpu-vendor=t130 --overwrite --as="$3" --as-user-extra="authentication.kubernetes.io/node-name=$2"' _ "$KCFG" "$T" "$AGENT"
 check "the agent may not taint its node" \

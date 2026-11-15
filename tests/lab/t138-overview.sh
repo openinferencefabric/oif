@@ -16,6 +16,7 @@ for f in "$ROOT"/installer/lib/*.sh "$ROOT"/installer/stages/*.sh; do
 done
 INTERACTIVE=0; TLOG=/dev/null
 config_load_saved
+multi_node || { echo "T-138 needs a multi-node install (pools nvidia and amd, OIF_NODES)"; exit 2; }
 
 FAILS=0; N=0
 check() { N=$((N + 1)); if "${@:2}" >/dev/null 2>&1; then echo "  PASS  $1"; else echo "  FAIL  $1"; FAILS=$((FAILS + 1)); fi; }

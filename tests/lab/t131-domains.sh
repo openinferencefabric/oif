@@ -33,8 +33,9 @@ check "kubectl get acceleratordomains works" kc get acceleratordomains
 kc get acceleratordomains 2>&1 | sed 's/^/        /'
 for n in $GPU_NODES; do
   d=$(kc get node "$n" -o jsonpath='{.metadata.labels.oif\.ai/accelerator-domain}')
-  if [ -n "$(kc get node "$n" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}')" ]; then v=nvidia; a=$(kc get node "$n" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}')
-  else v=amd; a=$(kc get node "$n" -o jsonpath='{.status.allocatable.amd\.com/gpu}'); fi
+  nv=$(kc get node "$n" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'); am=$(kc get node "$n" -o jsonpath='{.status.allocatable.amd\.com/gpu}')
+  nv=${nv:-0} am=${am:-0}; a=$((nv + am)); v=mixed   # a node with both vendors (T-901) is one mixed domain
+  [ "$am" = 0 ] && v=nvidia; [ "$nv" = 0 ] && v=amd
   check "$n: object $d exists" kc get acceleratordomain "$d"
   check "$n: vendor $v, nodes [$n], $a GPU allocatable, Ready" \
     bash -c '[ "$1" = "$2 [\"$3\"] $4 True" ]' _ \
