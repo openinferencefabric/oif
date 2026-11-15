@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 100" width="264" height="200" role="img" aria-label="Open Inference Fabric">
+<title>Open Inference Fabric</title>
+<style>
+.a{transform-box:fill-box}
+.warp{transform-origin:50% 0;animation:drop .55s cubic-bezier(.2,.8,.2,1) both}
+.warp.s{transform-origin:50% 100%;animation-delay:.12s}
+.weft{transform-origin:0 50%;animation:weave .6s cubic-bezier(.3,.7,.2,1) .5s both}
+.weft.b{animation-delay:.68s}
+.cross{transform-origin:50% 50%;animation:lock .3s cubic-bezier(.2,1.6,.4,1) 1.15s both}
+.cross.b{animation-delay:1.27s}
+.tok{transform-origin:50% 50%;animation:out .45s cubic-bezier(.2,.8,.2,1) both,flow 2.4s ease-in-out infinite}
+.t1{animation-delay:1.45s,2.6s}.t2{animation-delay:1.58s,2.8s}.t3{animation-delay:1.71s,3s}
+.r2.t1{animation-delay:1.52s,2.7s}.r2.t2{animation-delay:1.65s,2.9s}.r2.t3{animation-delay:1.78s,3.1s}
+@keyframes drop{from{transform:scaleY(0)}to{transform:none}}
+@keyframes weave{from{transform:scaleX(0)}to{transform:none}}
+@keyframes lock{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+@keyframes out{from{transform:translateX(-14px) scale(.3);opacity:0}to{transform:none;opacity:1}}
+@keyframes flow{0%,55%,100%{transform:none}25%{transform:translateX(2px) scale(1.14)}}
+@media (prefers-reduced-motion:reduce){.a{animation:none!important}}
+</style>
+<rect width="132" height="100" fill="#FFFFFF"/><rect class="a warp" x="26" y="12" width="15" height="76" rx="7.5" fill="#0E7C86"/>
+<rect class="a warp s" x="54" y="12" width="15" height="76" rx="7.5" fill="#E39A2D"/>
+<g class="a weft"><rect x="8" y="27" width="76" height="21" fill="#FFFFFF"/><rect x="8" y="30" width="76" height="15" rx="7.5" fill="#16202A"/></g>
+<g class="a weft b"><rect x="8" y="53" width="76" height="21" fill="#FFFFFF"/><rect x="8" y="56" width="76" height="15" rx="7.5" fill="#16202A"/></g>
+<g class="a cross"><rect x="51" y="29" width="21" height="17" fill="#FFFFFF"/><rect x="54" y="28" width="15" height="19" fill="#E39A2D"/></g>
+<g class="a cross b"><rect x="23" y="55" width="21" height="17" fill="#FFFFFF"/><rect x="26" y="54" width="15" height="19" fill="#0E7C86"/></g>
+<circle class="a tok r1 t1" cx="96" cy="37.5" r="7.5" fill="#16202A"/><circle class="a tok r1 t2" cx="113" cy="37.5" r="5" fill="#16202A"/><circle class="a tok r1 t3" cx="125" cy="37.5" r="3" fill="#16202A"/><circle class="a tok r2 t1" cx="96" cy="63.5" r="7.5" fill="#16202A"/><circle class="a tok r2 t2" cx="113" cy="63.5" r="5" fill="#16202A"/><circle class="a tok r2 t3" cx="125" cy="63.5" r="3" fill="#16202A"/>
+</svg>
