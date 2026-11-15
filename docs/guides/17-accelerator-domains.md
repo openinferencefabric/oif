@@ -83,7 +83,7 @@ Without GPUs the stage removes the agent, the policy and the labels. `oif uninst
 
 Each domain also appears as a cluster object, `AcceleratorDomain` (`oif.ai/v1alpha1`, short name `adom`): a
 **read-only view** for people and tools. The scheduler never reads it; it reads the node labels above. Deployment
-`oif-domains` (the agent's image, run with `--domains`, one replica on a system node) looks every 30 s and keeps one
+`oif-domains` (the agent's image, run with `--domains`, one replica, on a platform node when there are several nodes) looks every 30 s and keeps one
 object per domain: vendor (`nvidia`, `amd`, or `mixed` for a node with both), fabric, zone, nodes, and per vendor the
 GPUs' capacity, allocatable and in use (GPUs requested by unfinished pods on the domain's nodes, KAI's reservation pods
 behind GPU fractions included), with a `Ready` condition that names any node that is not.

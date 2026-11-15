@@ -56,7 +56,7 @@ a=$(topology_rev); echo "// x" >> "$SANDBOX/extra.go"
 b=$(TOPOLOGY_SRC=$SANDBOX topology_rev 2>/dev/null)
 [ "$a" != "$b" ] || fail "changing the agent's source reruns the stage"
 
-out=$(TOPOLOGY_IMAGE=img:x SYSTEM_LABEL=node-role.kubernetes.io/runai-system render "$ROOT/platform/kubernetes/topology.yaml")
+out=$(TOPOLOGY_IMAGE=img:x SYSTEM_NODE_SELECTOR="{}" render "$ROOT/platform/kubernetes/topology.yaml")
 grep -q "matchExpressions: \[{key: type, operator: NotIn, values: \[kwok\]}\]" <<< "$out" || fail "the agent stays off simulated nodes"
 grep -q "authentication.kubernetes.io/node-name" <<< "$out" || fail "the policy checks the agent's own node"
 grep -q "variables.ours" <<< "$out" || fail "the policy limits the agent to its labels"
@@ -67,4 +67,10 @@ grep -q "verbs: \[get, patch\]" <<< "$out" || fail "the agent may only read and 
 grep -q "resources: \[nodes, pods\], verbs: \[list\]" <<< "$out" || fail "the view only lists nodes and pods"
 grep -q "command: \[/oif-topology, --domains" <<< "$out" || fail "the view runs the same image with --domains"
 grep -q "subresources: {status: {}}" <<< "$out" || fail "the view writes status only through its subresource"
+# the view runs on a platform node; one node has none labelled (stage system-nodes is multi-node only): no selector there
+for m in no yes; do
+  ( multi_node() { [ "$m" = yes ]; }; TOPOLOGY_IMAGE=img:x platform_render kubernetes/topology.yaml ) || fail "render ($m)"
+  n=$(grep -c "runai-system" "$OIF_STATE/topology.yaml")
+  if [ "$m" = yes ]; then eq "$n" 1 "several nodes: oif-domains on a platform node:"; else eq "$n" 0 "one node: oif-domains without a node selector:"; fi
+done
 finish
