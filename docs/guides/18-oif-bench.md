@@ -136,6 +136,7 @@ part of this test.
 | `GPU N cannot be used` | `./oif bench gpus` gives the reason (driver, memory, a monitor connected). |
 | `not ready` and the server log | The log is in `<out>/logs/server-*.log`; a model too large for the GPU at `--max-model-len 8192` fails here. |
 | Output length short in the run-quality section | The stack ignored `ignore_eos`; throughput at those points is not comparable. |
-| `Connect call failed ('127.0.0.1', 8000)` in the middle of a run | Another `oif bench` started and removed this run's server. Stop both (`sudo systemctl stop <units>`), drop the failed points (`rc` not 0) from `results.jsonl`, rebuild the report, then run one at a time. |
+| `another oif bench is running on this node (PID N)` | One `oif bench` per node (B-1a; ADR-009: one GPU under load at a time). Wait for that run, or stop it: `systemctl list-units --all 'oif-bench*'` names its unit. The lock is `/run/lock/oif-bench.lock` and frees itself when the run ends. |
+| `Connect call failed ('127.0.0.1', 8000)` in the middle of a run | Before B-1a a second `oif bench` could start and remove this run's server; now it is refused. With an older checkout: stop both (`sudo systemctl stop <units>`), drop the failed points (`rc` not 0) from `results.jsonl`, rebuild the report, then run one at a time. |
 | `Failed to start transient service unit: ... already loaded` | A unit of that name is still running or stopping: `systemctl list-units --all 'oif-bench*'`. |
 | `journalctl` shows nothing | Use `sudo journalctl`: the oif user is not in the `adm` group. |
