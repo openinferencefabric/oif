@@ -7,13 +7,18 @@ Description=Continue the Open Inference Fabric install after a reboot
 After=network-online.target
 Wants=network-online.target
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=$SELF _resume
-TimeoutStartSec=0
 [Install]
 WantedBy=multi-user.target
 "
   systemctl daemon-reload; systemctl enable oif-resume.service >/dev/null 2>&1
+}
+
+install_finished() {   # last step of a run: say so first, then drop the resume unit (T-901: with the unit gone,
+  log "install finished"   # a daemon-reload while the unit runs this install could end it)
+  [ -f "$RESUME_UNIT" ] || return 0
+  systemctl disable oif-resume >/dev/null 2>&1 || true; rm -f "$RESUME_UNIT"; systemctl daemon-reload
 }
 
 reboot_ask() {   # reason: consent comes from REBOOT_OK (asked with the questions) or from the person at the terminal
