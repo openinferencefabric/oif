@@ -12,6 +12,8 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 # shellcheck source=../../versions.env
 . "$ROOT/versions.env"
+# shellcheck source=../lib.sh
+. "$ROOT/images/lib.sh"
 PUSH=0
 WORK=${WORK:-$HOME/oif-build/sglang-rocm}
 while [ $# -gt 0 ]; do
@@ -94,9 +96,8 @@ echo "   size $($CT image inspect "$img" --format '{{.Size}}' | awk '{printf "%.
 # ---------------------------------------------------------------- push
 if [ "$PUSH" = 1 ]; then
   say "push $img"
-  $CT push "$img" > "$WORK/push.log" 2>&1 || { tail -20 "$WORK/push.log"; die "push failed"; }
-  digest=$($CT image inspect "$img" --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep "^$SGLANG_ROCM_IMAGE_REPO@" | head -1)
-  echo "   pushed; pin it in versions.env:  BENCH_SGLANG_IMAGE=$img@${digest#*@}"
+  digest=$(push_image "$CT" "$img" "$WORK/push.log") && [ -n "$digest" ] || { tail -20 "$WORK/push.log"; die "push failed"; }
+  echo "   pushed; pin it in versions.env:  BENCH_SGLANG_IMAGE=$img@$digest"
   echo "   a new GHCR package is private: make it public in the organisation's Packages settings when it should be"
 else
   echo "   not pushed (add --push)"
