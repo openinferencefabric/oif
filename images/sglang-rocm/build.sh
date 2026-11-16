@@ -79,7 +79,8 @@ import importlib.metadata as m, importlib.util, torch
 assert torch.version.hip, "torch is not a ROCm build"
 assert not importlib.util.find_spec("aiter"), "aiter must not be installed (RDNA has no aiter kernels)"
 import sglang, sgl_kernel  # noqa: F401  the server package and the kernels built for this GPU
-from sglang.srt.entrypoints import http_server  # noqa: F401  what launch_server imports
+# not the server modules: they ask the GPU for its architecture when imported (is_gfx1250_supported), and this test
+# runs without a GPU; serving on the GPU is the lab check (S-5)
 def v(*names):  # ROCm images ship Triton as pytorch-triton-rocm
     for n in names:
         try: return m.version(n)
