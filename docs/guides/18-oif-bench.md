@@ -15,7 +15,8 @@ Method and metric definitions: [docs/BENCHMARK.md](../BENCHMARK.md).
 | --- | --- | --- |
 | `vllm` | `BENCH_VLLM_IMAGE`: vllm/vllm-openai-rocm v0.33.0 | `vllm serve` |
 | `dynamo-vllm` | `DYNAMO_ROCM_IMAGE`: OIF's Dynamo ROCm build, FROM the image above (T-211) | `dynamo.frontend` + `dynamo.vllm`, aggregated |
-| `sglang`, `dynamo-sglang` | empty until S-5 (SGLang on gfx1100) and T-212 | skipped |
+| `sglang` | `BENCH_SGLANG_IMAGE`: OIF's SGLang build for RDNA3 (S-5, [below](#the-sglang-image-s-5)) | `sglang.launch_server`, Triton attention |
+| `dynamo-sglang` | empty until T-212 | skipped |
 
 ## Before you start
 
@@ -117,6 +118,39 @@ part of this test.
 - `/var/tmp/oif-bench/<date>/report.html` opens (copy it off the node), the run-quality section shows 0 failed points,
   0 points with a short output length and 0 points with fewer repeats than the profile.
 - `./oif bench report /var/tmp/oif-bench/<date>` rebuilds the report from `results.jsonl`.
+
+## The SGLang image (S-5)
+
+SGLang publishes ROCm images for Instinct GPUs only (gfx942, gfx950, gfx1250). oif builds the line AMD's daily RDNA CI
+runs green on: SGLang's `amd_march` branch at one commit with six RDNA pull requests on top, `sgl-kernel` compiled for
+gfx1100, no aiter (it has no RDNA kernels), on `rocm/pytorch` with torch 2.10 and ROCm 7.2.4. Every input is pinned in
+`versions.env` (`SGLANG_ROCM_*`). SGLang then serves with Triton attention (`--attention-backend triton`) and
+`SGLANG_USE_AITER=0`; `oif bench` passes both.
+
+Build it on a Linux machine with Docker or Podman and about 100 GB free (about 15 minutes on the lab node, no GPU
+needed), inside `tmux`; `--push` needs a GHCR login as in guide 16:
+
+```bash
+images/sglang-rocm/build.sh            # build and smoke-test (ROCm torch, no aiter, sglang and sgl_kernel import)
+images/sglang-rocm/build.sh --push     # prints BENCH_SGLANG_IMAGE=<image>@<digest> to pin in versions.env
+```
+
+The tag is `<commit>-<gpu target>-prs<hash of the pinned PRs>`. Check it on the GPU before a benchmark: serve Qwen3-8B
+and run SGLang's GSM8K test (100 questions, about 30 s):
+
+```bash
+sudo podman run -d --name s5 --device /dev/kfd --device /dev/dri --group-add video --ipc host \
+  --security-opt seccomp=unconfined --network host -v /var/tmp/oif-bench/hf:/hf -e HF_HOME=/hf -e SGLANG_USE_AITER=0 \
+  "$IMG" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 127.0.0.1 --port 30000 --attention-backend triton
+sudo podman logs -f s5                 # wait for "The server is fired up", then Ctrl-C
+sudo podman exec s5 python3 -m sglang.test.few_shot_gsm8k --num-questions 100 --port 30000
+sudo podman rm -f s5
+```
+
+On the W7900 (2026-11-16, [evidence](../evidence/S-5/01-build-serve-gsm8k.txt)): GSM8K 92% on 100 questions (AMD's CI:
+96%, inside the noise of 100 questions), 25.6 tokens/s for one request. Harmless in the log: `amdsmi` not installed,
+"aiter is AMD specific", "Python TreeCore" (torch 2.10 is outside the range of SGLang's Rust radix tree, so its Python
+one is used).
 
 ## What changed on the host
 
