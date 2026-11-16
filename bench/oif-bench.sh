@@ -50,6 +50,12 @@ while [ $# -gt 0 ]; do case $1 in
 # shellcheck source=/dev/null
 . "$HERE/profiles/$PROFILE.env"
 WORKLOADS=$BENCH_WORKLOADS; CONCS=$BENCH_CONCURRENCY; DUR=$BENCH_DURATION_S; REPEATS=${REPEATS:-$BENCH_REPEATS}
+# B-1a: one oif bench per node (ADR-009: one GPU under load at a time; the server has one fixed port). The lock file
+# holds the PID of the run that has it; containers never inherit it (ct closes fd 8), so it ends with this script.
+LOCK=${BENCH_LOCK:-/run/lock/oif-bench.lock}
+exec 8<>"$LOCK" || die "cannot open the lock file $LOCK"
+flock -n 8 || die "another oif bench is running on this node (PID $(tr -dc 0-9 < "$LOCK")): one GPU under load at a time (ADR-009); wait for it to end or stop it"
+echo $$ > "$LOCK"
 [ "$(id -u)" = 0 ] || die "run with sudo"
 
 image_of() { case $1 in
@@ -63,6 +69,7 @@ STACKS=${use# }; [ -n "$STACKS" ] || die "no stack to run"
 
 # ---------------------------------------------------------------- preflight
 CT=$(command -v docker || command -v podman) || die "no docker or podman: sudo apt-get install -y podman"
+ct() { "$CT" "$@" 8>&-; }   # the container runtime, without the lock
 say "oif bench, profile $PROFILE ($REPEATS repeat(s)), stacks: $STACKS, runtime $CT"
 # ---------------------------------------------------------------- GPU: list this node's GPUs, ask which one
 export BENCH_MIN_VRAM_GIB
@@ -100,7 +107,7 @@ free_gb=$(df -BG --output=avail "$(dirname "$OUT")" | tail -1 | tr -dc 0-9)
 
 say "pull images"
 for s in $STACKS; do
-  $CT pull -q "$(image_of "$s")" >/dev/null || die "pull $(image_of "$s") failed (network, or a private registry needing $CT login)"
+  ct pull -q "$(image_of "$s")" >/dev/null || die "pull $(image_of "$s") failed (network, or a private registry needing $CT login)"
   echo "   $s"
 done
 GPU_FLAGS=(--device /dev/kfd --device "$CARD" --device "$RENDER" --group-add video --ipc host
@@ -113,14 +120,14 @@ say "versions inside each image"
 : > "$OUT/images.jsonl"
 for s in $STACKS; do
   img=$(image_of "$s")
-  inside=$($CT run --rm --entrypoint python3 "$img" -c '
+  inside=$(ct run --rm --entrypoint python3 "$img" -c '
 import importlib.metadata as m, json, torch
 d = {"torch": torch.__version__, "hip": torch.version.hip}
 for p in ("vllm", "sglang", "sgl-kernel", "ai-dynamo", "ai-dynamo-runtime", "triton"):
     try: d[p] = m.version(p)
     except Exception: pass
 print(json.dumps(d))' 2>/dev/null) || inside=null
-  digest=$($CT image inspect "$img" --format '{{index .RepoDigests 0}}' 2>/dev/null)
+  digest=$(ct image inspect "$img" --format '{{index .RepoDigests 0}}' 2>/dev/null)
   echo "{\"stack\":\"$s\",\"image\":\"$img\",\"digest\":\"$digest\",\"inside\":${inside:-null}}" >> "$OUT/images.jsonl"
   echo "   $s: $inside"
 done
@@ -141,38 +148,38 @@ PY
 say "models into $HF_HOME_HOST"
 first=$(image_of "${STACKS%% *}")
 for m in $MODELS; do
-  $CT run --rm "${HF_FLAGS[@]}" --entrypoint bash "$first" -c \
+  ct run --rm "${HF_FLAGS[@]}" --entrypoint bash "$first" -c \
     "if command -v hf >/dev/null; then hf download $m >/dev/null; else huggingface-cli download $m >/dev/null; fi" \
     || die "download $m failed"
   echo "   $m"
 done
 
 say "AIPerf $AIPERF_VERSION (venv in $OUT)"
-$CT run --rm -v "$OUT:/out" --entrypoint bash "$first" -c \
+ct run --rm -v "$OUT:/out" --entrypoint bash "$first" -c \
   "python3 -m venv /out/aiperf-venv && /out/aiperf-venv/bin/pip install -q aiperf==$AIPERF_VERSION" \
   > "$OUT/logs/aiperf-install.log" 2>&1 || die "aiperf install failed: $OUT/logs/aiperf-install.log"
 
 # ---------------------------------------------------------------- server control
-stop_server() { $CT rm -f oifb-srv >/dev/null 2>&1; for _ in $(seq 30); do fuser "$RENDER" >/dev/null 2>&1 || return 0; sleep 2; done; }
+stop_server() { ct rm -f oifb-srv >/dev/null 2>&1; for _ in $(seq 30); do fuser "$RENDER" >/dev/null 2>&1 || return 0; sleep 2; done; }
 start_server() {  # stack model
   local s=$1 m=$2 img; img=$(image_of "$1")
   local dyn=(-e DYN_DISCOVERY_BACKEND=file -e DYN_FILE_KV=/tmp/dynamo_kv -e DYN_REQUEST_PLANE=tcp -e DYN_SYSTEM_PORT=8081)
   stop_server
   case $s in
-    vllm)          $CT run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" --entrypoint bash "$img" -c \
+    vllm)          ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" --entrypoint bash "$img" -c \
                      "exec vllm serve $m --host 0.0.0.0 --port $PORT $VLLM_ARGS" ;;
-    dynamo-vllm)   $CT run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" "${dyn[@]}" --entrypoint bash "$img" -c \
+    dynamo-vllm)   ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" "${dyn[@]}" --entrypoint bash "$img" -c \
                      "python3 -m dynamo.frontend --http-port $PORT & exec python3 -m dynamo.vllm --model $m $VLLM_ARGS" ;;
-    sglang)        $CT run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" -e SGLANG_USE_AITER=0 --entrypoint bash "$img" -c \
+    sglang)        ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" -e SGLANG_USE_AITER=0 --entrypoint bash "$img" -c \
                      "exec python3 -m sglang.launch_server --model-path $m --host 0.0.0.0 --port $PORT $SGLANG_ARGS" ;;
-    dynamo-sglang) $CT run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" "${dyn[@]}" -e SGLANG_USE_AITER=0 --entrypoint bash "$img" -c \
+    dynamo-sglang) ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" "${dyn[@]}" -e SGLANG_USE_AITER=0 --entrypoint bash "$img" -c \
                      "python3 -m dynamo.frontend --http-port $PORT & exec python3 -m dynamo.sglang --model-path $m $SGLANG_ARGS" ;;
   esac >/dev/null
 }
 wait_ready() {  # model -> seconds until the first chat is answered; fails after 20 min or when the server exits
   local m=$1 t0; t0=$(date +%s)
   while [ $(( $(date +%s) - t0 )) -lt 1200 ]; do
-    [ -n "$($CT ps -q -f name=oifb-srv)" ] || return 1
+    [ -n "$(ct ps -q -f name=oifb-srv)" ] || return 1
     if curl -sf "http://127.0.0.1:$PORT/v1/models" 2>/dev/null | grep -q "\"$m\"" \
        && curl -sf "http://127.0.0.1:$PORT/v1/chat/completions" -H 'Content-Type: application/json' \
             -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":4}" >/dev/null 2>&1; then
@@ -203,7 +210,7 @@ for rep in $(seq "$REPEATS"); do
       t_case=$(date +%s)
       start_server "$stack" "$model"
       if ! ready=$(wait_ready "$model"); then
-        $CT logs oifb-srv > "$log" 2>&1; echo "   not ready; last lines of $log:"; tail -15 "$log" | sed 's/^/     /'
+        ct logs oifb-srv > "$log" 2>&1; echo "   not ready; last lines of $log:"; tail -15 "$log" | sed 's/^/     /'
         echo "{\"type\":\"startup\",\"rep\":$rep,\"model\":\"$model\",\"stack\":\"$stack\",\"ready_s\":null}" >> "$OUT/results.jsonl"
         stop_server; continue
       fi
@@ -216,7 +223,7 @@ for rep in $(seq "$REPEATS"); do
           n=$((n + 1)); dir="raw/$rep/$tag/$stack/$wname/c$c"; mkdir -p "$OUT/$dir"
           start_temp=$(cool_down)
           python3 "$HERE/gpu_sampler.py" "$gpu" "$OUT/$dir/gpu.csv" & sp=$!
-          $CT run --rm --network host -v "$OUT:/out" --entrypoint /out/aiperf-venv/bin/aiperf "$first" profile \
+          ct run --rm --network host -v "$OUT:/out" --entrypoint /out/aiperf-venv/bin/aiperf "$first" profile \
             --model "$model" --url "http://127.0.0.1:$PORT" --endpoint-type chat --streaming \
             --concurrency "$c" --benchmark-duration "$DUR" --benchmark-grace-period 60 \
             --warmup-request-count $(( c > 4 ? c : 4 )) \
@@ -228,7 +235,7 @@ for rep in $(seq "$REPEATS"); do
           printf '   [%d/%d] %-8s c=%-3s %s\n' "$n" "$total" "$wname" "$c" "$(tail -1 "$OUT/results.jsonl" | python3 "$HERE/collect.py" --line)"
         done
       done
-      $CT logs oifb-srv > "$log" 2>&1
+      ct logs oifb-srv > "$log" 2>&1
       stop_server
       run_s=$(( $(date +%s) - t_case ))
       echo "{\"type\":\"runtime\",\"rep\":$rep,\"model\":\"$model\",\"stack\":\"$stack\",\"run_s\":$run_s}" >> "$OUT/results.jsonl"
