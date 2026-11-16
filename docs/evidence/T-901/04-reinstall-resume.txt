@@ -1,0 +1,30 @@
+# T-901 option A, 2026-11-16 (owner runs; read-only checks): reinstalls from a clean OS on the single node "ref",
+# the resume unit after the NVIDIA driver reboot, and its fix (PR #65, f9786aa).
+
+== Before the fix (main 0e261a8 / 6154bac): oif-resume.service Type=oneshot, three resumed installs
+  03:54  install, driver reboot 03:56:40, resumed 03:57:26, "install finished" 04:38:56
+         journal 04:38:56: oif-resume.service: start operation timed out. Terminating. (41 min 32 s)
+  05:32  install, driver reboot 05:33:57, resumed 05:34:40, last stage (dynamo) done 06:11:17, no "install finished"
+         journal 06:11:19: oif-resume.service: start operation timed out. Terminating. (36 min 39 s)
+         boot: Startup finished in ... + 36min 44.748s (userspace)
+  07:01  install, driver reboot 07:03:07, resumed 07:03:51
+         journal 07:44:44: oif-resume.service: start operation timed out. Terminating.
+         boot: Startup finished in 7.538s (kernel) + 3.381s (initrd) + 40min 59.804s (userspace)
+         systemctl --failed: oif-resume.service not-found failed failed
+  Cause: as Type=oneshot the whole install was the unit's start; at the end the install removed the unit file and ran
+  daemon-reload, the start timeout came back and systemd killed the run (one second after the reload, every time).
+
+== After the fix (main f9786aa: Type=simple, install_finished logs before removing the unit)
+  07:57  oif uninstall (clean, reboot)
+  08:04  install: preflight 08:04:26, driver reboot 08:06:24, resumed 08:07:07, stage runai 08:15:28,
+         "install finished" 08:41:07 (37 min from a clean OS, unattended through the reboot)
+  journal:  08:07:07 Started oif-resume.service - Continue the Open Inference Fabric install after a reboot.
+            08:41:10 oif-resume.service: Deactivated successfully.
+  systemd-analyze: Startup finished in 2.854s (kernel) + 3.235s (initrd) + 6.266s (userspace) = 12.356s
+  systemctl --failed: 0 loaded units listed.
+  09:08  oif install again: every stage skipped, "install finished" (idempotent)
+
+== Interrupt test (TEST_PLAN: kill the job, re-run resumes at the failed stage): not done
+  Four installs ran to the end before the kill; a re-run of stage runai alone (done marker removed) took 2 s because
+  the Run:ai installer skips installed parts, so there was nothing to interrupt. Owner decision 2026-11-16: close
+  T-901 without it; it moves to T-904 (scripted kill during a fresh install).
