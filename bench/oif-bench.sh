@@ -123,7 +123,7 @@ for s in $STACKS; do
   inside=$(ct run --rm --entrypoint python3 "$img" -c '
 import importlib.metadata as m, json, torch
 d = {"torch": torch.__version__, "hip": torch.version.hip}
-for p in ("vllm", "sglang", "sgl-kernel", "ai-dynamo", "ai-dynamo-runtime", "triton"):
+for p in ("vllm", "sglang", "sgl-kernel", "sglang-kernel", "ai-dynamo", "ai-dynamo-runtime", "triton"):
     try: d[p] = m.version(p)
     except Exception: pass
 print(json.dumps(d))' 2>/dev/null) || inside=null

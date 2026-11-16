@@ -1,0 +1,46 @@
+# S-5 exit run, 2026-11-16 (owner): oif bench, quick profile (2 workloads x concurrency 1, 8, 32, 30 s per point,
+# 1 repeat), stacks vllm and sglang, on the lab's W7900 (gpu-amd, kubelet stopped), oif branch s5/sglang-gfx1100.
+# Files in 02-quick-bench/: the 8B run's report.html, summary.csv, env.json, images.jsonl, results-qwen3-8b.jsonl;
+# results-run1-qwen3-0.6b.jsonl from the first run (its 0.6B points; see "Run 1").
+
+== Run 1: 20261116-1615, d63f2ba, both models, in an SSH shell
+sudo ./oif bench --profile quick --stacks "vllm sglang" --gpu 1 --models "Qwen/Qwen3-0.6B Qwen/Qwen3-8B"
+- B-1a lab check, during this run: a second `sudo ./oif bench ...` (16:36:20 and 16:36:34) stopped at once:
+    oif bench: another oif bench is running on this node (PID 674980): one GPU under load at a time (ADR-009); wait for it to end or stop it
+- 15 points done, 0 errors: 0.6B vllm 6, 0.6B sglang 6, 8B vllm chat 3.
+- 16:46:48 the SSH session that ran it logged out (the pasted `tmux new` had not held it): the bench got SIGHUP and its
+  cleanup removed the server; the load client of 8B vllm decode c1 kept sending to it (29063 errors, point not kept).
+  Not an engine fault: dmesg has no amdgpu error; journal and podman events give the timeline. Rerun detached.
+
+Qwen3-0.6B (run 1)      out tok/s           ITL p50 ms        TTFT p50 ms
+                        vllm     sglang     vllm   sglang     vllm   sglang
+  chat   c1             144.5     99.8      6.72    9.87      33.9    40.8
+  chat   c8            1305.0    735.9      5.79   10.39      80.8   130.9
+  chat   c32           3365.5   1727.3      9.05   16.66     113.9   124.9
+  decode c1             232.8     99.5      4.25    9.91      27.4    40.2
+  decode c8            1352.8    753.3      5.84   10.52      55.2    75.4
+  decode c32           3507.4   1878.7      9.01   16.88     100.8   130.0
+
+== Run 2: 20261116-1701, d63f2ba, Qwen3-8B only, detached
+sudo systemd-run --unit=oif-bench-s5 --collect -p WorkingDirectory=/home/oif/oif \
+  /home/oif/oif/oif bench --profile quick --stacks "vllm sglang" --gpu 1 --models Qwen/Qwen3-8B
+server start-up: vllm 173 s, sglang 49 s; per stack: vllm 882 s, sglang 941 s; unit done after 31 min 33 s
+report: 12 points, 12 medians, 0 errors, every output length as asked (ignore_eos)
+
+Qwen3-8B (run 2)        out tok/s           ITL p50 ms        TTFT p50 ms
+                        vllm     sglang     vllm   sglang     vllm   sglang
+  chat   c1              41.0     24.2     23.91   40.62     140.5   203.4
+  chat   c8             239.7    173.5     30.76   40.78     656.2  1037.2
+  chat   c32            658.3    478.2     46.16   55.26     870.7  3157.8
+  decode c1              41.6     24.0     23.98   41.56      54.8    74.7
+  decode c8             266.9    193.3     29.86   41.29     130.2   106.4
+  decode c32            808.1    635.6     39.41   50.22     172.3   142.4
+both stacks at the 241 W power cap (238-240 W average), junction 83-102 °C
+
+== Reading it
+- S-5 passes: SGLang built for gfx1100 runs both models through oif bench with 0 errors; 8B single-stream 24 tok/s
+  equals AMD's RDNA CI (23.7 at concurrency 1).
+- vllm against sglang is not an engine-only comparison: the vLLM image is v0.33.0 on torch 2.13 + ROCm 10.0 (HIP 7.15)
+  with its ROCm attention; the SGLang line is torch 2.10 + ROCm 7.2.4 with Triton attention and no aiter (RDNA).
+  The Dynamo comparisons are not affected: each Dynamo image is built FROM its engine's image.
+- 30 s points with 1-5 requests at concurrency 1: indicative only; the full profile measures it.

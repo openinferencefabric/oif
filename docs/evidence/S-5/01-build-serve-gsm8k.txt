@@ -1,0 +1,49 @@
+# S-5, 2026-11-16 (owner): SGLang for RDNA3 built on the lab's GPU node (VM with the Radeon PRO W7900, gfx1100),
+# served Qwen3-8B on the W7900, GSM8K. oif branch s5/sglang-gfx1100. Excerpts of the owner's terminal; the node's
+# address and the registry token are not shown.
+
+== build (images/sglang-rocm/build.sh, user oif, rootless podman)
+run 1 (3618126): six PRs applied on amd_march aaaf7c860d; podman refused the short base image name -> f4a0b69 (docker.io/)
+run 2 (f4a0b69): built in 12 min; the smoke test failed importing sglang.srt.entrypoints.http_server (it asks the GPU
+                 for its architecture on import, the build has no GPU) -> 816b5ca (smoke test without server modules)
+image ghcr.io/openinferencefabric/sglang-rocm:aaaf7c860d-gfx1100-prsd442febf, pushed by hand (podman push):
+  podman image inspect RepoDigests then showed sha256:3774df8c02a5cf342d9f0fcd126ffaa298c15a53af444194a1e885ec1a5c0f12,
+  the digest of podman's local manifest; podman compresses the layers on push and writes a new manifest, so GHCR
+  answered "manifest unknown" for it when oif bench pulled by digest. The registry's digest for the tag (manifest
+  query, config sha256:a552c65666... = the built image):
+  ghcr.io/openinferencefabric/sglang-rocm@sha256:a8ba09b476422ca54fe6ed3a18d5e1b2d99c0e4c9d75fc7d6ff4dfd636acf9e9
+the package was made public 2026-11-16 (a pull without login works)
+
+== serve (kubelet stopped; sudo podman pulled the pushed image by tag, config a552c65666 = the built image)
+sudo podman run -d --name s5 --device /dev/kfd --device /dev/dri --group-add video --ipc host \
+  --security-opt seccomp=unconfined --network host -v /var/tmp/oif-bench/hf:/hf -e HF_HOME=/hf -e SGLANG_USE_AITER=0 \
+  "$IMG" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 127.0.0.1 --port 30000 --attention-backend triton
+
+[14:23:08] Load weight begin. avail mem=44.80 GB
+[14:23:15] gfx11 weight padding: padded {(6144, 4096): 36, (4096, 4096): 36, (24576, 4096): 36, (4096, 12288): 36, (151936, 4096): 1}; skipped {}
+[14:23:16] Load weight end. elapsed=7.28 s, type=Qwen3ForCausalLM, avail mem=28.68 GB, mem usage=16.12 GB.
+[14:23:18] KV Cache is allocated. dtype: torch.bfloat16, #tokens: 160328, K size: 11.01 GB, V size: 11.01 GB
+[14:23:28] Capture target decode CUDA graph end. elapsed=9.53 s, mem usage=0.17 GB, avail mem=6.08 GB.
+[14:23:28] max_total_num_tokens=160328, chunked_prefill_size=4096, max_prefill_tokens=16384, max_running_requests=2048, context_len=40960, available_gpu_mem=6.08 GB
+[14:23:28] Using the Python TreeCore: PyTorch 2.10.0+rocm7.2.4.git3d3aa833 is outside the Rust TreeCore support range
+[14:23:37] The server is fired up and ready to roll!
+warnings, harmless here: amdsmi not installed (SGLang's own GPU stats; oif bench reads amdgpu sysfs on the node);
+"aiter is AMD specific" (aiter is left out on purpose: no RDNA kernels); a Triton kernel compiled on the first request.
+
+== chat, temperature 0: "What is 17*23? /no_think", max_tokens 64
+"To calculate $ 17 \times 23 $, you can use the standard multiplication method: ... 51 \quad \text{(17 × 3)}"
+finish_reason "length": coherent, cut by the test's 64-token limit before the result (the test's mistake, not the image's)
+
+== GSM8K: sudo podman exec s5 python3 -m sglang.test.few_shot_gsm8k --num-questions 100 --port 30000
+100%|██████████| 100/100 [00:26<00:00,  3.79it/s]
+Accuracy: 0.920
+Invalid: 0.000
+Latency: 26.740 s
+Output throughput: 440.652 token/s
+server log at the tail of the run, one request left: Decode batch, #running-req: 1, ... gen throughput (token/s): 25.6
+
+== verdict
+SGLang serves on the W7900. GSM8K 92% on 100 questions against 96% in AMD's daily RDNA CI (2026-11-15, same line):
+inside the noise of 100 questions (one standard error about 2.7 points); the full 1,319-question GSM8K runs in the
+quality phase. Single-request decode 25.6 tok/s (AMD CI: 23.7 at concurrency 1).
+Afterwards: container removed, kubelet active, no container left (read-only check).
