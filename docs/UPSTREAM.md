@@ -142,6 +142,21 @@ PR #3950 closed as not planned; oif keeps them as patches. R2's PR #3948 and R3'
 | R2 | [reply on run-ai#3948](https://github.com/dsx-ai-factory/run-ai/pull/3948#issuecomment-6805787888) | Maintainer: "reviewing it". The required check "PR links an approved issue" needs an open issue labelled `issue/approved`; #3940 is closed, so the PR waits on R12. Rebase offered (467 commits behind main) |
 | R3 | [reply on run-ai#3949](https://github.com/dsx-ai-factory/run-ai/pull/3949#issuecomment-6805788429) | Maintainer: "reviewing it". Not AMD-specific; asked for `issue/approved` on #3941 so the required check passes; rebase and rerun before merge |
 
+## Submitted (2026-11-16)
+
+Status on 2026-11-16: KAI#2557 and #2594 are approved by gshaibi and noiyemini (2026-11-12) with green CI, but GitHub
+shows both as blocked; gpu-fractioning#175 waits for danbar2's re-review; kwok#1808 passed every check after
+`/ok-to-test` (wzshiming, 2026-11-13) and needs `/lgtm` and `/approve` (yibozhuang). R6 (run-ai#3944) was fixed
+upstream on 2026-11-10; Run:ai 3.0.23 and later should carry it, oif pins 3.0.20 (confirm after the upgrade, then drop
+the per-department GET in `installer/tools/runai_api.py`).
+
+| # | Thread | What |
+| --- | --- | --- |
+| K3b | [ping on KAI#2557](https://github.com/kai-scheduler/KAI-Scheduler/pull/2557#issuecomment-6908218217) | Asked what is still needed to merge (approved, shown as blocked) |
+| K10 | [ping on KAI#2594](https://github.com/kai-scheduler/KAI-Scheduler/pull/2594#issuecomment-6908218612) | Asked what is still needed to merge (approved, shown as blocked) |
+| K7 | [ping on gpu-fractioning#175](https://github.com/kai-scheduler/gpu-fractioning/pull/175#issuecomment-6908219007) | Asked danbar2 for a re-review: every point addressed (261f6ce, 584b4b8), lab results posted |
+| X1 | [ping on kwok#1808](https://github.com/kubernetes-sigs/kwok/pull/1808#issuecomment-6908219479) | Asked wzshiming for a review; all checks pass |
+
 ## Status check (2026-11-12)
 
 Every thread linked here checked against GitHub on 2026-11-12. Changes since the last entries:
