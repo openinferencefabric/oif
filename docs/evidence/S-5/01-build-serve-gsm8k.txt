@@ -6,8 +6,13 @@
 run 1 (3618126): six PRs applied on amd_march aaaf7c860d; podman refused the short base image name -> f4a0b69 (docker.io/)
 run 2 (f4a0b69): built in 12 min; the smoke test failed importing sglang.srt.entrypoints.http_server (it asks the GPU
                  for its architecture on import, the build has no GPU) -> 816b5ca (smoke test without server modules)
-image ghcr.io/openinferencefabric/sglang-rocm:aaaf7c860d-gfx1100-prsd442febf, pushed by hand:
-  ghcr.io/openinferencefabric/sglang-rocm@sha256:3774df8c02a5cf342d9f0fcd126ffaa298c15a53af444194a1e885ec1a5c0f12
+image ghcr.io/openinferencefabric/sglang-rocm:aaaf7c860d-gfx1100-prsd442febf, pushed by hand (podman push):
+  podman image inspect RepoDigests then showed sha256:3774df8c02a5cf342d9f0fcd126ffaa298c15a53af444194a1e885ec1a5c0f12,
+  the digest of podman's local manifest; podman compresses the layers on push and writes a new manifest, so GHCR
+  answered "manifest unknown" for it when oif bench pulled by digest. The registry's digest for the tag (manifest
+  query, config sha256:a552c65666... = the built image):
+  ghcr.io/openinferencefabric/sglang-rocm@sha256:a8ba09b476422ca54fe6ed3a18d5e1b2d99c0e4c9d75fc7d6ff4dfd636acf9e9
+the package was made public 2026-11-16 (a pull without login works)
 
 == serve (kubelet stopped; sudo podman pulled the pushed image by tag, config a552c65666 = the built image)
 sudo podman run -d --name s5 --device /dev/kfd --device /dev/dri --group-add video --ipc host \
