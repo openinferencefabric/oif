@@ -5,7 +5,7 @@
 # shellcheck source=lib.sh
 . "$(dirname "$0")/lib.sh"
 sha40='^[0-9a-f]{40}$'
-[[ $SGLANG_ROCM_BASE_IMAGE =~ ^rocm/pytorch:[^@]+@sha256:[0-9a-f]{64}$ ]] || fail "base image pinned by digest: '$SGLANG_ROCM_BASE_IMAGE'"
+[[ $SGLANG_ROCM_BASE_IMAGE =~ ^docker\.io/rocm/pytorch:[^@]+@sha256:[0-9a-f]{64}$ ]] || fail "base image pinned by digest, with its registry (podman refuses short names): '$SGLANG_ROCM_BASE_IMAGE'"
 [[ $SGLANG_ROCM_REF =~ $sha40 ]] || fail "SGLang ref is a full commit: '$SGLANG_ROCM_REF'"
 eq "$SGLANG_ROCM_GIT" "https://github.com/sgl-project/sglang.git" "SGLang repository:"
 n=0
