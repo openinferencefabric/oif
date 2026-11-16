@@ -1,0 +1,122 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>oif bench Radeon Pro W7900</title>
+<style>
+:root{--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10);
+--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--teal:#0E7C86}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500}}
+:root[data-theme=dark]{--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500}
+*{box-sizing:border-box} body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 64px} h1{font-size:26px;margin:0} h2{font-size:19px;margin:36px 0 8px} h3{font-size:16px;margin:20px 0 6px}
+.muted{color:var(--ink2)} header{display:flex;gap:14px;align-items:center} .mk-d{display:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .mk-l{display:none} :root:not([data-theme=light]) .mk-d{display:inline}}
+:root[data-theme=dark] .mk-l{display:none} :root[data-theme=dark] .mk-d{display:inline}
+.card{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px;margin:12px 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px} .tile{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:14px}
+.tv{font-size:30px;font-weight:600;margin:4px 0} .tl{color:var(--ink2);font-size:13px} .ts{font-size:13px;margin-top:6px}
+.tw{overflow-x:auto} table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums} th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--grid);white-space:nowrap} th{color:var(--ink2);font-weight:600}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0} select,button{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--axis);border-radius:8px;padding:5px 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px} .panel{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:10px 10px 4px;position:relative}
+.panel h4{margin:0 0 2px;font-size:14px} .panel .sub{color:var(--ink2);font-size:12px} svg text{fill:var(--muted);font-size:11px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--ink2)} .legend span{display:inline-flex;align-items:center;gap:6px}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--axis);border-radius:8px;padding:6px 8px;font-size:12px;display:none;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+details summary{cursor:pointer;color:var(--ink2)} code{font-size:12px} ul{padding-left:20px}
+</style></head><body><main>
+<header><span class="mk-l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 100" width="66" height="50">
+<rect width="132" height="100" fill="#FFFFFF"/><rect x="26" y="12" width="15" height="76" rx="7.5" fill="#0E7C86"/>
+<rect x="54" y="12" width="15" height="76" rx="7.5" fill="#E39A2D"/>
+<rect x="8" y="27" width="76" height="21" fill="#FFFFFF"/><rect x="8" y="30" width="76" height="15" rx="7.5" fill="#16202A"/>
+<rect x="8" y="53" width="76" height="21" fill="#FFFFFF"/><rect x="8" y="56" width="76" height="15" rx="7.5" fill="#16202A"/>
+<rect x="51" y="29" width="21" height="17" fill="#FFFFFF"/><rect x="54" y="28" width="15" height="19" fill="#E39A2D"/>
+<rect x="23" y="55" width="21" height="17" fill="#FFFFFF"/><rect x="26" y="54" width="15" height="19" fill="#0E7C86"/>
+<circle cx="96" cy="37.5" r="7.5" fill="#16202A"/><circle cx="113" cy="37.5" r="5" fill="#16202A"/><circle cx="125" cy="37.5" r="3" fill="#16202A"/><circle cx="96" cy="63.5" r="7.5" fill="#16202A"/><circle cx="113" cy="63.5" r="5" fill="#16202A"/><circle cx="125" cy="63.5" r="3" fill="#16202A"/></svg></span><span class="mk-d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 100" width="66" height="50">
+<rect width="132" height="100" fill="#121A22"/><rect x="26" y="12" width="15" height="76" rx="7.5" fill="#2BA7B1"/>
+<rect x="54" y="12" width="15" height="76" rx="7.5" fill="#F0AE48"/>
+<rect x="8" y="27" width="76" height="21" fill="#121A22"/><rect x="8" y="30" width="76" height="15" rx="7.5" fill="#E6EBEE"/>
+<rect x="8" y="53" width="76" height="21" fill="#121A22"/><rect x="8" y="56" width="76" height="15" rx="7.5" fill="#E6EBEE"/>
+<rect x="51" y="29" width="21" height="17" fill="#121A22"/><rect x="54" y="28" width="15" height="19" fill="#F0AE48"/>
+<rect x="23" y="55" width="21" height="17" fill="#121A22"/><rect x="26" y="54" width="15" height="19" fill="#2BA7B1"/>
+<circle cx="96" cy="37.5" r="7.5" fill="#E6EBEE"/><circle cx="113" cy="37.5" r="5" fill="#E6EBEE"/><circle cx="125" cy="37.5" r="3" fill="#E6EBEE"/><circle cx="96" cy="63.5" r="7.5" fill="#E6EBEE"/><circle cx="113" cy="63.5" r="5" fill="#E6EBEE"/><circle cx="125" cy="63.5" r="3" fill="#E6EBEE"/></svg></span>
+<div><h1>Dynamo vs plain engine on the Radeon Pro W7900</h1>
+<div class="muted">open inference fabric · oif bench, profile quick · 1 repeat(s) · AIPerf 0.13.0</div></div>
+<button id="theme" style="margin-left:auto" aria-label="Switch light or dark">Light / dark</button></header>
+
+<h2>What this measures</h2>
+<p>The Dynamo image is built <b>FROM</b> the plain engine image, so the engine, PyTorch and ROCm are the same files. Both get the same engine
+arguments, the same AIPerf prompts (fixed seed) and exact output lengths (<code>ignore_eos</code>), one at a time on one GPU that starts
+each point below 60 °C (it may run much hotter during the point: up to 102 °C here). What differs is Dynamo's frontend, request plane and worker wrapper. A small negative
+number is the price of that layer; Dynamo's gains (KV-aware routing across workers, disaggregation, planner) need more than one GPU and are not
+part of this test.</p>
+<p class='muted'>Not in this run: dynamo-vllm, dynamo-sglang (no image pinned yet; SGLang needs spike S-5 on gfx1100 first).</p>
+
+<h2>Headline: Dynamo vs engine</h2><div class="tiles"><p class="muted">No Dynamo/engine pair has results yet.</p></div>
+<p class="muted">Positive throughput means Dynamo served more output tokens per second; positive TTFT/TPOT means Dynamo was slower.
+Medians over every workload and concurrency point. A throughput difference counts when it is beyond twice the run-to-run spread
+and at least 2%.</p>
+
+<h2>Curves</h2>
+<p class="muted">Metric definitions: docs/BENCHMARK.md in the oif repository. TPOT is the average gap between generated tokens after the first; speed per user is 1000 ÷ TPOT.</p>
+<div class="ctl"><label>Model <select id="model"></select></label><label>Metric <select id="metric"></select></label></div>
+<div class="legend" id="legend"></div>
+<div class="grid" id="charts"></div>
+<details class="card"><summary>Table view of the curves</summary><div id="ctable"></div></details>
+
+<h2>Dynamo vs engine at every point</h2>
+<div class="card"><div class="tw"><table class=""><thead><tr><th>pair</th><th>model</th><th>workload</th><th>conc</th><th>engine tok/s</th><th>Dynamo tok/s</th><th>Δ throughput</th><th>Δ TTFT p50</th><th>Δ TTFT p99</th><th>Δ TPOT p50</th><th>Δ E2E p99</th><th>verdict</th></tr></thead><tbody></tbody></table></div></div>
+
+<h2>Start-up, memory and run time</h2>
+<div class="card"><div class="tw"><table class=""><thead><tr><th>model</th><th>stack</th><th>started</th><th>seconds to first answer (median)</th><th>VRAM after start (GiB)</th><th>run time per repeat (min, median)</th><th>run time, all repeats (min)</th></tr></thead><tbody><tr><td>Qwen/Qwen3-8B</td><td>vllm</td><td>1/1</td><td>173</td><td>36.5</td><td>14.7</td><td>14.7</td></tr><tr><td>Qwen/Qwen3-8B</td><td>sglang</td><td>1/1</td><td>49</td><td>39.0</td><td>15.7</td><td>15.7</td></tr></tbody></table></div></div>
+
+<h2>Run quality</h2>
+<ul><li>Points with failed runs or request errors: <b>0</b></li>
+<li>Points where the mean output length missed the requested length by more than 2%: <b>0</b> (every request produced the requested tokens)</li>
+<li>Points where a stack completed fewer than 10 requests: <b>6</b> — Qwen3-8B vllm chat c=1; Qwen3-8B vllm decode c=1; Qwen3-8B vllm decode c=8; Qwen3-8B sglang chat c=1; Qwen3-8B sglang decode c=1; Qwen3-8B sglang decode c=8 (their p99 latencies rest on a few requests)</li>
+<li>Points with fewer repeats than the profile's 1: <b>0</b></li>
+<li>Run-to-run spread of output throughput: one repeat only: no spread, so no noise verdict (the full profile runs 3)</li></ul>
+
+<h2>Environment</h2>
+<div class="card"><div class="tw"><table class=""><thead><tr><th>stack</th><th>image</th><th>digest</th><th>inside</th></tr></thead><tbody><tr><td>vllm</td><td>docker.io/vllm/vllm-openai-rocm:v0.33.0</td><td>sha256:4fcd39b758b6</td><td>torch 2.13.0+rocm10.0.0, hip 7.15.26333, vllm 0.33.0+rocm100, triton 3.8.0+git669b31ac</td></tr><tr><td>sglang</td><td>ghcr.io/openinferencefabric/sglang-rocm:aaaf7c860d-gfx1100-prsd442febf</td><td>sha256:a8ba09b47642</td><td>torch 2.10.0+rocm7.2.4.git3d3aa833, hip 7.2.53211, sglang 0.5.24.dev8+gaaaf7c860, sglang-kernel 0.4.7, triton 3.6.0+rocm7.2.4.git4ed88892</td></tr></tbody></table></div>
+<p>GPU Radeon Pro W7900, 45 GiB, power cap 241 W · amdgpu  · kernel 7.0.0-43-generic · 48 CPUs</p>
+<p>vLLM arguments: <code>--max-model-len 8192 --gpu-memory-utilization 0.90 --max-num-seqs 256 --seed 0</code><br>SGLang arguments: <code>--context-length 8192 --mem-fraction-static 0.85 --max-running-requests 256 --random-seed 0 --attention-backend triton --sampling-backend pytorch</code><br>
+Workloads (name:input:output tokens): <code>chat:512:256 decode:128:1024</code> · concurrency 1 8 32 · 30 s per point, warm-up max(c, 4) requests</p>
+<p class="muted">Raw AIPerf exports, GPU samples (0.5 s) and server logs are in the result directory; <code>summary.csv</code> has every median shown here.</p></div>
+</main>
+<script>
+const DATA={"agg": [{"model": "Qwen/Qwen3-8B", "stack": "vllm", "workload": "chat", "concurrency": 1, "isl": 512, "osl": 256, "repeats": 1, "failed": 0, "out_tok_s": 41.0, "prefill_tok_s": 81.9, "req_s": 0.16, "tok_s_per_user": 41.8, "ttft_p50_ms": 140.48, "ttft_p99_ms": 143.16, "itl_p50_ms": 23.91, "itl_p99_ms": 23.92, "e2e_p50_ms": 6236.01, "e2e_p99_ms": 6240.82, "gpu_busy_avg": 99.6, "power_avg_w": 240.3, "tok_per_joule": 0.17, "vram_max_mib": 37486.0, "junction_max_c": 83.0, "sclk_avg_mhz": 2631, "osl_avg": 256.0, "errors": 0, "requests": 5.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "vllm", "workload": "chat", "concurrency": 8, "isl": 512, "osl": 256, "repeats": 1, "failed": 0, "out_tok_s": 239.7, "prefill_tok_s": 479.7, "req_s": 0.94, "tok_s_per_user": 32.3, "ttft_p50_ms": 656.22, "ttft_p99_ms": 916.04, "itl_p50_ms": 30.76, "itl_p99_ms": 32.94, "e2e_p50_ms": 8543.64, "e2e_p99_ms": 8626.32, "gpu_busy_avg": 99.1, "power_avg_w": 239.1, "tok_per_joule": 1.0, "vram_max_mib": 37718.0, "junction_max_c": 85.0, "sclk_avg_mhz": 2436, "osl_avg": 255.9, "errors": 0, "requests": 32.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "vllm", "workload": "chat", "concurrency": 32, "isl": 512, "osl": 256, "repeats": 1, "failed": 0, "out_tok_s": 658.3, "prefill_tok_s": 1316.4, "req_s": 2.57, "tok_s_per_user": 22.7, "ttft_p50_ms": 870.65, "ttft_p99_ms": 2888.55, "itl_p50_ms": 46.16, "itl_p99_ms": 50.94, "e2e_p50_ms": 12780.52, "e2e_p99_ms": 14707.44, "gpu_busy_avg": 99.2, "power_avg_w": 239.4, "tok_per_joule": 2.75, "vram_max_mib": 37718.0, "junction_max_c": 87.0, "sclk_avg_mhz": 2317, "osl_avg": 256.0, "errors": 0, "requests": 96.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "vllm", "workload": "decode", "concurrency": 1, "isl": 128, "osl": 1024, "repeats": 1, "failed": 0, "out_tok_s": 41.6, "prefill_tok_s": 5.2, "req_s": 0.04, "tok_s_per_user": 41.7, "ttft_p50_ms": 54.8, "ttft_p99_ms": 66.88, "itl_p50_ms": 23.98, "itl_p99_ms": 23.99, "e2e_p50_ms": 24588.53, "e2e_p99_ms": 24595.21, "gpu_busy_avg": 99.7, "power_avg_w": 240.1, "tok_per_joule": 0.17, "vram_max_mib": 37718.0, "junction_max_c": 95.0, "sclk_avg_mhz": 2500, "osl_avg": 1024.0, "errors": 0, "requests": 2.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "vllm", "workload": "decode", "concurrency": 8, "isl": 128, "osl": 1024, "repeats": 1, "failed": 0, "out_tok_s": 266.9, "prefill_tok_s": 33.4, "req_s": 0.26, "tok_s_per_user": 33.5, "ttft_p50_ms": 130.16, "ttft_p99_ms": 131.76, "itl_p50_ms": 29.86, "itl_p99_ms": 29.87, "e2e_p50_ms": 30676.36, "e2e_p99_ms": 30676.89, "gpu_busy_avg": 99.6, "power_avg_w": 239.7, "tok_per_joule": 1.11, "vram_max_mib": 37718.0, "junction_max_c": 89.0, "sclk_avg_mhz": 2441, "osl_avg": 1024.0, "errors": 0, "requests": 8.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "vllm", "workload": "decode", "concurrency": 32, "isl": 128, "osl": 1024, "repeats": 1, "failed": 0, "out_tok_s": 808.1, "prefill_tok_s": 101.0, "req_s": 0.79, "tok_s_per_user": 25.4, "ttft_p50_ms": 172.32, "ttft_p99_ms": 219.55, "itl_p50_ms": 39.41, "itl_p99_ms": 39.6, "e2e_p50_ms": 40493.72, "e2e_p99_ms": 40519.12, "gpu_busy_avg": 99.0, "power_avg_w": 238.7, "tok_per_joule": 3.39, "vram_max_mib": 37718.0, "junction_max_c": 92.0, "sclk_avg_mhz": 2302, "osl_avg": 1023.7, "errors": 0, "requests": 32.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "sglang", "workload": "chat", "concurrency": 1, "isl": 512, "osl": 256, "repeats": 1, "failed": 0, "out_tok_s": 24.2, "prefill_tok_s": 48.6, "req_s": 0.1, "tok_s_per_user": 24.6, "ttft_p50_ms": 203.4, "ttft_p99_ms": 205.01, "itl_p50_ms": 40.62, "itl_p99_ms": 40.75, "e2e_p50_ms": 10560.46, "e2e_p99_ms": 10597.29, "gpu_busy_avg": 99.6, "power_avg_w": 239.6, "tok_per_joule": 0.1, "vram_max_mib": 39971.0, "junction_max_c": 96.0, "sclk_avg_mhz": 2560, "osl_avg": 256.0, "errors": 0, "requests": 3.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "sglang", "workload": "chat", "concurrency": 8, "isl": 512, "osl": 256, "repeats": 1, "failed": 0, "out_tok_s": 173.5, "prefill_tok_s": 347.1, "req_s": 0.68, "tok_s_per_user": 24.4, "ttft_p50_ms": 1037.21, "ttft_p99_ms": 2248.98, "itl_p50_ms": 40.78, "itl_p99_ms": 42.18, "e2e_p50_ms": 11523.3, "e2e_p99_ms": 12433.61, "gpu_busy_avg": 97.4, "power_avg_w": 236.2, "tok_per_joule": 0.73, "vram_max_mib": 40629.0, "junction_max_c": 88.0, "sclk_avg_mhz": 2436, "osl_avg": 256.0, "errors": 0, "requests": 24.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "sglang", "workload": "chat", "concurrency": 32, "isl": 512, "osl": 256, "repeats": 1, "failed": 0, "out_tok_s": 478.2, "prefill_tok_s": 956.4, "req_s": 1.87, "tok_s_per_user": 18.1, "ttft_p50_ms": 3157.78, "ttft_p99_ms": 4620.27, "itl_p50_ms": 55.26, "itl_p99_ms": 64.78, "e2e_p50_ms": 17116.64, "e2e_p99_ms": 17252.25, "gpu_busy_avg": 99.1, "power_avg_w": 239.0, "tok_per_joule": 2.0, "vram_max_mib": 40823.0, "junction_max_c": 90.0, "sclk_avg_mhz": 2356, "osl_avg": 256.0, "errors": 0, "requests": 64.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "sglang", "workload": "decode", "concurrency": 1, "isl": 128, "osl": 1024, "repeats": 1, "failed": 0, "out_tok_s": 24.0, "prefill_tok_s": 2.9, "req_s": 0.02, "tok_s_per_user": 24.1, "ttft_p50_ms": 74.67, "ttft_p99_ms": 74.67, "itl_p50_ms": 41.56, "itl_p99_ms": 41.56, "e2e_p50_ms": 42587.51, "e2e_p99_ms": 42587.51, "gpu_busy_avg": 99.9, "power_avg_w": 240.2, "tok_per_joule": 0.1, "vram_max_mib": 40823.0, "junction_max_c": 102.0, "sclk_avg_mhz": 2490, "osl_avg": 1024.0, "errors": 0, "requests": 1.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "sglang", "workload": "decode", "concurrency": 8, "isl": 128, "osl": 1024, "repeats": 1, "failed": 0, "out_tok_s": 193.3, "prefill_tok_s": 24.2, "req_s": 0.19, "tok_s_per_user": 24.2, "ttft_p50_ms": 106.44, "ttft_p99_ms": 111.09, "itl_p50_ms": 41.29, "itl_p99_ms": 41.37, "e2e_p50_ms": 42344.1, "e2e_p99_ms": 42347.27, "gpu_busy_avg": 99.6, "power_avg_w": 239.8, "tok_per_joule": 0.81, "vram_max_mib": 40823.0, "junction_max_c": 97.0, "sclk_avg_mhz": 2468, "osl_avg": 1023.8, "errors": 0, "requests": 8.0, "cv_pct": null, "osl_ok": true}, {"model": "Qwen/Qwen3-8B", "stack": "sglang", "workload": "decode", "concurrency": 32, "isl": 128, "osl": 1024, "repeats": 1, "failed": 0, "out_tok_s": 635.6, "prefill_tok_s": 79.5, "req_s": 0.62, "tok_s_per_user": 19.9, "ttft_p50_ms": 142.44, "ttft_p99_ms": 167.59, "itl_p50_ms": 50.22, "itl_p99_ms": 50.27, "e2e_p50_ms": 51517.51, "e2e_p99_ms": 51524.19, "gpu_busy_avg": 99.2, "power_avg_w": 238.6, "tok_per_joule": 2.66, "vram_max_mib": 40827.0, "junction_max_c": 98.0, "sclk_avg_mhz": 2403, "osl_avg": 1023.9, "errors": 0, "requests": 32.0, "cv_pct": null, "osl_ok": true}], "models": ["Qwen/Qwen3-8B"], "stacks": ["vllm", "sglang"], "workloads": ["chat", "decode"], "conc": [1, 8, 32]};
+const COL={"vllm":"var(--s1)","dynamo-vllm":"var(--s2)","sglang":"var(--s3)","dynamo-sglang":"var(--s4)"};
+const DASH=s=>s.startsWith("dynamo")?"6 4":"";
+const MET={out_tok_s:["Output tokens/s","",1],prefill_tok_s:["Prompt processing rate (input tokens/s)","",1],tok_s_per_user:["Speed per user (tokens/s)","",1],req_s:["Requests/s","",1],
+ttft_p50_ms:["TTFT p50","ms",0],ttft_p99_ms:["TTFT p99","ms",0],itl_p50_ms:["TPOT p50","ms",0],itl_p99_ms:["TPOT p99","ms",0],
+e2e_p50_ms:["End-to-end latency p50","ms",0],e2e_p99_ms:["End-to-end latency p99","ms",0],power_avg_w:["GPU power","W",0],
+tok_per_joule:["Output tokens per joule","",1],gpu_busy_avg:["GPU busy","%",0]};
+const $=id=>document.getElementById(id);
+try{const t=localStorage.getItem("oif-theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}
+$("theme").onclick=()=>{const dark=document.documentElement.dataset.theme==="dark"||(!document.documentElement.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);
+document.documentElement.dataset.theme=dark?"light":"dark";try{localStorage.setItem("oif-theme",document.documentElement.dataset.theme)}catch(e){}};
+DATA.models.forEach(m=>$("model").add(new Option(m,m)));Object.entries(MET).forEach(([k,v])=>$("metric").add(new Option(v[0]+(v[1]?" ("+v[1]+")":""),k)));
+$("legend").innerHTML=DATA.stacks.map(s=>`<span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="${COL[s]}" stroke-width="2" stroke-dasharray="${DASH(s)}"/></svg>${s}</span>`).join("");
+function fmt(v){return v==null?"—":(Math.abs(v)>=100?Math.round(v).toLocaleString():(+v).toFixed(1))}
+function draw(){const m=$("model").value,k=$("metric").value,[label,unit]=MET[k];const C=DATA.conc;let out="",rows=[];
+for(const w of DATA.workloads){const pts=DATA.agg.filter(a=>a.model===m&&a.workload===w);if(!pts.length)continue;
+const W=340,H=210,L=46,R=10,T=10,B=28;const vals=pts.map(p=>p[k]).filter(v=>v!=null);const ymax=Math.max(...vals,0)*1.1||1;
+const x=i=>L+(C.length>1?i*(W-L-R)/(C.length-1):0),y=v=>T+(H-T-B)*(1-v/ymax);let g="";
+for(let i=0;i<=4;i++){const v=ymax*i/4;g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${fmt(v)}</text>`}
+C.forEach((c,i)=>g+=`<text x="${x(i)}" y="${H-10}" text-anchor="middle">${c}</text>`);
+let lines="";for(const s of DATA.stacks){const ps=C.map((c,i)=>{const p=pts.find(p=>p.stack===s&&p.concurrency===c);return p&&p[k]!=null?[x(i),y(p[k])]:null}).filter(Boolean);
+if(!ps.length)continue;lines+=`<polyline fill="none" stroke="${COL[s]}" stroke-width="2" stroke-dasharray="${DASH(s)}" points="${ps.map(p=>p.join(",")).join(" ")}"/>`+
+ps.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${COL[s]}" stroke="var(--surface)" stroke-width="2"/>`).join("")}
+const ex=pts[0];out+=`<div class="panel" data-w="${w}"><h4>${w}</h4><div class="sub">${ex.isl} in / ${ex.osl} out tokens · ${label}${unit?" ("+unit+")":""} by concurrency</div>
+<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${label} for ${w}">${g}<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--axis)"/>${lines}
+<line class="cross" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="var(--axis)" visibility="hidden"/><rect x="${L}" y="0" width="${W-L-R}" height="${H}" fill="transparent" class="hit"/></svg><div class="tip"></div></div>`;
+C.forEach(c=>{const r=[w,c];DATA.stacks.forEach(s=>{const p=pts.find(p=>p.stack===s&&p.concurrency===c);r.push(p?fmt(p[k]):"—")});rows.push(r)})}
+$("charts").innerHTML=out||"<p class='muted'>No results for this model.</p>";
+$("ctable").innerHTML=`<div class="tw"><table><thead><tr><th>workload</th><th>concurrency</th>${DATA.stacks.map(s=>`<th>${s}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>"<tr>"+r.map(v=>`<td>${v}</td>`).join("")+"</tr>").join("")}</tbody></table></div>`;
+document.querySelectorAll(".panel").forEach(pn=>{const svg=pn.querySelector("svg"),tip=pn.querySelector(".tip"),cross=pn.querySelector(".cross"),w=pn.dataset.w;
+const pick=e=>{const r=svg.getBoundingClientRect(),vx=(e.clientX-r.left)*340/r.width;const i=Math.max(0,Math.min(C.length-1,Math.round((vx-46)/((340-56)/Math.max(1,C.length-1)))));return i};
+svg.addEventListener("mousemove",e=>{const i=pick(e),c=C[i],xx=46+(C.length>1?i*(340-56)/(C.length-1):0);cross.setAttribute("x1",xx);cross.setAttribute("x2",xx);cross.setAttribute("visibility","visible");
+tip.innerHTML=`<b>concurrency ${c}</b><br>`+DATA.stacks.map(s=>{const p=DATA.agg.find(p=>p.model===m&&p.workload===w&&p.stack===s&&p.concurrency===c);return `<span style="color:${COL[s]}">■</span> ${s}: ${p?fmt(p[k]):"—"} ${unit}`}).join("<br>");
+tip.style.display="block";const pr=pn.getBoundingClientRect();tip.style.left=Math.min(e.clientX-pr.left+12,pr.width-170)+"px";tip.style.top=(e.clientY-pr.top+12)+"px"});
+svg.addEventListener("mouseleave",()=>{tip.style.display="none";cross.setAttribute("visibility","hidden")})})}
+$("model").onchange=draw;$("metric").onchange=draw;draw();
+</script></body></html>

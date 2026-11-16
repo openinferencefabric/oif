@@ -148,7 +148,10 @@ sudo podman rm -f s5
 ```
 
 On the W7900 (2026-11-16, [evidence](../evidence/S-5/01-build-serve-gsm8k.txt)): GSM8K 92% on 100 questions (AMD's CI:
-96%, inside the noise of 100 questions), 25.6 tokens/s for one request. Harmless in the log: `amdsmi` not installed,
+96%, inside the noise of 100 questions), 25.6 tokens/s for one request. A quick `oif bench` with vllm and sglang ran both
+models with 0 errors ([evidence](../evidence/S-5/02-quick-bench.txt)). SGLang is 21-42% below vLLM there, but the two
+images are on different ROCm releases (vLLM's on ROCm 10.0, AMD's RDNA SGLang line on 7.2.4), so read that as two
+stacks, not two engines; each Dynamo image is built FROM its engine's, so the Dynamo comparisons are unaffected. Harmless in the log: `amdsmi` not installed,
 "aiter is AMD specific", "Python TreeCore" (torch 2.10 is outside the range of SGLang's Rust radix tree, so its Python
 one is used).
 
@@ -169,6 +172,8 @@ one is used).
 | `pull ... failed` for ghcr.io, `invalid username/password` | A stale login is sent with the request: `sudo podman logout ghcr.io` and run again (the OIF images are public). |
 | `GPU N cannot be used` | `./oif bench gpus` gives the reason (driver, memory, a monitor connected). |
 | `not ready` and the server log | The log is in `<out>/logs/server-*.log`; a model too large for the GPU at `--max-model-len 8192` fails here. |
+| A point with thousands of errors, the server log ends in `shutdown triggered`, the bench gone | The shell that ran it closed (SSH dropped); the bench's cleanup removed the server mid-point. Run it detached: `sudo systemd-run --unit=oif-bench --collect -p WorkingDirectory=$PWD $PWD/oif bench ...` and follow it with `sudo journalctl -fu oif-bench`. |
+| `manifest unknown` when pulling an image pinned by digest | The digest is not the registry's: after `podman push`, `podman image inspect` shows the local manifest's digest. Pin the one the registry reports for the tag (`podman pull <image:tag>` then `podman image inspect --format '{{.Digest}}'`). |
 | Output length short in the run-quality section | The stack ignored `ignore_eos`; throughput at those points is not comparable. |
 | `another oif bench is running on this node (PID N)` | One `oif bench` per node (B-1a; ADR-009: one GPU under load at a time). Wait for that run, or stop it: `systemctl list-units --all 'oif-bench*'` names its unit. The lock is `/run/lock/oif-bench.lock` and frees itself when the run ends. |
 | `Connect call failed ('127.0.0.1', 8000)` in the middle of a run | Before B-1a a second `oif bench` could start and remove this run's server; now it is refused. With an older checkout: stop both (`sudo systemctl stop <units>`), drop the failed points (`rc` not 0) from `results.jsonl`, rebuild the report, then run one at a time. |
