@@ -161,6 +161,21 @@ images/dynamo-vllm-rocm/build.sh --push     # prints the image@digest to pin in 
 The image is tagged with the fork commit and the vLLM version (`<commit>-vllm0.33.0`). A new GHCR package is private;
 the organisation owner makes it public under the organisation's Packages when it should be.
 
+### The SGLang image for RDNA3 (T-212, being tested)
+
+Upstream's SGLang ROCm images serve Instinct GPUs only, so Dynamo's `sglang`/`rocm` build cannot serve a Radeon PRO
+W7900 as it is. `images/dynamo-sglang-rocm/build.sh` runs the same fork commit's own build
+(`container/render.py --framework sglang --device rocm`) with the base swapped by build arguments only: the S-5 image
+`BENCH_SGLANG_IMAGE` (SGLang for gfx1100, guide 18), by digest, and that image's Python. The smoke test also checks
+that Dynamo's install left the base's torch and SGLang as they were. Same disk and time as above; run it under
+`systemd-run` (or `tmux`) so it survives a dropped SSH session:
+
+```bash
+images/dynamo-sglang-rocm/build.sh --push   # prints DYNAMO_SGLANG_ROCM_IMAGE=<image>@<digest> to pin in versions.env
+```
+
+The image is tagged `<fork commit>-sglang-<base tag>` in `ghcr.io/openinferencefabric/dynamo-sglang-rocm`.
+
 ## What changed on the host
 
 Nothing on the hosts themselves; oif keeps the chart in its state folder. In the cluster:

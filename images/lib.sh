@@ -15,3 +15,11 @@ push_image() {
     "$ct" image inspect "$img" --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep "^${img%:*}@" | head -1 | sed 's/.*@//'
   fi
 }
+
+# split_image REF: print "REPO TAG" for REF = repo:tag or repo:tag@sha256:..., the digest kept in TAG, for Dockerfiles
+# that join their base as ${IMAGE}:${TAG} (Dynamo's BASE_IMAGE/BASE_IMAGE_TAG). Fails on a REF without a tag.
+split_image() {
+  local name=${1%%@*}
+  case ${name##*/} in *:*) ;; *) return 1 ;; esac
+  echo "${name%:*} ${1#"${name%:*}":}"
+}
