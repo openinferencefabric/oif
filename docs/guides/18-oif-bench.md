@@ -113,6 +113,60 @@ one Python process (not yet confirmed). Dynamo's cost shows only with many short
 50 requests/s, throughput -2 to -3% and TTFT p99 137 to 304 ms. Dynamo's own gains need more than one GPU and are not
 part of this test.
 
+## Where the first-token time goes (B-1b)
+
+> Status: code ready (unit tests pass); not yet run in the lab. This section is rewritten from the first run.
+
+B-1 measured Dynamo's first token up to 40% sooner than vLLM's own server (Qwen3-0.6B, chat, 64 users) with the same
+engine and the same throughput. Two explanations are tested:
+
+1. **The text layer around the engine.** vLLM's API server is one Python process that parses requests, renders the
+   chat template, tokenizes, detokenizes and streams for every user; Dynamo does that in a multithreaded Rust frontend.
+   vLLM 0.33.0 has its own Rust frontend (`vllm-rs`, experimental, off by default) and can run several API server
+   processes.
+2. **Something that differs between vLLM's ROCm and CUDA builds.** The request path has no CUDA/ROCm branch in vLLM
+   0.33.0's source, but the images differ (torch build, libraries, what is compiled in), and a cost in the API process
+   on ROCm would show only at run time. The same run on NVIDIA (B-2) answers it.
+
+Stacks, all on `BENCH_VLLM_IMAGE` except Dynamo:
+
+| Stack | What changes against `vllm` |
+| --- | --- |
+| `vllm-api4` | four Python API server processes instead of one |
+| `vllm-rs` | vLLM's own Rust frontend (`VLLM_USE_RUST_FRONTEND=1`); skipped with a message when the image has no `vllm-rs` binary |
+| `dynamo-vllm` | Dynamo's Rust frontend and the `dynamo.vllm` worker |
+
+Run the `attrib` profile twice, one model per run (Qwen3-0.6B, then optionally Qwen3-8B), on the same node as B-1:
+
+```bash
+# 1. timings: 3 repeats, no profiler (about 40 min per stack for 0.6B)
+sudo ./oif bench --gpu 1 --profile attrib --models Qwen/Qwen3-0.6B \
+  --stacks "vllm vllm-api4 vllm-rs dynamo-vllm" --out /var/tmp/oif-bench/b1b-time-06b
+# 2. where the time goes: one repeat with --trace
+sudo ./oif bench --gpu 1 --profile attrib --models Qwen/Qwen3-0.6B --repeats 1 --trace \
+  --stacks "vllm vllm-api4 vllm-rs dynamo-vllm" --out /var/tmp/oif-bench/b1b-trace-06b
+```
+
+`--trace` adds, per point: `procs.csv` (CPU of every process of the server, every second), `pyspy-<pid>.json` (py-spy
+`--nonblocking` at 100 Hz on every Python process, from 10 s in for the benchmark duration; open in speedscope.app) and
+`metrics-<port>-{before,after}.txt` (the server's `/metrics`; port 8081 is a Dynamo worker's). py-spy is pinned as
+`PYSPY_VERSION` and runs from a short-lived `--pid host --privileged` container. At the end `bench/attrib.py` writes
+`attrib.csv`, `attrib-profiles.txt` and prints, per point, the time to first token split into:
+
+| Column | Meaning |
+| --- | --- |
+| client | AIPerf's mean TTFT, what a user sees |
+| engine | `vllm:time_to_first_token_seconds`: from the request reaching vLLM's engine client (template rendered, prompt tokenized) to its first token leaving the output processor |
+| core | queue + prefill in the engine core |
+| out path | engine - core: ZMQ and the output processor, which shares the API process's event loop |
+| api layer | client - engine: HTTP, chat template, tokenizing, the first SSE chunk |
+| api CPU / busiest | CPU of the API layer (100 = one core) and of its busiest process |
+
+Reading it: if `core` is the same on every stack and `api layer` + `out path` carry the difference, the gap is the
+text layer. An API process near 100% (one core) at 8 to 64 users means it is the queue. `vllm-rs` or `vllm-api4`
+closing the gap shows vLLM's own fix. Means include AIPerf's warm-up requests (at most 64 of several thousand per
+point). Traced points are slower than untraced ones; take the timings from run 1.
+
 ## Check it worked
 
 - `/var/tmp/oif-bench/<date>/report.html` opens (copy it off the node), the run-quality section shows 0 failed points,

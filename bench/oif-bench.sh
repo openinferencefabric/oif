@@ -10,6 +10,9 @@
 #                                      default); HF_TOKEN in the environment for gated models
 #        --repeats N                   override the profile's repeats (order of the stacks flips every repeat)
 #        --out DIR                     default /var/tmp/oif-bench/<date>
+#        --trace                       B-1b: per point, CPU of every server process, py-spy profiles of its Python
+#                                      processes and the server's /metrics before and after; summary by bench/attrib.py.
+#                                      Profiling costs time on the server: use traced points for where time goes only
 #   ./oif bench report DIR             rebuild DIR/report.html from DIR/results.jsonl
 #
 #   stack            image (versions.env)        server
@@ -17,9 +20,12 @@
 #   dynamo-vllm      DYNAMO_ROCM_IMAGE           dynamo.frontend + dynamo.vllm worker (aggregated), FROM BENCH_VLLM_IMAGE
 #   sglang           BENCH_SGLANG_IMAGE          sglang.launch_server (S-5)
 #   dynamo-sglang    DYNAMO_SGLANG_ROCM_IMAGE    dynamo.frontend + dynamo.sglang worker (aggregated, T-212)
+#   vllm-api4        BENCH_VLLM_IMAGE            vllm serve --api-server-count 4 (B-1b, only when named in --stacks)
+#   vllm-rs          BENCH_VLLM_IMAGE            vllm serve with vLLM's Rust frontend, VLLM_USE_RUST_FRONTEND=1 (B-1b, ditto)
 # Each Dynamo image is built FROM its engine image, so engine, torch and ROCm match; the difference measured is
 # Dynamo's frontend, request plane and worker wrapper. Same engine arguments within a pair, same AIPerf prompts
 # (fixed seed), exact output lengths (ignore_eos), GPU below BENCH_MAX_START_TEMP_C before every point (ADR-009).
+# Every server listens on 127.0.0.1 only (host network, nothing reachable from outside the node).
 # GPUs: AMD on the amdgpu driver today (ROCm stacks); NVIDIA with B-2. Only the chosen GPU is passed to the containers;
 # a GPU with a monitor connected is never offered.
 set -uo pipefail
@@ -29,12 +35,12 @@ HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd); ROOT=$(dirname "$HERE")
 
 say() { echo "== $*"; }
 die() { echo "oif bench: $*" >&2; exit 1; }
-usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
 
 cmd=run; case ${1:-} in run) shift ;; report) cmd=report; shift ;; gpus) exec python3 "$HERE/gpus.py" ;; help|-h|--help) usage; exit 0 ;; esac
 if [ $cmd = report ]; then [ -d "${1:-}" ] || die "report needs a result directory"; exec python3 "$HERE/report.py" "$1"; fi
 
-GPU_SEL=""; MODELS=""; DEFAULT_MODELS="Qwen/Qwen3-0.6B Qwen/Qwen3-8B"; STACKS="vllm dynamo-vllm sglang dynamo-sglang"; PROFILE=full; REPEATS=""
+GPU_SEL=""; MODELS=""; TRACE=0; DEFAULT_MODELS="Qwen/Qwen3-0.6B Qwen/Qwen3-8B"; STACKS="vllm dynamo-vllm sglang dynamo-sglang"; PROFILE=full; REPEATS=""
 OUT=/var/tmp/oif-bench/$(date +%Y%m%d-%H%M)
 HF_HOME_HOST=${HF_HOME_HOST:-/var/tmp/oif-bench/hf}
 PORT=8000; CTX=8192; MAXT=${BENCH_MAX_START_TEMP_C:-60}
@@ -44,7 +50,7 @@ SGLANG_ARGS="--context-length $CTX --mem-fraction-static 0.85 --max-running-requ
 
 while [ $# -gt 0 ]; do case $1 in
   --profile) PROFILE=$2; shift 2 ;; --models) MODELS=$2; shift 2 ;; --stacks) STACKS=$2; shift 2 ;;
-  --repeats) REPEATS=$2; shift 2 ;; --out) OUT=$2; shift 2 ;; --gpu) GPU_SEL=$2; shift 2 ;;
+  --repeats) REPEATS=$2; shift 2 ;; --out) OUT=$2; shift 2 ;; --gpu) GPU_SEL=$2; shift 2 ;; --trace) TRACE=1; shift ;;
   *) die "unknown option $1 (oif bench help)" ;; esac; done
 [ -f "$HERE/profiles/$PROFILE.env" ] || die "no profile $PROFILE in bench/profiles"
 # shellcheck source=/dev/null
@@ -59,7 +65,7 @@ echo $$ > "$LOCK"
 [ "$(id -u)" = 0 ] || die "run with sudo"
 
 image_of() { case $1 in
-  vllm) echo "${BENCH_VLLM_IMAGE:-}" ;; dynamo-vllm) echo "${DYNAMO_ROCM_IMAGE:-}" ;;
+  vllm|vllm-api4|vllm-rs) echo "${BENCH_VLLM_IMAGE:-}" ;; dynamo-vllm) echo "${DYNAMO_ROCM_IMAGE:-}" ;;
   sglang) echo "${BENCH_SGLANG_IMAGE:-}" ;; dynamo-sglang) echo "${DYNAMO_SGLANG_ROCM_IMAGE:-}" ;;
   *) die "unknown stack $1" ;; esac; }
 use=""; for s in $STACKS; do
@@ -126,11 +132,19 @@ d = {"torch": torch.__version__, "hip": torch.version.hip}
 for p in ("vllm", "sglang", "sgl-kernel", "sglang-kernel", "ai-dynamo", "ai-dynamo-runtime", "triton"):
     try: d[p] = m.version(p)
     except Exception: pass
+try:
+    import os, vllm; d["vllm_rs"] = os.access(os.path.join(os.path.dirname(vllm.__file__), "vllm-rs"), os.X_OK)
+except Exception: pass
 print(json.dumps(d))' 2>/dev/null) || inside=null
   digest=$(ct image inspect "$img" --format '{{index .RepoDigests 0}}' 2>/dev/null)
   echo "{\"stack\":\"$s\",\"image\":\"$img\",\"digest\":\"$digest\",\"inside\":${inside:-null}}" >> "$OUT/images.jsonl"
   echo "   $s: $inside"
+  if [ "$s" = vllm-rs ] && ! grep -q '"vllm_rs": true' <<< "$inside"; then
+    echo "   skip vllm-rs: the image has no vllm-rs binary (vLLM's Rust frontend is not built into it)"; drop="${drop:-} $s"
+  fi
 done
+for s in ${drop:-}; do STACKS=$(tr ' ' '\n' <<< "$STACKS" | grep -vx "$s" | xargs); done
+[ -n "$STACKS" ] || die "no stack to run"
 rd() { cat "$1" 2>/dev/null || true; }
 python3 - "$OUT/env.json" <<PY
 import json, os, platform, sys
@@ -140,7 +154,7 @@ env = {"oif_version": "${OIF_VERSION:-}", "kernel": platform.release(), "cpus": 
        "power_cap_w": round(int("$(rd "$hw/power1_cap")" or 0) / 1e6), "max_start_temp_c": $MAXT,
        "profile": "$PROFILE", "repeats": $REPEATS, "duration_s": $DUR, "aiperf": "$AIPERF_VERSION",
        "workloads": "$WORKLOADS".split(), "concurrency": [int(c) for c in "$CONCS".split()], "models": "$MODELS".split(),
-       "vllm_args": "$VLLM_ARGS", "sglang_args": "$SGLANG_ARGS",
+       "vllm_args": "$VLLM_ARGS", "sglang_args": "$SGLANG_ARGS", "trace": $TRACE, "stacks": "$STACKS".split(),
        "images": [json.loads(l) for l in open("$OUT/images.jsonl")]}
 json.dump(env, open(sys.argv[1], "w"), indent=1)
 PY
@@ -158,22 +172,33 @@ say "AIPerf $AIPERF_VERSION (venv in $OUT)"
 ct run --rm -v "$OUT:/out" --entrypoint bash "$first" -c \
   "python3 -m venv /out/aiperf-venv && /out/aiperf-venv/bin/pip install -q aiperf==$AIPERF_VERSION" \
   > "$OUT/logs/aiperf-install.log" 2>&1 || die "aiperf install failed: $OUT/logs/aiperf-install.log"
+if [ "$TRACE" = 1 ]; then
+  say "py-spy $PYSPY_VERSION (venv in $OUT, for --trace)"
+  ct run --rm -v "$OUT:/out" --entrypoint bash "$first" -c \
+    "python3 -m venv /out/tools-venv && /out/tools-venv/bin/pip install -q py-spy==$PYSPY_VERSION" \
+    > "$OUT/logs/py-spy-install.log" 2>&1 || die "py-spy install failed: $OUT/logs/py-spy-install.log"
+fi
 
 # ---------------------------------------------------------------- server control
 stop_server() { ct rm -f oifb-srv >/dev/null 2>&1; for _ in $(seq 30); do fuser "$RENDER" >/dev/null 2>&1 || return 0; sleep 2; done; }
 start_server() {  # stack model
   local s=$1 m=$2 img; img=$(image_of "$1")
-  local dyn=(-e DYN_DISCOVERY_BACKEND=file -e DYN_FILE_KV=/tmp/dynamo_kv -e DYN_REQUEST_PLANE=tcp -e DYN_SYSTEM_PORT=8081)
+  local dyn=(-e DYN_DISCOVERY_BACKEND=file -e DYN_FILE_KV=/tmp/dynamo_kv -e DYN_REQUEST_PLANE=tcp -e DYN_SYSTEM_PORT=8081
+             -e DYN_SYSTEM_HOST=127.0.0.1 -e DYN_TCP_RPC_HOST=127.0.0.1 -e DYN_TCP_RESPONSE_STREAM_HOST=127.0.0.1)
   stop_server
   case $s in
     vllm)          ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" --entrypoint bash "$img" -c \
-                     "exec vllm serve $m --host 0.0.0.0 --port $PORT $VLLM_ARGS" ;;
+                     "exec vllm serve $m --host 127.0.0.1 --port $PORT $VLLM_ARGS" ;;
+    vllm-api4)     ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" --entrypoint bash "$img" -c \
+                     "exec vllm serve $m --host 127.0.0.1 --port $PORT --api-server-count 4 $VLLM_ARGS" ;;
+    vllm-rs)       ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" -e VLLM_USE_RUST_FRONTEND=1 --entrypoint bash "$img" -c \
+                     "exec vllm serve $m --host 127.0.0.1 --port $PORT $VLLM_ARGS" ;;
     dynamo-vllm)   ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" "${dyn[@]}" --entrypoint bash "$img" -c \
-                     "python3 -m dynamo.frontend --http-port $PORT & exec python3 -m dynamo.vllm --model $m $VLLM_ARGS" ;;
+                     "python3 -m dynamo.frontend --http-host 127.0.0.1 --http-port $PORT & exec python3 -m dynamo.vllm --model $m $VLLM_ARGS" ;;
     sglang)        ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" -e SGLANG_USE_AITER=0 --entrypoint bash "$img" -c \
-                     "exec python3 -m sglang.launch_server --model-path $m --host 0.0.0.0 --port $PORT $SGLANG_ARGS" ;;
+                     "exec python3 -m sglang.launch_server --model-path $m --host 127.0.0.1 --port $PORT $SGLANG_ARGS" ;;
     dynamo-sglang) ct run -d --name oifb-srv "${GPU_FLAGS[@]}" "${HF_FLAGS[@]}" "${dyn[@]}" -e SGLANG_USE_AITER=0 --entrypoint bash "$img" -c \
-                     "python3 -m dynamo.frontend --http-port $PORT & exec python3 -m dynamo.sglang --model-path $m $SGLANG_ARGS" ;;
+                     "python3 -m dynamo.frontend --http-host 127.0.0.1 --http-port $PORT & exec python3 -m dynamo.sglang --model-path $m $SGLANG_ARGS" ;;
   esac >/dev/null
 }
 wait_ready() {  # model -> seconds until the first chat is answered; fails after 20 min or when the server exits
@@ -194,6 +219,28 @@ cool_down() {  # ADR-009: wait (up to 10 min) until the GPU is below MAXT; print
   while [ "$(junction)" -ge "$MAXT" ] && [ $(( $(date +%s) - t0 )) -lt 600 ]; do sleep 5; done
   junction
 }
+
+# ---------------------------------------------------------------- --trace (B-1b): where the time goes
+scrape() {  # dir when: /metrics of the server (port 8000) and of a Dynamo worker (8081), when they answer
+  local port; for port in $PORT 8081; do
+    curl -sf --max-time 5 "http://127.0.0.1:$port/metrics" > "$OUT/$1/metrics-$port-$2.txt" 2>/dev/null \
+      || rm -f "$OUT/$1/metrics-$port-$2.txt"
+  done; }
+trace_start() {  # dir: CPU of the server's process tree for the whole point; py-spy on each Python process from 10 s in
+                 # (after the warm-up) for the benchmark duration, sampling without pausing the process (--nonblocking)
+  local root pid; scrape "$1" before
+  root=$(ct inspect -f '{{.State.Pid}}' oifb-srv)
+  python3 "$HERE/proc_sampler.py" "$root" "$OUT/$1/procs.csv" & tp=$!
+  tspy=()
+  for pid in $(python3 "$HERE/proc_sampler.py" --python "$root"); do
+    ( sleep 10; ct run --rm --pid host --privileged -v "$OUT:/out" --entrypoint /out/tools-venv/bin/py-spy "$first" record \
+        --pid "$pid" --duration "$DUR" --rate 100 --nonblocking --format speedscope -o "/out/$1/pyspy-$pid.json" \
+        > "$OUT/$1/pyspy-$pid.log" 2>&1 ) & tspy+=($!)
+  done; }
+trace_stop() {  # dir
+  scrape "$1" after
+  kill "$tp" 2>/dev/null; wait "$tp" 2>/dev/null
+  [ ${#tspy[@]} -gt 0 ] && wait "${tspy[@]}" 2>/dev/null; }
 
 # ---------------------------------------------------------------- run
 total=$(( REPEATS * $(wc -w <<< "$MODELS") * $(wc -w <<< "$STACKS") * $(wc -w <<< "$WORKLOADS") * $(wc -w <<< "$CONCS") ))
@@ -223,6 +270,7 @@ for rep in $(seq "$REPEATS"); do
           n=$((n + 1)); dir="raw/$rep/$tag/$stack/$wname/c$c"; mkdir -p "$OUT/$dir"
           start_temp=$(cool_down)
           python3 "$HERE/gpu_sampler.py" "$gpu" "$OUT/$dir/gpu.csv" & sp=$!
+          [ "$TRACE" = 1 ] && trace_start "$dir"
           ct run --rm --network host -v "$OUT:/out" --entrypoint /out/aiperf-venv/bin/aiperf "$first" profile \
             --model "$model" --url "http://127.0.0.1:$PORT" --endpoint-type chat --streaming \
             --concurrency "$c" --benchmark-duration "$DUR" --benchmark-grace-period 60 \
@@ -231,6 +279,7 @@ for rep in $(seq "$REPEATS"); do
             --random-seed 42 --artifact-dir "/out/$dir" > "$OUT/$dir/console.txt" 2>&1
           rc=$?
           kill "$sp" 2>/dev/null; wait "$sp" 2>/dev/null
+          [ "$TRACE" = 1 ] && trace_stop "$dir"
           python3 "$HERE/collect.py" "$OUT/$dir" "$rep" "$model" "$stack" "$wname" "$isl" "$osl" "$c" "$rc" "$start_temp" >> "$OUT/results.jsonl"
           printf '   [%d/%d] %-8s c=%-3s %s\n' "$n" "$total" "$wname" "$c" "$(tail -1 "$OUT/results.jsonl" | python3 "$HERE/collect.py" --line)"
         done
@@ -246,3 +295,4 @@ done
 trap - EXIT
 say "report"
 python3 "$HERE/report.py" "$OUT" && echo "   $OUT/report.html"
+if [ "$TRACE" = 1 ]; then python3 "$HERE/attrib.py" "$OUT"; fi
