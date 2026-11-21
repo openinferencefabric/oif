@@ -193,6 +193,65 @@ text layer. An API process near 100% (one core) at 8 to 64 users means it is the
 closing the gap shows vLLM's own fix. Means include AIPerf's warm-up requests (at most 64 of several thousand per
 point). Traced points are slower than untraced ones; take the timings from run 1.
 
+## The same benchmark on NVIDIA (B-2)
+
+> Status: code ready (unit tests pass); not yet run in the lab. This section is completed from the first run.
+
+B-1b leaves one question open: does vLLM's own server trail Dynamo on CUDA as it does on ROCm? B-2 runs the same
+profile and stacks on an NVIDIA GPU of the same node (lab: RTX A6000 next to the W7900, same host CPUs), with the same
+vLLM release (`vllm/vllm-openai:v0.33.0`, `BENCH_VLLM_CUDA_IMAGE`) and Dynamo built from the same fork commit as the ROCm
+image with upstream's own CUDA recipe (`DYNAMO_CUDA_IMAGE`). Compare the gaps within each GPU (plain vLLM against
+`vllm-api4`, `vllm-rs` and Dynamo), not the GPUs' absolute numbers. Run it after the W7900 runs, never at the same time.
+
+**1. Host: NVIDIA Container Toolkit and the CDI spec** (once; the NVIDIA driver is installed). oif bench hands the GPU
+to the container as a CDI device (`--device nvidia.com/gpu=<UUID>`); Docker 28 and later and Podman read CDI specs
+from `/etc/cdi`.
+
+```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+  | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#' \
+  | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update
+. versions.env; V=${NVIDIA_CTK_VERSION}-1
+sudo apt-get install -y nvidia-container-toolkit=$V nvidia-container-toolkit-base=$V \
+  libnvidia-container-tools=$V libnvidia-container1=$V
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+nvidia-ctk cdi list                      # nvidia.com/gpu=0, =GPU-<uuid>, =all
+./oif bench gpus                         # the NVIDIA GPU now says "yes"
+```
+
+If `docker info` does not list `/etc/cdi` under "CDI spec directories", enable CDI:
+`sudo nvidia-ctk runtime configure --runtime=docker --cdi.enabled && sudo systemctl restart docker`.
+Remove it again with `sudo apt-get purge nvidia-container-toolkit nvidia-container-toolkit-base libnvidia-container-tools
+libnvidia-container1` and `sudo rm /etc/cdi/nvidia.yaml /etc/apt/sources.list.d/nvidia-container-toolkit.list
+/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg`.
+
+**2. The Dynamo image for CUDA** (once; 1 to 2 hours of CPU, about 150 GB free, no GPU). Not while a benchmark runs on
+the same node: the build loads every core and would slow the frontends being measured.
+
+```bash
+tmux new -s dyncuda 'images/dynamo-vllm-rocm/build.sh --device cuda --ref d893564741 --push'
+```
+
+It prints `DYNAMO_CUDA_IMAGE=...@sha256:...`; pin that in `versions.env`. The smoke test checks a CUDA torch and that
+Dynamo's worker and frontend import. Upstream's CUDA recipe pins transformers to 5.19.0 (vLLM's image ships 5.20.2);
+`oif bench` prints both versions per stack, and the difference is kept as upstream ships it.
+
+**3. The runs**, the same two passes as on the W7900 with the NVIDIA GPU's number or PCI address:
+
+```bash
+sudo ./oif bench --gpu 82:00.0 --profile attrib --models Qwen/Qwen3-0.6B \
+  --stacks "vllm vllm-api4 vllm-rs dynamo-vllm" --out /var/tmp/oif-bench/b2-time-06b
+sudo ./oif bench --gpu 82:00.0 --profile attrib --models Qwen/Qwen3-0.6B --repeats 1 --trace \
+  --stacks "vllm vllm-api4 vllm-rs dynamo-vllm" --out /var/tmp/oif-bench/b2-trace-06b
+```
+
+On NVIDIA the telemetry comes from `nvidia-smi` (`gpu.csv`: busy, memory, power, GPU temperature as `edge_c`, SM clock;
+no hotspot sensor), the start temperature (ADR-009) is the GPU temperature, and the "anyone else on the GPU" checks use
+the GPU's `/dev/nvidiaN`. The SGLang stacks have no NVIDIA image here and are skipped with a message.
+
 ## Check it worked
 
 - `/var/tmp/oif-bench/<date>/report.html` opens (copy it off the node), the run-quality section shows 0 failed points,
