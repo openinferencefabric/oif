@@ -95,3 +95,7 @@ P1.4 (T-130+) is defined and ready to start after P1.3 checkpoint (or in paralle
 - B-1b (2026-11-21): the bench lock only stops a second oif bench; any other program can open the GPU mid-run, so every
   point checks the render node for processes outside the server (proc_sampler.py --others). py-spy 0.4.1 can hang past
   --duration on vLLM's EngineCore (hundreds of threads), so it runs under timeout.
+- B-2 (2026-11-21): at the T-211 fork commit (d893564741) Dynamo's container/context.yaml uses vllm/vllm-openai:v0.33.0
+  as the CUDA 13.0 runtime and vllm/vllm-openai-rocm:v0.33.0 for ROCm: the same vLLM release on both, so render.py
+  --device cuda from that commit is the NVIDIA counterpart. The CUDA recipe pins transformers 5.19.0 (vLLM's image has
+  5.20.2; vllm-omni caps it). nvidia-ctk cdi generate names each GPU by index and UUID; oif bench uses the UUID.

@@ -15,19 +15,22 @@
 #                                      Profiling costs time on the server: use traced points for where time goes only
 #   ./oif bench report DIR             rebuild DIR/report.html from DIR/results.jsonl
 #
-#   stack            image (versions.env)        server
-#   vllm             BENCH_VLLM_IMAGE            vllm serve
-#   dynamo-vllm      DYNAMO_ROCM_IMAGE           dynamo.frontend + dynamo.vllm worker (aggregated), FROM BENCH_VLLM_IMAGE
-#   sglang           BENCH_SGLANG_IMAGE          sglang.launch_server (S-5)
-#   dynamo-sglang    DYNAMO_SGLANG_ROCM_IMAGE    dynamo.frontend + dynamo.sglang worker (aggregated, T-212)
-#   vllm-api4        BENCH_VLLM_IMAGE            vllm serve --api-server-count 4 (B-1b, only when named in --stacks)
-#   vllm-rs          BENCH_VLLM_IMAGE            vllm serve with vLLM's Rust frontend, VLLM_USE_RUST_FRONTEND=1 (B-1b, ditto)
+#   stack            image on AMD / on NVIDIA (versions.env)          server
+#   vllm             BENCH_VLLM_IMAGE / BENCH_VLLM_CUDA_IMAGE         vllm serve
+#   dynamo-vllm      DYNAMO_ROCM_IMAGE / DYNAMO_CUDA_IMAGE            dynamo.frontend + dynamo.vllm worker (aggregated),
+#                                                                     FROM the vllm image of the same vendor
+#   sglang           BENCH_SGLANG_IMAGE / -                           sglang.launch_server (S-5)
+#   dynamo-sglang    DYNAMO_SGLANG_ROCM_IMAGE / -                     dynamo.frontend + dynamo.sglang worker (T-212)
+#   vllm-api4        as vllm                                          vllm serve --api-server-count 4 (B-1b, only when
+#                                                                     named in --stacks)
+#   vllm-rs          as vllm                                          vllm serve with vLLM's Rust frontend,
+#                                                                     VLLM_USE_RUST_FRONTEND=1 (B-1b, ditto)
 # Each Dynamo image is built FROM its engine image, so engine, torch and ROCm match; the difference measured is
 # Dynamo's frontend, request plane and worker wrapper. Same engine arguments within a pair, same AIPerf prompts
 # (fixed seed), exact output lengths (ignore_eos), GPU below BENCH_MAX_START_TEMP_C before every point (ADR-009).
 # Every server listens on 127.0.0.1 only (host network, nothing reachable from outside the node).
-# GPUs: AMD on the amdgpu driver today (ROCm stacks); NVIDIA with B-2. Only the chosen GPU is passed to the containers;
-# a GPU with a monitor connected is never offered.
+# GPUs: AMD on the amdgpu driver (ROCm stacks), NVIDIA on the nvidia driver with a CDI device (CUDA stacks, B-2). Only
+# the chosen GPU is passed to the containers; a GPU with a monitor connected is never offered.
 set -uo pipefail
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd); ROOT=$(dirname "$HERE")
 # shellcheck source=../versions.env
@@ -35,7 +38,7 @@ HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd); ROOT=$(dirname "$HERE")
 
 say() { echo "== $*"; }
 die() { echo "oif bench: $*" >&2; exit 1; }
-usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; }
 
 cmd=run; case ${1:-} in run) shift ;; report) cmd=report; shift ;; gpus) exec python3 "$HERE/gpus.py" ;; help|-h|--help) usage; exit 0 ;; esac
 if [ $cmd = report ]; then [ -d "${1:-}" ] || die "report needs a result directory"; exec python3 "$HERE/report.py" "$1"; fi
@@ -64,14 +67,12 @@ flock -n 8 || die "another oif bench is running on this node (PID $(tr -dc 0-9 <
 echo $$ > "$LOCK"
 [ "$(id -u)" = 0 ] || die "run with sudo"
 
-image_of() { case $1 in
-  vllm|vllm-api4|vllm-rs) echo "${BENCH_VLLM_IMAGE:-}" ;; dynamo-vllm) echo "${DYNAMO_ROCM_IMAGE:-}" ;;
-  sglang) echo "${BENCH_SGLANG_IMAGE:-}" ;; dynamo-sglang) echo "${DYNAMO_SGLANG_ROCM_IMAGE:-}" ;;
+image_of() { case $VENDOR:$1 in  # VENDOR is set once the GPU is chosen
+  AMD:vllm|AMD:vllm-api4|AMD:vllm-rs) echo "${BENCH_VLLM_IMAGE:-}" ;; AMD:dynamo-vllm) echo "${DYNAMO_ROCM_IMAGE:-}" ;;
+  AMD:sglang) echo "${BENCH_SGLANG_IMAGE:-}" ;; AMD:dynamo-sglang) echo "${DYNAMO_SGLANG_ROCM_IMAGE:-}" ;;
+  NVIDIA:vllm|NVIDIA:vllm-api4|NVIDIA:vllm-rs) echo "${BENCH_VLLM_CUDA_IMAGE:-}" ;; NVIDIA:dynamo-vllm) echo "${DYNAMO_CUDA_IMAGE:-}" ;;
+  NVIDIA:sglang|NVIDIA:dynamo-sglang) echo "" ;;
   *) die "unknown stack $1" ;; esac; }
-use=""; for s in $STACKS; do
-  if [ -n "$(image_of "$s")" ]; then use="$use $s"; else echo "   skip $s: no image pinned in versions.env yet"; fi
-done
-STACKS=${use# }; [ -n "$STACKS" ] || die "no stack to run"
 
 # ---------------------------------------------------------------- preflight
 CT=$(command -v docker || command -v podman) || die "no docker or podman: sudo apt-get install -y podman"
@@ -100,12 +101,17 @@ fi
 say "models: $MODELS"
 G=$(pick "$GPU_SEL") || die "no GPU $GPU_SEL in the list"
 [ "$(field "$G" usable)" = True ] || die "GPU $GPU_SEL ($(field "$G" name)) cannot be used: $(field "$G" why_not)"
-gpu=$(field "$G" sysfs); GPU_NAME=$(field "$G" name); CARD=/dev/dri/$(field "$G" card); RENDER=/dev/dri/$(field "$G" render)
+gpu=$(field "$G" sysfs); GPU_NAME=$(field "$G" name); VENDOR=$(field "$G" vendor); UUID=$(field "$G" uuid)
+CARD=/dev/dri/$(field "$G" card); DEVNODE=$(field "$G" dev)   # DEVNODE: held open only by the GPU's users
 hw=$(ls -d "$gpu"/hwmon/hwmon* 2>/dev/null | head -1)
-say "GPU: $GPU_NAME at $(field "$G" pci), $(field "$G" vram_gib) GiB ($CARD, $RENDER)"
+say "GPU: $GPU_NAME ($VENDOR) at $(field "$G" pci), $(field "$G" vram_gib) GiB ($DEVNODE)"
+use=""; for s in $STACKS; do
+  if [ -n "$(image_of "$s")" ]; then use="$use $s"; else echo "   skip $s: no $VENDOR image pinned in versions.env"; fi
+done
+STACKS=${use# }; [ -n "$STACKS" ] || die "no stack to run"
 command -v fuser >/dev/null || die "fuser missing (apt-get install -y psmisc)"
-if fuser "$RENDER" >/dev/null 2>&1; then
-  die "something already uses this GPU ($RENDER, pids$(fuser "$RENDER" 2>/dev/null)): stop it first (e.g. systemctl stop kubelet)"
+if fuser "$DEVNODE" >/dev/null 2>&1; then
+  die "something already uses this GPU ($DEVNODE, pids$(fuser "$DEVNODE" 2>/dev/null)): stop it first (e.g. systemctl stop kubelet)"
 fi
 mkdir -p "$OUT"/{raw,logs} "$HF_HOME_HOST"
 free_gb=$(df -BG --output=avail "$(dirname "$OUT")" | tail -1 | tr -dc 0-9)
@@ -116,9 +122,13 @@ for s in $STACKS; do
   ct pull -q "$(image_of "$s")" >/dev/null || die "pull $(image_of "$s") failed (network, or a private registry needing $CT login)"
   echo "   $s"
 done
-GPU_FLAGS=(--device /dev/kfd --device "$CARD" --device "$RENDER" --group-add video --ipc host
-           --security-opt seccomp=unconfined --network host)
-getent group render >/dev/null && GPU_FLAGS+=(--group-add "$(getent group render | cut -d: -f3)")
+if [ "$VENDOR" = NVIDIA ]; then  # the GPU by its CDI name (nvidia-ctk cdi generate), nothing else of the host's GPUs
+  GPU_FLAGS=(--device "nvidia.com/gpu=$UUID" --ipc host --network host)
+else
+  GPU_FLAGS=(--device /dev/kfd --device "$CARD" --device "$DEVNODE" --group-add video --ipc host
+             --security-opt seccomp=unconfined --network host)
+  getent group render >/dev/null && GPU_FLAGS+=(--group-add "$(getent group render | cut -d: -f3)")
+fi
 HF_FLAGS=(-v "$HF_HOME_HOST:/hf" -e HF_HOME=/hf)
 [ -n "${HF_TOKEN:-}" ] && HF_FLAGS+=(-e HF_TOKEN)
 
@@ -128,8 +138,8 @@ for s in $STACKS; do
   img=$(image_of "$s")
   inside=$(ct run --rm --entrypoint python3 "$img" -c '
 import importlib.metadata as m, json, torch
-d = {"torch": torch.__version__, "hip": torch.version.hip}
-for p in ("vllm", "sglang", "sgl-kernel", "sglang-kernel", "ai-dynamo", "ai-dynamo-runtime", "triton"):
+d = {"torch": torch.__version__, "hip": torch.version.hip, "cuda": torch.version.cuda}
+for p in ("vllm", "sglang", "sgl-kernel", "sglang-kernel", "ai-dynamo", "ai-dynamo-runtime", "triton", "transformers"):
     try: d[p] = m.version(p)
     except Exception: pass
 try:
@@ -146,12 +156,20 @@ done
 for s in ${drop:-}; do STACKS=$(tr ' ' '\n' <<< "$STACKS" | grep -vx "$s" | xargs); done
 [ -n "$STACKS" ] || die "no stack to run"
 rd() { cat "$1" 2>/dev/null || true; }
+nv() { nvidia-smi -i "$UUID" --query-gpu="$1" --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' '; }
+if [ "$VENDOR" = NVIDIA ]; then
+  v=$(nv memory.total | cut -d. -f1); vram_total=$(( ${v:-0} * 1048576 )); power_cap=$(nv power.limit | cut -d. -f1)
+  drv="nvidia $(nv driver_version)"
+else
+  vram_total=$(rd "$gpu/mem_info_vram_total"); v=$(rd "$hw/power1_cap"); power_cap=$(( ${v:-0} / 1000000 ))
+  drv="amdgpu $(rd /sys/module/amdgpu/version)"
+fi
 python3 - "$OUT/env.json" <<PY
 import json, os, platform, sys
 env = {"oif_version": "${OIF_VERSION:-}", "kernel": platform.release(), "cpus": os.cpu_count(),
-       "amdgpu": "$(rd /sys/module/amdgpu/version)", "gpu": "$GPU_NAME", "gpu_pci": "$(field "$G" pci)",
-       "vram_total_bytes": int("$(rd "$gpu/mem_info_vram_total")" or 0),
-       "power_cap_w": round(int("$(rd "$hw/power1_cap")" or 0) / 1e6), "max_start_temp_c": $MAXT,
+       "driver": "$drv", "gpu": "$GPU_NAME", "gpu_vendor": "$VENDOR", "gpu_pci": "$(field "$G" pci)",
+       "vram_total_bytes": int("${vram_total:-0}" or 0),
+       "power_cap_w": int("${power_cap:-0}" or 0), "max_start_temp_c": $MAXT,
        "profile": "$PROFILE", "repeats": $REPEATS, "duration_s": $DUR, "aiperf": "$AIPERF_VERSION",
        "workloads": "$WORKLOADS".split(), "concurrency": [int(c) for c in "$CONCS".split()], "models": "$MODELS".split(),
        "vllm_args": "$VLLM_ARGS", "sglang_args": "$SGLANG_ARGS", "trace": $TRACE, "stacks": "$STACKS".split(),
@@ -180,7 +198,7 @@ if [ "$TRACE" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------- server control
-stop_server() { ct rm -f oifb-srv >/dev/null 2>&1; for _ in $(seq 30); do fuser "$RENDER" >/dev/null 2>&1 || return 0; sleep 2; done; }
+stop_server() { ct rm -f oifb-srv >/dev/null 2>&1; for _ in $(seq 30); do fuser "$DEVNODE" >/dev/null 2>&1 || return 0; sleep 2; done; }
 start_server() {  # stack model
   local s=$1 m=$2 img; img=$(image_of "$1")
   local dyn=(-e DYN_DISCOVERY_BACKEND=file -e DYN_FILE_KV=/tmp/dynamo_kv -e DYN_REQUEST_PLANE=tcp -e DYN_SYSTEM_PORT=8081
@@ -213,10 +231,13 @@ wait_ready() {  # model -> seconds until the first chat is answered; fails after
     sleep 3
   done; return 1
 }
-junction() { local v; v=$(rd "$hw/temp2_input"); [ -n "$v" ] || v=$(rd "$hw/temp1_input"); echo $(( ${v:-0} / 1000 )); }
+junction() {  # hottest sensor: AMD hotspot (temp2), else edge; NVIDIA reports one GPU temperature
+  local v; [ "$VENDOR" = NVIDIA ] && { v=$(nv temperature.gpu); echo "${v:-0}"; return; }
+  v=$(rd "$hw/temp2_input"); [ -n "$v" ] || v=$(rd "$hw/temp1_input"); echo $(( ${v:-0} / 1000 )); }
+vram_used() { local v; if [ "$VENDOR" = NVIDIA ]; then v=$(nv memory.used | cut -d. -f1); echo $(( ${v:-0} * 1048576 )); else rd "$gpu/mem_info_vram_used"; fi; }
 gpu_others() {  # pid=name of every process outside the server that holds this GPU open (B-1b: another program shared
                 # the GPU mid-run, after the start-up check had passed, and slowed or failed every later point)
-  python3 "$HERE/proc_sampler.py" --others "$(ct inspect -f '{{.State.Pid}}' oifb-srv 2>/dev/null || echo -1)" "$RENDER"; }
+  python3 "$HERE/proc_sampler.py" --others "$(ct inspect -f '{{.State.Pid}}' oifb-srv 2>/dev/null || echo -1)" "$DEVNODE"; }
 cool_down() {  # ADR-009: wait (up to 10 min) until the GPU is below MAXT; prints the start temperature
   local t0; t0=$(date +%s)
   while [ "$(junction)" -ge "$MAXT" ] && [ $(( $(date +%s) - t0 )) -lt 600 ]; do sleep 5; done
@@ -266,7 +287,7 @@ for rep in $(seq "$REPEATS"); do
         echo "{\"type\":\"startup\",\"rep\":$rep,\"model\":\"$model\",\"stack\":\"$stack\",\"ready_s\":null}" >> "$OUT/results.jsonl"
         stop_server; continue
       fi
-      vram=$(rd "$gpu/mem_info_vram_used")
+      vram=$(vram_used)
       echo "   ready in ${ready}s, VRAM $(( ${vram:-0} / 1048576 )) MiB"
       echo "{\"type\":\"startup\",\"rep\":$rep,\"model\":\"$model\",\"stack\":\"$stack\",\"ready_s\":$ready,\"vram_bytes\":${vram:-0}}" >> "$OUT/results.jsonl"
       for wl in $WORKLOADS; do
@@ -275,7 +296,7 @@ for rep in $(seq "$REPEATS"); do
           n=$((n + 1)); dir="raw/$rep/$tag/$stack/$wname/c$c"; mkdir -p "$OUT/$dir"
           start_temp=$(cool_down)
           others=$(gpu_others)
-          python3 "$HERE/gpu_sampler.py" "$gpu" "$OUT/$dir/gpu.csv" & sp=$!
+          python3 "$HERE/gpu_sampler.py" "$([ "$VENDOR" = NVIDIA ] && echo "nvidia:$UUID" || echo "$gpu")" "$OUT/$dir/gpu.csv" & sp=$!
           [ "$TRACE" = 1 ] && trace_start "$dir"
           ct run --rm --network host -v "$OUT:/out" --entrypoint /out/aiperf-venv/bin/aiperf "$first" profile \
             --model "$model" --url "http://127.0.0.1:$PORT" --endpoint-type chat --streaming \

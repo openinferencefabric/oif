@@ -1,9 +1,25 @@
-"""GPU telemetry from amdgpu sysfs, every 0.5 s until SIGTERM: gpu_sampler.py /sys/class/drm/cardN/device out.csv
+"""GPU telemetry every 0.5 s until SIGTERM: gpu_sampler.py /sys/class/drm/cardN/device out.csv   (AMD, amdgpu sysfs)
+                                          gpu_sampler.py nvidia:<GPU UUID> out.csv            (NVIDIA, nvidia-smi)
 
-Columns: t (s since start), busy (%), vram_mib, power_w, edge_c, junction_c, sclk_mhz. No tools needed in the image."""
-import glob, os, re, signal, sys, time
+Columns: t (s since start), busy (%), vram_mib, power_w, edge_c, junction_c, sclk_mhz. On NVIDIA edge_c is the GPU
+temperature and junction_c stays empty (no hotspot sensor in nvidia-smi on most cards); sclk_mhz is the SM clock."""
+import glob, os, re, signal, subprocess, sys, time
 
 dev, out = sys.argv[1], sys.argv[2]
+if dev.startswith("nvidia:"):
+    smi = subprocess.Popen(["nvidia-smi", "-i", dev[7:], "--query-gpu=utilization.gpu,memory.used,power.draw,temperature.gpu,clocks.sm",
+                            "--format=csv,noheader,nounits", "-lms", "500"], stdout=subprocess.PIPE, text=True)
+    signal.signal(signal.SIGTERM, lambda *_: (smi.terminate(), sys.exit(0)))
+    num = lambda x: str(float(x)) if re.match(r"^[0-9.]+$", x.strip()) else ""
+    t0 = time.time()
+    with open(out, "w") as f:
+        f.write("t,busy,vram_mib,power_w,edge_c,junction_c,sclk_mhz\n")
+        for line in smi.stdout:
+            v = [x.strip() for x in line.split(",")]
+            if len(v) == 5:
+                f.write(",".join([str(round(time.time() - t0, 2)), num(v[0]), num(v[1]), num(v[2]), num(v[3]), "", num(v[4])]) + "\n")
+                f.flush()
+    sys.exit(0)
 hw = (glob.glob(os.path.join(dev, "hwmon", "hwmon*")) or [""])[0]
 
 
