@@ -115,7 +115,33 @@ part of this test.
 
 ## Where the first-token time goes (B-1b)
 
-> Status: code ready (unit tests pass); not yet run in the lab. This section is rewritten from the first run.
+> Status: run 1 (timings) done in the lab on 2026-11-20 (W7900, Qwen3-0.6B, 120 points, 0 errors); run 2 (`--trace`)
+> to be repeated after the two fixes below. This section is completed from run 2.
+
+First result, TTFT p50 in ms, median of 3 repeats:
+
+| Point | `vllm` | `vllm-api4` | `vllm-rs` | `dynamo-vllm` |
+| --- | ---: | ---: | ---: | ---: |
+| chat c=1 | 31.8 | 31.3 | 23.6 | 28.6 |
+| chat c=16 | 78.7 | 54.2 | 41.2 | 45.1 |
+| chat c=32 | 92.9 | 71.2 | 60.6 | 57.6 |
+| chat c=64 | 121.3 | 81.6 | 103.5 | 72.3 |
+| short c=32 | 75.9 | 55.1 | 41.5 | 50.7 |
+| short c=64 | 98.4 | 58.5 | 63.7 | 62.7 |
+
+Inter-token latency is equal on all four stacks and throughput within 2 to 5%. vLLM's own switches (more API server
+processes, the Rust frontend) close most of Dynamo's lead, so the gap sits in vLLM's single Python API process, not in
+the engine. Whether CUDA shows the same is B-2.
+
+Two fixes came out of the first `--trace` run:
+
+- **Another program on the GPU.** The start-up check found the GPU free, but a different benchmark opened it hours
+  later and every point after that was slowed or failed. Now every point checks for processes outside the server that
+  hold the GPU's render node open (`proc_sampler.py --others`); such a point is recorded with `gpu_others`, counts as
+  failed in the report (and is left out of the medians), and the run stops with the process list.
+- **py-spy hanging.** One py-spy kept unwinding the engine core for 4 hours past `--duration` and held the run. py-spy
+  now runs under `timeout` (`--duration` + 30 s); a killed one leaves no profile for that process, and its log has no
+  "Wrote" line.
 
 B-1 measured Dynamo's first token up to 40% sooner than vLLM's own server (Qwen3-0.6B, chat, 64 users) with the same
 engine and the same throughput. Two explanations are tested:

@@ -32,11 +32,12 @@ for p in points:
 agg = []
 for (model, stack, wl, c), ps in sorted(groups.items(), key=lambda kv: (kv[0][0], STACK_ORDER.index(kv[0][1]) if kv[0][1] in STACK_ORDER else 9, kv[0][2], kv[0][3])):
     a = {"model": model, "stack": stack, "workload": wl, "concurrency": c, "isl": ps[0]["isl"], "osl": ps[0]["osl"],
-         "repeats": len(ps), "failed": sum(1 for p in ps if p.get("rc") or not p.get("export"))}
+         "repeats": len(ps), "failed": sum(1 for p in ps if p.get("rc") or not p.get("export") or p.get("gpu_others"))}
+    own = [p for p in ps if not p.get("gpu_others")]  # a point that shared the GPU is not a measurement of the stack
     for k in METRICS:
-        vals = [p[k] for p in ps if isinstance(p.get(k), (int, float))]
+        vals = [p[k] for p in own if isinstance(p.get(k), (int, float))]
         a[k] = round(statistics.median(vals), 2) if vals else None
-    tp = [p["out_tok_s"] for p in ps if p.get("out_tok_s")]
+    tp = [p["out_tok_s"] for p in own if p.get("out_tok_s")]
     a["cv_pct"] = round(100 * statistics.stdev(tp) / statistics.mean(tp), 2) if len(tp) > 1 else None
     a["osl_ok"] = a["osl_avg"] is None or abs(a["osl_avg"] - a["osl"]) <= 0.02 * a["osl"]
     agg.append(a)

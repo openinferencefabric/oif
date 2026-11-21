@@ -214,6 +214,9 @@ wait_ready() {  # model -> seconds until the first chat is answered; fails after
   done; return 1
 }
 junction() { local v; v=$(rd "$hw/temp2_input"); [ -n "$v" ] || v=$(rd "$hw/temp1_input"); echo $(( ${v:-0} / 1000 )); }
+gpu_others() {  # pid=name of every process outside the server that holds this GPU open (B-1b: another program shared
+                # the GPU mid-run, after the start-up check had passed, and slowed or failed every later point)
+  python3 "$HERE/proc_sampler.py" --others "$(ct inspect -f '{{.State.Pid}}' oifb-srv 2>/dev/null || echo -1)" "$RENDER"; }
 cool_down() {  # ADR-009: wait (up to 10 min) until the GPU is below MAXT; prints the start temperature
   local t0; t0=$(date +%s)
   while [ "$(junction)" -ge "$MAXT" ] && [ $(( $(date +%s) - t0 )) -lt 600 ]; do sleep 5; done
@@ -227,13 +230,15 @@ scrape() {  # dir when: /metrics of the server (port 8000) and of a Dynamo worke
       || rm -f "$OUT/$1/metrics-$port-$2.txt"
   done; }
 trace_start() {  # dir: CPU of the server's process tree for the whole point; py-spy on each Python process from 10 s in
-                 # (after the warm-up) for the benchmark duration, sampling without pausing the process (--nonblocking)
+                 # (after the warm-up) for the benchmark duration, sampling without pausing the process (--nonblocking).
+                 # py-spy can hang unwinding a busy process past its --duration (B-1b: 4 hours on the engine core), so it
+                 # runs under timeout; a killed py-spy leaves no profile for that process and the log ends without "Wrote"
   local root pid; scrape "$1" before
   root=$(ct inspect -f '{{.State.Pid}}' oifb-srv)
   python3 "$HERE/proc_sampler.py" "$root" "$OUT/$1/procs.csv" & tp=$!
   tspy=()
   for pid in $(python3 "$HERE/proc_sampler.py" --python "$root"); do
-    ( sleep 10; ct run --rm --pid host --privileged -v "$OUT:/out" --entrypoint /out/tools-venv/bin/py-spy "$first" record \
+    ( sleep 10; ct run --rm --pid host --privileged -v "$OUT:/out" --entrypoint timeout "$first" -k 10 "$((DUR + 30))" /out/tools-venv/bin/py-spy record \
         --pid "$pid" --duration "$DUR" --rate 100 --nonblocking --format speedscope -o "/out/$1/pyspy-$pid.json" \
         > "$OUT/$1/pyspy-$pid.log" 2>&1 ) & tspy+=($!)
   done; }
@@ -269,6 +274,7 @@ for rep in $(seq "$REPEATS"); do
         for c in $CONCS; do
           n=$((n + 1)); dir="raw/$rep/$tag/$stack/$wname/c$c"; mkdir -p "$OUT/$dir"
           start_temp=$(cool_down)
+          others=$(gpu_others)
           python3 "$HERE/gpu_sampler.py" "$gpu" "$OUT/$dir/gpu.csv" & sp=$!
           [ "$TRACE" = 1 ] && trace_start "$dir"
           ct run --rm --network host -v "$OUT:/out" --entrypoint /out/aiperf-venv/bin/aiperf "$first" profile \
@@ -280,8 +286,10 @@ for rep in $(seq "$REPEATS"); do
           rc=$?
           kill "$sp" 2>/dev/null; wait "$sp" 2>/dev/null
           [ "$TRACE" = 1 ] && trace_stop "$dir"
-          python3 "$HERE/collect.py" "$OUT/$dir" "$rep" "$model" "$stack" "$wname" "$isl" "$osl" "$c" "$rc" "$start_temp" >> "$OUT/results.jsonl"
+          others=$(xargs -n1 <<< "$others $(gpu_others)" | sort -u | xargs)
+          python3 "$HERE/collect.py" "$OUT/$dir" "$rep" "$model" "$stack" "$wname" "$isl" "$osl" "$c" "$rc" "$start_temp" "$others" >> "$OUT/results.jsonl"
           printf '   [%d/%d] %-8s c=%-3s %s\n' "$n" "$total" "$wname" "$c" "$(tail -1 "$OUT/results.jsonl" | python3 "$HERE/collect.py" --line)"
+          [ -z "$others" ] || die "another program used this GPU during the point ($others): the point counts as failed and the run stops; results so far in $OUT (oif bench report $OUT)"
         done
       done
       ct logs oifb-srv > "$log" 2>&1
