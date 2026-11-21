@@ -235,9 +235,10 @@ junction() {  # hottest sensor: AMD hotspot (temp2), else edge; NVIDIA reports o
   local v; [ "$VENDOR" = NVIDIA ] && { v=$(nv temperature.gpu); echo "${v:-0}"; return; }
   v=$(rd "$hw/temp2_input"); [ -n "$v" ] || v=$(rd "$hw/temp1_input"); echo $(( ${v:-0} / 1000 )); }
 vram_used() { local v; if [ "$VENDOR" = NVIDIA ]; then v=$(nv memory.used | cut -d. -f1); echo $(( ${v:-0} * 1048576 )); else rd "$gpu/mem_info_vram_used"; fi; }
-gpu_others() {  # pid=name of every process outside the server that holds this GPU open (B-1b: another program shared
-                # the GPU mid-run, after the start-up check had passed, and slowed or failed every later point)
-  python3 "$HERE/proc_sampler.py" --others "$(ct inspect -f '{{.State.Pid}}' oifb-srv 2>/dev/null || echo -1)" "$DEVNODE"; }
+gpu_others() {  # pid=name of every process outside the server and this script that holds this GPU open (B-1b: another
+                # program shared the GPU mid-run and slowed or failed every later point; the script's own nvidia-smi
+                # telemetry holds /dev/nvidiaN and is not "another program")
+  python3 "$HERE/proc_sampler.py" --others "$(ct inspect -f '{{.State.Pid}}' oifb-srv 2>/dev/null || echo -1)" "$DEVNODE" "$$"; }
 cool_down() {  # ADR-009: wait (up to 10 min) until the GPU is below MAXT; prints the start temperature
   local t0; t0=$(date +%s)
   while [ "$(junction)" -ge "$MAXT" ] && [ $(( $(date +%s) - t0 )) -lt 600 ]; do sleep 5; done
