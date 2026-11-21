@@ -9,7 +9,14 @@ dev, out = sys.argv[1], sys.argv[2]
 if dev.startswith("nvidia:"):
     smi = subprocess.Popen(["nvidia-smi", "-i", dev[7:], "--query-gpu=utilization.gpu,memory.used,power.draw,temperature.gpu,clocks.sm",
                             "--format=csv,noheader,nounits", "-lms", "500"], stdout=subprocess.PIPE, text=True)
-    signal.signal(signal.SIGTERM, lambda *_: (smi.terminate(), sys.exit(0)))
+    def stop(*_):  # wait for nvidia-smi: exiting first would leave it holding /dev/nvidiaN outside oif bench's tree
+        smi.terminate()
+        try:
+            smi.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            smi.kill(); smi.wait()
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, stop)
     num = lambda x: str(float(x)) if re.match(r"^[0-9.]+$", x.strip()) else ""
     t0 = time.time()
     with open(out, "w") as f:

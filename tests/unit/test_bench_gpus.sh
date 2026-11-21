@@ -21,7 +21,8 @@ cat > "$SANDBOX/bin/nvidia-smi" <<'EOF'
 #!/bin/bash
 case "$*" in
   *--query-gpu=pci.bus_id,name,memory.total,uuid*) echo "00000000:82:00.0, NVIDIA RTX A6000, 49140, GPU-1111-aaaa" ;;
-  *-lms*) for i in 1 2 3; do echo "97, 40000, 250.5, 71, 1800"; sleep 0.2; done; sleep 30 ;;
+  *-lms*) trap 'sleep 1; exit 0' TERM   # the real nvidia-smi takes a moment to exit after SIGTERM
+          for i in 1 2 3; do echo "97, 40000, 250.5, 71, 1800"; sleep 0.2; done; sleep 30 & wait ;;
 esac
 EOF
 chmod +x "$SANDBOX/bin/nvidia-smi"; export PATH=$SANDBOX/bin:$PATH
@@ -48,7 +49,9 @@ python3 "$ROOT/bench/gpu_sampler.py" nvidia:GPU-1111-aaaa "$SANDBOX/gpu.csv" & s
 sleep 1.2; kill "$sp"; wait "$sp" 2>/dev/null
 eq "$(head -1 "$SANDBOX/gpu.csv")" "t,busy,vram_mib,power_w,edge_c,junction_c,sclk_mhz" "sampler header:"
 eq "$(sed -n 2p "$SANDBOX/gpu.csv" | cut -d, -f2-)" "97.0,40000.0,250.5,71.0,,1800.0" "NVIDIA sample:"
-pgrep -f "nvidia-smi.*GPU-1111-aaaa" >/dev/null && fail "nvidia-smi left running after the sampler stopped"
+# B-2 lab: a sampler that exits before its nvidia-smi leaves an orphan holding /dev/nvidiaN, outside oif bench's process
+# tree, and the end-of-point check stops the run for "another program". The sampler waits for nvidia-smi to exit.
+pgrep -f "nvidia-smi.*GPU-1111-aaaa" >/dev/null && fail "nvidia-smi still running when the sampler has exited"
 
 # oif-bench.sh picks each stack's image by the GPU's vendor; SGLang has no NVIDIA image here (skipped)
 die() { echo "die: $*"; }

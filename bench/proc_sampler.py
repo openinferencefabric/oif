@@ -2,7 +2,9 @@
                                          proc_sampler.py --python ROOT_PID  prints the Python PIDs of the tree
                                          proc_sampler.py --others ROOT_PID DEV [ROOT_PID...]  prints pid=name of
                                            every process outside the trees that holds DEV (the GPU's device
-                                           node) open; further roots: oif bench itself (its nvidia-smi telemetry)
+                                           node) open; further roots: oif bench itself (its nvidia-smi telemetry).
+                                           GPU status tools (nvidia-smi, rocm-smi, amd-smi) only read state and
+                                           are not counted: someone may run `watch nvidia-smi` during a benchmark
 
 Columns: t (s since start), pid, name (process title or command), cpu_pct (100 = one core busy), threads, rss_mib.
 ROOT_PID is the container's first process (podman/docker inspect .State.Pid); its whole process tree is sampled, so
@@ -64,8 +66,11 @@ if sys.argv[1] == "--others":
         if not p.isdigit() or int(p) in ours:
             continue
         try:
+            comm = open(f"/proc/{p}/comm").read().strip()
+            if comm in ("nvidia-smi", "rocm-smi", "amd-smi"):
+                continue
             if any(os.readlink(f"/proc/{p}/fd/{fd}") == dev for fd in os.listdir(f"/proc/{p}/fd")):
-                found.append(f"{p}={open(f'/proc/{p}/comm').read().strip().replace(' ', '_')}")
+                found.append(f"{p}={comm.replace(' ', '_')}")
         except Exception:
             continue
     print(" ".join(found))

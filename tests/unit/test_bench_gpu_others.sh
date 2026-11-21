@@ -49,13 +49,17 @@ if [ "$(uname -s)" = Linux ]; then
   bash -c "exec 3<\"$DEV\"; sleep 30" & other=$!                       # another program holds it too
   # oif bench's own telemetry holds the device too on NVIDIA (gpu_sampler's nvidia-smi, B-2): a second root
   bash -c "bash -c 'exec 3<\"$DEV\"; sleep 30' & wait" & bench=$!
+  # B-2 lab: `watch nvidia-smi` in another terminal opens the GPU every 2 s; a status tool is not a load on the GPU
+  cp "$(command -v sleep)" "$SANDBOX/nvidia-smi"
+  bash -c "exec 3<\"$DEV\"; exec \"$SANDBOX/nvidia-smi\" 30" & smi=$!
   sleep 0.5
   inner=$(pgrep -P "$server"); mine=$(pgrep -P "$bench")
   out=$(python3 "$ROOT/bench/proc_sampler.py" --others "$server" "$DEV" "$bench")
   grep -q "^$other=" <<< "$(tr ' ' '\n' <<< "$out")" || fail "the other program is listed: '$out'"
   grep -q "^$inner=" <<< "$(tr ' ' '\n' <<< "$out")" && fail "the server's own process is not listed: '$out'"
   grep -q "^$mine=" <<< "$(tr ' ' '\n' <<< "$out")" && fail "oif bench's own telemetry is not listed: '$out'"
-  kill "$other" 2>/dev/null; pkill -P "$server" 2>/dev/null; pkill -P "$bench" 2>/dev/null; kill "$server" "$bench" 2>/dev/null; wait 2>/dev/null
+  grep -q "^$smi=" <<< "$(tr ' ' '\n' <<< "$out")" && fail "a GPU status tool (nvidia-smi) is not listed: '$out'"
+  kill "$smi" 2>/dev/null; kill "$other" 2>/dev/null; pkill -P "$server" 2>/dev/null; pkill -P "$bench" 2>/dev/null; kill "$server" "$bench" 2>/dev/null; wait 2>/dev/null
   eq "$(python3 "$ROOT/bench/proc_sampler.py" --others "$$" "$DEV")" "" "nothing listed once the GPU is free:"
 fi
 finish
