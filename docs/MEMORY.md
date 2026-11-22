@@ -99,3 +99,10 @@ P1.4 (T-130+) is defined and ready to start after P1.3 checkpoint (or in paralle
   token to the response via ZMQ and the output processor in vLLM's single API process): 39 against 12 ms at chat c=16.
   Queue + prefill and the HTTP/template layer are equal. vLLM's API process uses 40-65% of one core, so it is contention,
   not CPU. attrib.py cannot split vllm-api4/vllm-rs processes by role (identical multiprocessing command lines).
+- B-2 (2026-11-21): at the T-211 fork commit (d893564741) Dynamo's container/context.yaml uses vllm/vllm-openai:v0.33.0
+  as the CUDA 13.0 runtime and vllm/vllm-openai-rocm:v0.33.0 for ROCm: the same vLLM release on both, so render.py
+  --device cuda from that commit is the NVIDIA counterpart. The CUDA recipe pins transformers 5.19.0 (vLLM's image has
+  5.20.2; vllm-omni caps it). nvidia-ctk cdi generate names each GPU by index and UUID; oif bench uses the UUID.
+- B-2 result (2026-11-22, A6000): the same TTFT gap on CUDA (chat c=32: vLLM 90 vs Dynamo 36 ms), same output-path
+  cost as on the W7900 (37 vs 39 ms at chat c=16). The owner's ROCm-only hypothesis is not supported; the message is for
+  vLLM (default single API process), not AMD. GDM opens the NVIDIA GPU on this node: stop it for benchmarks.

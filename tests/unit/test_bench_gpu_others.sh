@@ -40,18 +40,26 @@ eq "$(failed vllm)" "0" "a point with the GPU to itself is not failed:"
 grep -q -- '--entrypoint timeout "$first" -k 10 "$((DUR + 30))" /out/tools-venv/bin/py-spy record' "$ROOT/bench/oif-bench.sh" \
   || fail "py-spy under timeout in trace_start"
 grep -q 'proc_sampler.py" --others' "$ROOT/bench/oif-bench.sh" || fail "oif-bench.sh checks the GPU for other processes at every point"
+grep -q -- '--others .*"$DEVNODE" "$\$"' "$ROOT/bench/oif-bench.sh" || fail "oif-bench.sh leaves its own processes (telemetry) out of the check"
 
 # proc_sampler.py --others: processes holding the device open, outside the server's process tree (Linux /proc)
 if [ "$(uname -s)" = Linux ]; then
   DEV=$SANDBOX/renderD999; : > "$DEV"
   bash -c "bash -c 'exec 3<\"$DEV\"; sleep 30' & wait" & server=$!   # the server's tree: a child holds the device
   bash -c "exec 3<\"$DEV\"; sleep 30" & other=$!                       # another program holds it too
+  # oif bench's own telemetry holds the device too on NVIDIA (gpu_sampler's nvidia-smi, B-2): a second root
+  bash -c "bash -c 'exec 3<\"$DEV\"; sleep 30' & wait" & bench=$!
+  # B-2 lab: `watch nvidia-smi` in another terminal opens the GPU every 2 s; a status tool is not a load on the GPU
+  cp "$(command -v sleep)" "$SANDBOX/nvidia-smi"
+  bash -c "exec 3<\"$DEV\"; exec \"$SANDBOX/nvidia-smi\" 30" & smi=$!
   sleep 0.5
-  inner=$(pgrep -P "$server")
-  out=$(python3 "$ROOT/bench/proc_sampler.py" --others "$server" "$DEV")
+  inner=$(pgrep -P "$server"); mine=$(pgrep -P "$bench")
+  out=$(python3 "$ROOT/bench/proc_sampler.py" --others "$server" "$DEV" "$bench")
   grep -q "^$other=" <<< "$(tr ' ' '\n' <<< "$out")" || fail "the other program is listed: '$out'"
   grep -q "^$inner=" <<< "$(tr ' ' '\n' <<< "$out")" && fail "the server's own process is not listed: '$out'"
-  kill "$other" 2>/dev/null; pkill -P "$server" 2>/dev/null; kill "$server" 2>/dev/null; wait 2>/dev/null
+  grep -q "^$mine=" <<< "$(tr ' ' '\n' <<< "$out")" && fail "oif bench's own telemetry is not listed: '$out'"
+  grep -q "^$smi=" <<< "$(tr ' ' '\n' <<< "$out")" && fail "a GPU status tool (nvidia-smi) is not listed: '$out'"
+  kill "$smi" 2>/dev/null; kill "$other" 2>/dev/null; pkill -P "$server" 2>/dev/null; pkill -P "$bench" 2>/dev/null; kill "$server" "$bench" 2>/dev/null; wait 2>/dev/null
   eq "$(python3 "$ROOT/bench/proc_sampler.py" --others "$$" "$DEV")" "" "nothing listed once the GPU is free:"
 fi
 finish

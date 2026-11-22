@@ -1,7 +1,10 @@
 """CPU use of a server's processes, every second until SIGTERM (B-1b): proc_sampler.py ROOT_PID out.csv
                                          proc_sampler.py --python ROOT_PID  prints the Python PIDs of the tree
-                                         proc_sampler.py --others ROOT_PID DEV  prints pid=name of every process
-                                           outside the tree that holds DEV (the GPU's render node) open
+                                         proc_sampler.py --others ROOT_PID DEV [ROOT_PID...]  prints pid=name of
+                                           every process outside the trees that holds DEV (the GPU's device
+                                           node) open; further roots: oif bench itself (its nvidia-smi telemetry).
+                                           GPU status tools (nvidia-smi, rocm-smi, amd-smi) only read state and
+                                           are not counted: someone may run `watch nvidia-smi` during a benchmark
 
 Columns: t (s since start), pid, name (process title or command), cpu_pct (100 = one core busy), threads, rss_mib.
 ROOT_PID is the container's first process (podman/docker inspect .State.Pid); its whole process tree is sampled, so
@@ -57,13 +60,17 @@ if sys.argv[1] == "--python":
     print(" ".join(str(p) for p in tree(int(sys.argv[2])) if is_python(p)))
     sys.exit(0)
 if sys.argv[1] == "--others":
-    ours, dev, found = set(tree(int(sys.argv[2]))), os.path.realpath(sys.argv[3]), []
+    ours = {p for r in [sys.argv[2]] + sys.argv[4:] for p in tree(int(r))}
+    dev, found = os.path.realpath(sys.argv[3]), []
     for p in os.listdir("/proc"):
         if not p.isdigit() or int(p) in ours:
             continue
         try:
+            comm = open(f"/proc/{p}/comm").read().strip()
+            if comm in ("nvidia-smi", "rocm-smi", "amd-smi"):
+                continue
             if any(os.readlink(f"/proc/{p}/fd/{fd}") == dev for fd in os.listdir(f"/proc/{p}/fd")):
-                found.append(f"{p}={open(f'/proc/{p}/comm').read().strip().replace(' ', '_')}")
+                found.append(f"{p}={comm.replace(' ', '_')}")
         except Exception:
             continue
     print(" ".join(found))
