@@ -103,3 +103,6 @@ P1.4 (T-130+) is defined and ready to start after P1.3 checkpoint (or in paralle
   as the CUDA 13.0 runtime and vllm/vllm-openai-rocm:v0.33.0 for ROCm: the same vLLM release on both, so render.py
   --device cuda from that commit is the NVIDIA counterpart. The CUDA recipe pins transformers 5.19.0 (vLLM's image has
   5.20.2; vllm-omni caps it). nvidia-ctk cdi generate names each GPU by index and UUID; oif bench uses the UUID.
+- B-2 result (2026-11-22, A6000): the same TTFT gap on CUDA (chat c=32: vLLM 90 vs Dynamo 36 ms), same output-path
+  cost as on the W7900 (37 vs 39 ms at chat c=16). The owner's ROCm-only hypothesis is not supported; the message is for
+  vLLM (default single API process), not AMD. GDM opens the NVIDIA GPU on this node: stop it for benchmarks.

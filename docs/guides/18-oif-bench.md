@@ -223,13 +223,34 @@ point). Traced points are slower than untraced ones; take the timings from run 1
 
 ## The same benchmark on NVIDIA (B-2)
 
-> Status: code ready (unit tests pass); not yet run in the lab. This section is completed from the first run.
+> Status: done in the lab on the RTX A6000 (Qwen3-0.6B), 2026-11-22: timings 120 points and `--trace` 40 points,
+> 0 failed, 0 request errors, no other process on the GPU. Evidence: `docs/evidence/B-2/`.
 
 B-1b leaves one question open: does vLLM's own server trail Dynamo on CUDA as it does on ROCm? B-2 runs the same
 profile and stacks on an NVIDIA GPU of the same node (lab: RTX A6000 next to the W7900, same host CPUs), with the same
 vLLM release (`vllm/vllm-openai:v0.33.0`, `BENCH_VLLM_CUDA_IMAGE`) and Dynamo built from the same fork commit as the ROCm
 image with upstream's own CUDA recipe (`DYNAMO_CUDA_IMAGE`). Compare the gaps within each GPU (plain vLLM against
 `vllm-api4`, `vllm-rs` and Dynamo), not the GPUs' absolute numbers. Run it after the W7900 runs, never at the same time.
+
+**Result: the gap is not ROCm's.** TTFT p50 in ms, median of 3 repeats, both GPUs:
+
+| Point | W7900 `vllm` | W7900 `dynamo-vllm` | A6000 `vllm` | A6000 `dynamo-vllm` | A6000 `vllm-api4` | A6000 `vllm-rs` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| chat c=8 | 55.2 | 35.7 | 45.7 | 27.0 | 31.8 | 21.1 |
+| chat c=16 | 78.7 | 45.1 | 72.3 | 37.4 | 42.8 | 28.2 |
+| chat c=32 | 92.9 | 57.6 | 89.8 | 36.4 | 57.6 | 38.2 |
+| short c=16 | 57.5 | 36.5 | 47.8 | 21.7 | 29.5 | 18.7 |
+| short c=32 | 75.9 | 50.7 | 59.5 | 24.6 | 45.9 | 25.0 |
+
+- On CUDA plain vLLM trails Dynamo as much as on ROCm or more (chat c=32: +147% on the A6000, +61% on the W7900), and
+  vLLM's own `--api-server-count 4` and Rust frontend close the gap there too.
+- The trace pass shows the same place: the output path costs plain vLLM 37 ms at chat c=16 on the A6000 and 39 ms on
+  the W7900, Dynamo 11 ms on both. The same milliseconds on two GPUs and two GPU software stacks, on the same host CPU,
+  put it in vLLM's API process, which is the same Python code for CUDA and ROCm.
+- Throughput and inter-token latency are equal between vLLM and Dynamo on both GPUs (within 1 to 2%).
+- Open: at 64 users plain vLLM on the A6000 is faster than at 32 (short c=64: 34 ms, below Dynamo's 39 ms), which the
+  W7900 does not show. A guess, not checked: the faster GPU finishes the fixed-length requests in step, so new ones
+  arrive in waves and are prefilled together.
 
 **1. Host: NVIDIA Container Toolkit and the CDI spec** (once; the NVIDIA driver is installed). oif bench hands the GPU
 to the container as a CDI device (`--device nvidia.com/gpu=<UUID>`); Docker 28 and later and Podman read CDI specs

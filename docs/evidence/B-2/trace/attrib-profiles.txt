@@ -1,0 +1,1687 @@
+Qwen/Qwen3-0.6B vllm chat c=1 rep 1 pyspy-971908: 171.5999999999889 samples
+  inclusive: asyncio 32.2%, http + sse 2.1%, zmq + msgpack 1.2%, json + pydantic 0.4%, detokenize 0.2%, tokenize 0.1%, engine step 0.0%, chat template 0.0%
+   66.1%  _worker (thread.py)
+   28.8%  run (runners.py)
+    0.7%  send (httptools_impl.py)
+    0.3%  record (loggers.py)
+    0.3%  _handle_events (_future.py)
+    0.3%  sample_line (exposition.py)
+    0.2%  decode (serial_utils.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  model_dump_json (main.py)
+    0.2%  _handle_recv (_future.py)
+    0.1%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm chat c=1 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm chat c=8 rep 1 pyspy-971908: 164.92999999999498 samples
+  inclusive: asyncio 29.1%, http + sse 4.7%, json + pydantic 1.4%, zmq + msgpack 1.0%, detokenize 0.6%, tokenize 0.5%, engine step 0.0%, chat template 0.0%
+   65.8%  _worker (thread.py)
+   24.2%  run (runners.py)
+    2.7%  send (httptools_impl.py)
+    0.8%  model_dump_json (main.py)
+    0.4%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.4%  _protected_step (detokenizer.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  stream_response (responses.py)
+    0.3%  chat_completion_stream_generator (serving.py)
+    0.2%  __init__ (main.py)
+    0.2%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm chat c=8 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm chat c=16 rep 1 pyspy-971908: 162.4899999999972 samples
+  inclusive: asyncio 26.9%, http + sse 6.4%, json + pydantic 2.2%, detokenize 1.0%, zmq + msgpack 0.9%, tokenize 0.7%, engine step 0.0%, chat template 0.0%
+   65.6%  _worker (thread.py)
+   21.0%  run (runners.py)
+    3.7%  send (httptools_impl.py)
+    1.3%  model_dump_json (main.py)
+    0.6%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.6%  _protected_step (detokenizer.py)
+    0.5%  __log_extra_fields__ (protocol.py)
+    0.4%  stream_response (responses.py)
+    0.4%  __init__ (main.py)
+    0.4%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  chat_completion_stream_generator (serving.py)
+    0.3%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm chat c=16 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm chat c=16 rep 1 pyspy-972904: 100.44000000001448 samples
+  inclusive: engine step 22.3%, zmq + msgpack 0.4%, tokenize 0.2%
+   50.4%  _report_continuous_usage (usage_lib.py)
+   24.9%  synchronize (streams.py)
+    1.8%  copy_to_uva (buffer_utils.py)
+    1.6%  prepare_inputs (model_runner.py)
+    1.4%  async_tensor_h2d (torch_utils.py)
+    1.0%  update_from_output (scheduler.py)
+    0.9%  schedule (scheduler.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.9%  __call__ (sampler.py)
+    0.7%  sample (model_runner.py)
+    0.6%  run (jit.py)
+    0.5%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B vllm chat c=32 rep 1 pyspy-971908: 158.17000000000112 samples
+  inclusive: asyncio 24.6%, http + sse 7.9%, json + pydantic 2.9%, tokenize 1.6%, detokenize 1.1%, zmq + msgpack 0.7%, chat template 0.1%, engine step 0.1%
+   64.7%  _worker (thread.py)
+   18.1%  run (runners.py)
+    5.3%  send (httptools_impl.py)
+    1.7%  model_dump_json (main.py)
+    1.5%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.6%  __log_extra_fields__ (protocol.py)
+    0.6%  _protected_step (detokenizer.py)
+    0.5%  __init__ (main.py)
+    0.5%  _new_request_output (output_processor.py)
+    0.4%  _new_completion_output (output_processor.py)
+    0.4%  chat_completion_stream_generator_raw (serving.py)
+    0.4%  stream_response (responses.py)
+
+Qwen/Qwen3-0.6B vllm chat c=32 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm chat c=32 rep 1 pyspy-972904: 102.29000000001543 samples
+  inclusive: engine step 23.9%, zmq + msgpack 0.6%, tokenize 0.4%
+   49.6%  _report_continuous_usage (usage_lib.py)
+   23.6%  synchronize (streams.py)
+    1.9%  async_tensor_h2d (torch_utils.py)
+    1.8%  prepare_inputs (model_runner.py)
+    1.3%  schedule (scheduler.py)
+    1.3%  update_from_output (scheduler.py)
+    1.3%  copy_to_uva (buffer_utils.py)
+    0.8%  allocate_slots (kv_cache_manager.py)
+    0.8%  run (jit.py)
+    0.7%  get_top_k_top_p (states.py)
+    0.6%  __call__ (sampler.py)
+    0.6%  sample (model_runner.py)
+
+Qwen/Qwen3-0.6B vllm chat c=64 rep 1 pyspy-971908: 157.3300000000019 samples
+  inclusive: asyncio 23.7%, http + sse 7.7%, json + pydantic 3.1%, tokenize 1.7%, detokenize 0.9%, zmq + msgpack 0.4%, chat template 0.1%, engine step 0.0%
+   64.7%  _worker (thread.py)
+   18.6%  run (runners.py)
+    5.0%  send (httptools_impl.py)
+    2.2%  model_dump_json (main.py)
+    1.7%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.6%  _protected_step (detokenizer.py)
+    0.5%  __log_extra_fields__ (protocol.py)
+    0.5%  _new_request_output (output_processor.py)
+    0.5%  stream_response (responses.py)
+    0.4%  __init__ (main.py)
+    0.4%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm chat c=64 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm chat c=64 rep 1 pyspy-972904: 107.320000000018 samples
+  inclusive: engine step 17.7%, zmq + msgpack 0.4%, tokenize 0.3%
+   49.9%  _report_continuous_usage (usage_lib.py)
+   30.2%  synchronize (streams.py)
+    1.5%  update_from_output (scheduler.py)
+    1.1%  async_tensor_h2d (torch_utils.py)
+    1.1%  schedule (scheduler.py)
+    0.8%  copy_to_uva (buffer_utils.py)
+    0.7%  allocate_slots (kv_cache_manager.py)
+    0.7%  prepare_inputs (model_runner.py)
+    0.5%  run (jit.py)
+    0.4%  cache_blocks (single_type_kv_cache_manager.py)
+    0.4%  cache_blocks (kv_cache_coordinator.py)
+    0.4%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B vllm short c=1 rep 1 pyspy-971908: 171.7099999999888 samples
+  inclusive: asyncio 32.5%, http + sse 2.2%, zmq + msgpack 1.5%, json + pydantic 0.4%, detokenize 0.3%, engine step 0.1%, tokenize 0.1%, chat template 0.0%
+   66.1%  _worker (thread.py)
+   28.1%  run (runners.py)
+    0.8%  send (httptools_impl.py)
+    0.4%  _handle_events (_future.py)
+    0.3%  record (loggers.py)
+    0.3%  _add_recv_event (_future.py)
+    0.2%  decode (serial_utils.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  model_dump_json (main.py)
+    0.2%  sample_line (exposition.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  _protected_step (detokenizer.py)
+
+Qwen/Qwen3-0.6B vllm short c=1 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm short c=1 rep 1 pyspy-972904: 98.56000000001352 samples
+  inclusive: engine step 19.1%, zmq + msgpack 0.6%, tokenize 0.2%
+   50.4%  _report_continuous_usage (usage_lib.py)
+   28.1%  synchronize (streams.py)
+    3.4%  prepare_inputs (model_runner.py)
+    2.7%  async_tensor_h2d (torch_utils.py)
+    1.9%  copy_to_uva (buffer_utils.py)
+    0.8%  __call__ (sampler.py)
+    0.7%  get_top_k_top_p (states.py)
+    0.6%  top_k_mask_logits (sampling.py)
+    0.5%  send (socket.py)
+    0.5%  sample (model_runner.py)
+    0.4%  apply_sampling_params (sampler.py)
+    0.4%  gather_batch_req_state (model_runner.py)
+
+Qwen/Qwen3-0.6B vllm short c=8 rep 1 pyspy-971908: 159.88999999999956 samples
+  inclusive: asyncio 27.0%, http + sse 6.2%, json + pydantic 2.0%, zmq + msgpack 1.3%, detokenize 0.6%, tokenize 0.5%, chat template 0.1%, engine step 0.0%
+   65.8%  _worker (thread.py)
+   21.4%  run (runners.py)
+    3.7%  send (httptools_impl.py)
+    1.1%  model_dump_json (main.py)
+    0.5%  __log_extra_fields__ (protocol.py)
+    0.5%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.4%  record (loggers.py)
+    0.3%  _protected_step (detokenizer.py)
+    0.3%  stream_response (responses.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  __init__ (main.py)
+    0.3%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm short c=8 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm short c=8 rep 1 pyspy-972904: 97.21000000001283 samples
+  inclusive: engine step 21.1%, zmq + msgpack 0.7%, tokenize 0.3%
+   50.6%  _report_continuous_usage (usage_lib.py)
+   25.5%  synchronize (streams.py)
+    2.5%  prepare_inputs (model_runner.py)
+    2.0%  async_tensor_h2d (torch_utils.py)
+    1.9%  copy_to_uva (buffer_utils.py)
+    1.1%  get_top_k_top_p (states.py)
+    0.9%  __call__ (sampler.py)
+    0.6%  sample (model_runner.py)
+    0.6%  send (socket.py)
+    0.6%  schedule (scheduler.py)
+    0.5%  _process_engine_step (core.py)
+    0.5%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B vllm short c=16 rep 1 pyspy-971908: 157.03000000000216 samples
+  inclusive: asyncio 24.8%, http + sse 8.2%, json + pydantic 2.9%, zmq + msgpack 1.4%, detokenize 0.9%, tokenize 0.8%, chat template 0.1%, engine step 0.0%
+   65.4%  _worker (thread.py)
+   17.6%  run (runners.py)
+    5.0%  send (httptools_impl.py)
+    1.6%  model_dump_json (main.py)
+    0.8%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.7%  __log_extra_fields__ (protocol.py)
+    0.5%  _protected_step (detokenizer.py)
+    0.5%  stream_response (responses.py)
+    0.5%  __init__ (main.py)
+    0.4%  chat_completion_stream_generator_raw (serving.py)
+    0.4%  _new_request_output (output_processor.py)
+    0.4%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm short c=16 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm short c=16 rep 1 pyspy-972904: 96.04000000001223 samples
+  inclusive: engine step 25.3%, zmq + msgpack 0.5%, tokenize 0.4%
+   51.0%  _report_continuous_usage (usage_lib.py)
+   21.2%  synchronize (streams.py)
+    3.1%  copy_to_uva (buffer_utils.py)
+    2.4%  prepare_inputs (model_runner.py)
+    2.0%  async_tensor_h2d (torch_utils.py)
+    1.1%  schedule (scheduler.py)
+    0.9%  __call__ (sampler.py)
+    0.8%  get_top_k_top_p (states.py)
+    0.7%  top_k_mask_logits (sampling.py)
+    0.7%  sample (model_runner.py)
+    0.6%  update_from_output (scheduler.py)
+    0.6%  run (jit.py)
+
+Qwen/Qwen3-0.6B vllm short c=32 rep 1 pyspy-971908: 154.05000000000487 samples
+  inclusive: asyncio 22.9%, http + sse 8.6%, json + pydantic 3.2%, detokenize 0.9%, zmq + msgpack 0.8%, tokenize 0.8%, chat template 0.1%
+   65.5%  _worker (thread.py)
+   17.2%  run (runners.py)
+    5.9%  send (httptools_impl.py)
+    2.3%  model_dump_json (main.py)
+    0.7%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.6%  stream_response (responses.py)
+    0.5%  _new_request_output (output_processor.py)
+    0.4%  _protected_step (detokenizer.py)
+    0.4%  __init__ (main.py)
+    0.4%  _new_completion_output (output_processor.py)
+    0.4%  __log_extra_fields__ (protocol.py)
+    0.4%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm short c=32 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm short c=32 rep 1 pyspy-972904: 97.25000000001285 samples
+  inclusive: engine step 25.6%, zmq + msgpack 0.5%, tokenize 0.2%
+   50.9%  _report_continuous_usage (usage_lib.py)
+   20.5%  synchronize (streams.py)
+    2.0%  copy_to_uva (buffer_utils.py)
+    1.9%  prepare_inputs (model_runner.py)
+    1.6%  async_tensor_h2d (torch_utils.py)
+    1.6%  update_from_output (scheduler.py)
+    1.4%  schedule (scheduler.py)
+    1.0%  allocate_slots (kv_cache_manager.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.8%  __call__ (sampler.py)
+    0.6%  get_seed_and_offset (sampling.py)
+    0.5%  run (jit.py)
+
+Qwen/Qwen3-0.6B vllm short c=64 rep 1 pyspy-971908: 144.71000000001337 samples
+  inclusive: asyncio 23.3%, http + sse 7.7%, json + pydantic 3.0%, tokenize 2.9%, detokenize 0.9%, zmq + msgpack 0.8%, chat template 0.3%, engine step 0.0%
+   63.2%  _worker (thread.py)
+   18.1%  run (runners.py)
+    4.2%  send (httptools_impl.py)
+    2.7%  _encode_plus (tokenization_utils_tokenizers.py)
+    2.4%  model_dump_json (main.py)
+    0.8%  stream_response (responses.py)
+    0.6%  _new_request_output (output_processor.py)
+    0.5%  step (stream_processor.py)
+    0.4%  _protected_step (detokenizer.py)
+    0.4%  __init__ (main.py)
+    0.3%  update (detokenizer.py)
+    0.3%  process_outputs (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm short c=64 rep 1 pyspy-972903: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm short c=64 rep 1 pyspy-972904: 97.41000000001293 samples
+  inclusive: engine step 20.5%, zmq + msgpack 0.8%, tokenize 0.3%
+   49.5%  _report_continuous_usage (usage_lib.py)
+   26.8%  synchronize (streams.py)
+    1.7%  async_tensor_h2d (torch_utils.py)
+    1.3%  schedule (scheduler.py)
+    1.3%  copy_to_uva (buffer_utils.py)
+    1.2%  prepare_inputs (model_runner.py)
+    1.1%  __call__ (_ops.py)
+    1.0%  allocate_slots (kv_cache_manager.py)
+    1.0%  update_from_output (scheduler.py)
+    0.7%  send (socket.py)
+    0.6%  forward (flash_attn.py)
+    0.5%  get_top_k_top_p (states.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=1 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=1 rep 1 pyspy-1001766: 92.8700000000106 samples
+  inclusive: engine step 28.7%, zmq + msgpack 0.6%, tokenize 0.1%
+   50.2%  _report_continuous_usage (usage_lib.py)
+   18.6%  synchronize (streams.py)
+    3.7%  prepare_inputs (model_runner.py)
+    3.5%  copy_to_uva (buffer_utils.py)
+    3.4%  async_tensor_h2d (torch_utils.py)
+    1.2%  __call__ (sampler.py)
+    1.0%  get_top_k_top_p (states.py)
+    0.9%  async_copy_to_np (async_utils.py)
+    0.8%  run (jit.py)
+    0.8%  get_seed_and_offset (sampling.py)
+    0.8%  sample (model_runner.py)
+    0.7%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=1 rep 1 pyspy-1001767: 169.14999999999114 samples
+  inclusive: asyncio 31.8%, http + sse 1.6%, zmq + msgpack 1.3%, json + pydantic 0.5%, detokenize 0.2%, tokenize 0.1%, chat template 0.0%, engine step 0.0%
+   66.5%  _worker (thread.py)
+   28.7%  run (runners.py)
+    0.9%  send (httptools_impl.py)
+    0.3%  _handle_events (_future.py)
+    0.3%  record (loggers.py)
+    0.2%  model_dump_json (main.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  decode (serial_utils.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  output_handler (async_llm.py)
+    0.1%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.1%  __log_extra_fields__ (protocol.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=1 rep 1 pyspy-1001768: 120.52000000002475 samples
+  inclusive: asyncio 50.2%, http + sse 0.7%, json + pydantic 0.0%
+   49.7%  _worker (thread.py)
+   49.6%  run (runners.py)
+    0.2%  _accumulate_metrics (multiprocess.py)
+    0.1%  _read_all_values (mmap_dict.py)
+    0.1%  add_sample (metrics_core.py)
+    0.0%  floatToGoString (utils.py)
+    0.0%  _is_valid_legacy_labelname (validation.py)
+    0.0%  _read_metrics (multiprocess.py)
+    0.0%  sleep (tasks.py)
+    0.0%  decode (decoder.py)
+    0.0%  generate_latest (exposition.py)
+    0.0%  raw_decode (decoder.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=1 rep 1 pyspy-1001769: 180.70999999998062 samples
+  inclusive: asyncio 33.6%, http + sse 0.5%, json + pydantic 0.0%
+   66.3%  _worker (thread.py)
+   33.1%  run (runners.py)
+    0.1%  _accumulate_metrics (multiprocess.py)
+    0.1%  add_sample (metrics_core.py)
+    0.1%  _read_all_values (mmap_dict.py)
+    0.0%  sample_line (exposition.py)
+    0.0%  read_all_values_from_file (mmap_dict.py)
+    0.0%  _parse_key (multiprocess.py)
+    0.0%  _read_metrics (multiprocess.py)
+    0.0%  floatToGoString (utils.py)
+    0.0%  _is_valid_legacy_metric_name (validation.py)
+    0.0%  _escape (exposition.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=1 rep 1 pyspy-1001770: 120.64000000002481 samples
+  inclusive: asyncio 50.3%, http + sse 0.8%, json + pydantic 0.1%
+   49.6%  _worker (thread.py)
+   49.6%  run (runners.py)
+    0.2%  _accumulate_metrics (multiprocess.py)
+    0.1%  sample_line (exposition.py)
+    0.1%  add_sample (metrics_core.py)
+    0.0%  _read_all_values (mmap_dict.py)
+    0.0%  _read_metrics (multiprocess.py)
+    0.0%  read_all_values_from_file (mmap_dict.py)
+    0.0%  decode (decoder.py)
+    0.0%  generate_latest (exposition.py)
+    0.0%  floatToGoString (utils.py)
+    0.0%  _parse_key (multiprocess.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=8 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=8 rep 1 pyspy-1001766: 99.34000000001392 samples
+  inclusive: engine step 23.5%, zmq + msgpack 1.0%, tokenize 0.2%
+   49.6%  _report_continuous_usage (usage_lib.py)
+   23.7%  synchronize (streams.py)
+    2.9%  copy_to_uva (buffer_utils.py)
+    2.7%  prepare_inputs (model_runner.py)
+    2.2%  async_tensor_h2d (torch_utils.py)
+    1.0%  send (socket.py)
+    1.0%  __call__ (sampler.py)
+    0.8%  get_top_k_top_p (states.py)
+    0.8%  sample (model_runner.py)
+    0.7%  schedule (scheduler.py)
+    0.6%  update_from_output (scheduler.py)
+    0.6%  run (jit.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=8 rep 1 pyspy-1001767: 169.57999999999075 samples
+  inclusive: asyncio 31.0%, http + sse 2.3%, json + pydantic 0.9%, zmq + msgpack 0.9%, detokenize 0.4%, tokenize 0.3%, engine step 0.0%, chat template 0.0%
+   66.5%  _worker (thread.py)
+   27.6%  run (runners.py)
+    1.3%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.3%  _handle_events (_future.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  process_outputs (output_processor.py)
+    0.2%  _add_recv_event (_future.py)
+    0.1%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=8 rep 1 pyspy-1001768: 170.97999999998947 samples
+  inclusive: asyncio 31.8%, http + sse 2.1%, zmq + msgpack 1.1%, json + pydantic 0.7%, detokenize 0.3%, tokenize 0.2%, chat template 0.0%, engine step 0.0%
+   66.2%  _worker (thread.py)
+   28.5%  run (runners.py)
+    0.9%  send (httptools_impl.py)
+    0.3%  model_dump_json (main.py)
+    0.3%  _handle_events (_future.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  record (loggers.py)
+    0.1%  _handle_recv (_future.py)
+    0.1%  decode (serial_utils.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=8 rep 1 pyspy-1001769: 171.0699999999894 samples
+  inclusive: asyncio 31.9%, http + sse 2.3%, zmq + msgpack 1.1%, json + pydantic 0.6%, detokenize 0.3%, tokenize 0.1%, chat template 0.0%, engine step 0.0%
+   66.2%  _worker (thread.py)
+   28.4%  run (runners.py)
+    1.0%  send (httptools_impl.py)
+    0.3%  _handle_events (_future.py)
+    0.3%  model_dump_json (main.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  record (loggers.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.1%  _handle_recv (_future.py)
+    0.1%  output_handler (async_llm.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=8 rep 1 pyspy-1001770: 173.27999999998738 samples
+  inclusive: asyncio 32.4%, http + sse 1.5%, zmq + msgpack 1.1%, json + pydantic 0.4%, detokenize 0.2%, tokenize 0.1%, chat template 0.0%, engine step 0.0%
+   66.2%  _worker (thread.py)
+   29.8%  run (runners.py)
+    0.6%  send (httptools_impl.py)
+    0.3%  _handle_events (_future.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  model_dump_json (main.py)
+    0.2%  _handle_recv (_future.py)
+    0.1%  _accumulate_metrics (multiprocess.py)
+    0.1%  __log_extra_fields__ (protocol.py)
+    0.1%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.1%  output_handler (async_llm.py)
+    0.1%  record (loggers.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=16 rep 1 pyspy-1000789: 0.01 samples
+  inclusive: 
+  100.0%  wait (connection.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=16 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=16 rep 1 pyspy-1001766: 102.2300000000154 samples
+  inclusive: engine step 23.9%, zmq + msgpack 1.1%, tokenize 0.2%
+   49.7%  _report_continuous_usage (usage_lib.py)
+   23.1%  synchronize (streams.py)
+    2.3%  copy_to_uva (buffer_utils.py)
+    1.7%  prepare_inputs (model_runner.py)
+    1.5%  async_tensor_h2d (torch_utils.py)
+    1.1%  update_from_output (scheduler.py)
+    1.0%  schedule (scheduler.py)
+    1.0%  send (socket.py)
+    0.9%  __call__ (sampler.py)
+    0.8%  sample (model_runner.py)
+    0.7%  get_top_k_top_p (states.py)
+    0.7%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=16 rep 1 pyspy-1001767: 171.12999999998934 samples
+  inclusive: asyncio 31.5%, http + sse 2.4%, json + pydantic 0.8%, zmq + msgpack 0.7%, detokenize 0.3%, tokenize 0.2%, chat template 0.0%, engine step 0.0%
+   66.2%  _worker (thread.py)
+   28.5%  run (runners.py)
+    1.0%  send (httptools_impl.py)
+    0.4%  model_dump_json (main.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.1%  _handle_events (_future.py)
+    0.1%  _handle_recv (_future.py)
+    0.1%  _protected_step (detokenizer.py)
+    0.1%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=16 rep 1 pyspy-1001768: 170.00999999999036 samples
+  inclusive: asyncio 30.5%, http + sse 2.6%, zmq + msgpack 1.0%, json + pydantic 0.9%, detokenize 0.4%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   66.5%  _worker (thread.py)
+   27.4%  run (runners.py)
+    1.5%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  stream_response (responses.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  __init__ (main.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=16 rep 1 pyspy-1001769: 171.0499999999894 samples
+  inclusive: asyncio 31.4%, http + sse 2.5%, json + pydantic 0.8%, zmq + msgpack 0.6%, detokenize 0.4%, tokenize 0.2%, chat template 0.0%, engine step 0.0%
+   66.1%  _worker (thread.py)
+   28.6%  run (runners.py)
+    1.2%  send (httptools_impl.py)
+    0.3%  model_dump_json (main.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.1%  _handle_events (_future.py)
+    0.1%  _accumulate_metrics (multiprocess.py)
+    0.1%  __init__ (main.py)
+    0.1%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=16 rep 1 pyspy-1001770: 172.02999999998852 samples
+  inclusive: asyncio 31.9%, http + sse 2.2%, zmq + msgpack 0.7%, json + pydantic 0.6%, tokenize 0.2%, detokenize 0.2%, engine step 0.1%, chat template 0.0%
+   66.1%  _worker (thread.py)
+   29.2%  run (runners.py)
+    1.0%  send (httptools_impl.py)
+    0.3%  model_dump_json (main.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.1%  chat_completion_stream_generator_raw (serving.py)
+    0.1%  process_outputs (output_processor.py)
+    0.1%  _handle_recv (_future.py)
+    0.1%  decode (serial_utils.py)
+    0.1%  record (loggers.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=32 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=32 rep 1 pyspy-1001766: 105.32000000001698 samples
+  inclusive: engine step 24.2%, zmq + msgpack 1.2%, tokenize 0.3%
+   49.4%  _report_continuous_usage (usage_lib.py)
+   22.6%  synchronize (streams.py)
+    1.9%  copy_to_uva (buffer_utils.py)
+    1.7%  prepare_inputs (model_runner.py)
+    1.3%  async_tensor_h2d (torch_utils.py)
+    1.2%  send (socket.py)
+    1.2%  update_from_output (scheduler.py)
+    1.1%  schedule (scheduler.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.8%  allocate_slots (kv_cache_manager.py)
+    0.8%  __call__ (sampler.py)
+    0.7%  run (jit.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=32 rep 1 pyspy-1001767: 170.39999999999 samples
+  inclusive: asyncio 30.6%, http + sse 3.5%, json + pydantic 1.1%, zmq + msgpack 0.6%, detokenize 0.5%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   66.0%  _worker (thread.py)
+   27.2%  run (runners.py)
+    1.7%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.4%  __log_extra_fields__ (protocol.py)
+    0.3%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.2%  stream_response (responses.py)
+    0.2%  _new_request_output (output_processor.py)
+    0.2%  read_all_values_from_file (mmap_dict.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=32 rep 1 pyspy-1001768: 170.67999999998975 samples
+  inclusive: asyncio 30.3%, http + sse 2.6%, json + pydantic 0.9%, zmq + msgpack 0.8%, detokenize 0.4%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   66.5%  _worker (thread.py)
+   27.2%  run (runners.py)
+    1.5%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.3%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  stream_response (responses.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  record (loggers.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=32 rep 1 pyspy-1001769: 171.09999999998936 samples
+  inclusive: asyncio 30.9%, http + sse 3.2%, json + pydantic 0.9%, zmq + msgpack 0.6%, detokenize 0.4%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   66.0%  _worker (thread.py)
+   27.4%  run (runners.py)
+    1.5%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.3%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  stream_response (responses.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.2%  __init__ (main.py)
+    0.1%  _handle_events (_future.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=32 rep 1 pyspy-1001770: 170.14999999999023 samples
+  inclusive: asyncio 30.7%, http + sse 3.2%, json + pydantic 1.0%, zmq + msgpack 0.6%, detokenize 0.5%, tokenize 0.3%, chat template 0.0%
+   66.1%  _worker (thread.py)
+   27.3%  run (runners.py)
+    1.6%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.3%  _protected_step (detokenizer.py)
+    0.3%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  _new_request_output (output_processor.py)
+    0.2%  _accumulate_metrics (multiprocess.py)
+    0.1%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=64 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=64 rep 1 pyspy-1001766: 107.85000000001827 samples
+  inclusive: engine step 19.0%, zmq + msgpack 1.0%, tokenize 0.3%
+   49.4%  _report_continuous_usage (usage_lib.py)
+   28.6%  synchronize (streams.py)
+    1.4%  copy_to_uva (buffer_utils.py)
+    1.3%  update_from_output (scheduler.py)
+    1.1%  schedule (scheduler.py)
+    1.0%  prepare_inputs (model_runner.py)
+    0.9%  send (socket.py)
+    0.9%  async_tensor_h2d (torch_utils.py)
+    0.9%  allocate_slots (kv_cache_manager.py)
+    0.5%  cache_blocks (single_type_kv_cache_manager.py)
+    0.5%  run (jit.py)
+    0.5%  __call__ (sampler.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=64 rep 1 pyspy-1001767: 170.99999999998946 samples
+  inclusive: asyncio 30.2%, http + sse 3.2%, json + pydantic 1.2%, zmq + msgpack 0.5%, tokenize 0.4%, detokenize 0.4%, chat template 0.0%, engine step 0.0%
+   65.9%  _worker (thread.py)
+   27.2%  run (runners.py)
+    1.7%  send (httptools_impl.py)
+    0.7%  model_dump_json (main.py)
+    0.4%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  stream_response (responses.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.2%  __init__ (main.py)
+    0.2%  _new_request_output (output_processor.py)
+    0.1%  _protected_step (detokenizer.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=64 rep 1 pyspy-1001768: 170.09999999999027 samples
+  inclusive: asyncio 30.0%, http + sse 2.5%, json + pydantic 1.1%, tokenize 0.5%, zmq + msgpack 0.5%, detokenize 0.4%, chat template 0.0%, engine step 0.0%
+   66.3%  _worker (thread.py)
+   27.4%  run (runners.py)
+    1.4%  send (httptools_impl.py)
+    0.6%  model_dump_json (main.py)
+    0.4%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.3%  stream_response (responses.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  __init__ (main.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=64 rep 1 pyspy-1001769: 171.19999999998927 samples
+  inclusive: asyncio 30.1%, http + sse 3.3%, json + pydantic 1.2%, tokenize 0.4%, detokenize 0.4%, zmq + msgpack 0.4%, chat template 0.0%, engine step 0.0%
+   66.0%  _worker (thread.py)
+   27.1%  run (runners.py)
+    1.8%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.4%  __log_extra_fields__ (protocol.py)
+    0.4%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.3%  _protected_step (detokenizer.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  __init__ (main.py)
+    0.2%  stream_response (responses.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.1%  process_outputs (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 chat c=64 rep 1 pyspy-1001770: 169.6299999999907 samples
+  inclusive: asyncio 30.6%, http + sse 2.9%, json + pydantic 1.0%, zmq + msgpack 0.5%, detokenize 0.4%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   66.1%  _worker (thread.py)
+   27.7%  run (runners.py)
+    1.5%  send (httptools_impl.py)
+    0.6%  model_dump_json (main.py)
+    0.3%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  __init__ (main.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  _accumulate_metrics (multiprocess.py)
+    0.1%  process_outputs (output_processor.py)
+    0.1%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=1 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=1 rep 1 pyspy-1001766: 97.00000000001272 samples
+  inclusive: engine step 17.7%, zmq + msgpack 0.4%, tokenize 0.1%
+   50.5%  _report_continuous_usage (usage_lib.py)
+   29.7%  synchronize (streams.py)
+    3.1%  prepare_inputs (model_runner.py)
+    2.5%  async_tensor_h2d (torch_utils.py)
+    1.4%  copy_to_uva (buffer_utils.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.7%  __call__ (sampler.py)
+    0.5%  sample (model_runner.py)
+    0.5%  top_k_mask_logits (sampling.py)
+    0.4%  _process_engine_step (core.py)
+    0.4%  send (socket.py)
+    0.4%  apply_sampling_params (sampler.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=1 rep 1 pyspy-1001767: 180.6299999999807 samples
+  inclusive: asyncio 33.6%, http + sse 0.5%, json + pydantic 0.0%, zmq + msgpack 0.0%
+   66.3%  _worker (thread.py)
+   33.1%  run (runners.py)
+    0.1%  _accumulate_metrics (multiprocess.py)
+    0.1%  sample_line (exposition.py)
+    0.1%  add_sample (metrics_core.py)
+    0.0%  _read_all_values (mmap_dict.py)
+    0.0%  decode (decoder.py)
+    0.0%  _read_metrics (multiprocess.py)
+    0.0%  read_all_values_from_file (mmap_dict.py)
+    0.0%  escape_label_name (exposition.py)
+    0.0%  _parse_key (multiprocess.py)
+    0.0%  floatToGoString (utils.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=1 rep 1 pyspy-1001768: 169.21999999999107 samples
+  inclusive: asyncio 31.8%, http + sse 1.4%, zmq + msgpack 1.3%, json + pydantic 0.5%, detokenize 0.2%, tokenize 0.1%, engine step 0.1%, chat template 0.0%
+   66.6%  _worker (thread.py)
+   28.7%  run (runners.py)
+    0.8%  send (httptools_impl.py)
+    0.4%  _handle_events (_future.py)
+    0.3%  record (loggers.py)
+    0.2%  model_dump_json (main.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  output_handler (async_llm.py)
+    0.2%  write_value (mmap_dict.py)
+    0.1%  __log_extra_fields__ (protocol.py)
+    0.1%  decode (serial_utils.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=1 rep 1 pyspy-1001769: 180.309999999981 samples
+  inclusive: asyncio 33.6%, http + sse 0.5%, json + pydantic 0.0%
+   66.3%  _worker (thread.py)
+   33.1%  run (runners.py)
+    0.1%  _accumulate_metrics (multiprocess.py)
+    0.1%  sample_line (exposition.py)
+    0.1%  add_sample (metrics_core.py)
+    0.0%  _parse_key (multiprocess.py)
+    0.0%  _read_all_values (mmap_dict.py)
+    0.0%  read_all_values_from_file (mmap_dict.py)
+    0.0%  _read_metrics (multiprocess.py)
+    0.0%  floatToGoString (utils.py)
+    0.0%  _escape (exposition.py)
+    0.0%  decode (decoder.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=1 rep 1 pyspy-1001770: 180.5199999999808 samples
+  inclusive: asyncio 33.6%, http + sse 0.4%, json + pydantic 0.0%
+   66.4%  _worker (thread.py)
+   33.2%  run (runners.py)
+    0.1%  _accumulate_metrics (multiprocess.py)
+    0.0%  sample_line (exposition.py)
+    0.0%  _read_all_values (mmap_dict.py)
+    0.0%  add_sample (metrics_core.py)
+    0.0%  _read_metrics (multiprocess.py)
+    0.0%  decode (decoder.py)
+    0.0%  floatToGoString (utils.py)
+    0.0%  read_all_values_from_file (mmap_dict.py)
+    0.0%  _is_valid_legacy_labelname (validation.py)
+    0.0%  raw_decode (decoder.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=8 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=8 rep 1 pyspy-1001766: 99.3100000000139 samples
+  inclusive: engine step 18.1%, zmq + msgpack 1.5%, tokenize 0.1%
+   49.6%  _report_continuous_usage (usage_lib.py)
+   28.8%  synchronize (streams.py)
+    2.5%  prepare_inputs (model_runner.py)
+    2.0%  async_tensor_h2d (torch_utils.py)
+    1.5%  send (socket.py)
+    1.5%  copy_to_uva (buffer_utils.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.8%  __call__ (sampler.py)
+    0.6%  sample (model_runner.py)
+    0.5%  update_from_output (scheduler.py)
+    0.5%  top_k_mask_logits (sampling.py)
+    0.5%  _process_engine_step (core.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=8 rep 1 pyspy-1001767: 167.99999999999218 samples
+  inclusive: asyncio 30.6%, http + sse 2.1%, zmq + msgpack 1.2%, json + pydantic 0.8%, detokenize 0.4%, tokenize 0.2%, chat template 0.0%, engine step 0.0%
+   66.6%  _worker (thread.py)
+   27.6%  run (runners.py)
+    1.3%  send (httptools_impl.py)
+    0.4%  _handle_events (_future.py)
+    0.4%  model_dump_json (main.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  inc (values.py)
+    0.2%  _add_recv_event (_future.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=8 rep 1 pyspy-1001768: 173.19999999998745 samples
+  inclusive: asyncio 32.8%, http + sse 2.1%, zmq + msgpack 1.2%, json + pydantic 0.5%, tokenize 0.1%, detokenize 0.1%, engine step 0.0%, chat template 0.0%
+   65.9%  _worker (thread.py)
+   29.4%  run (runners.py)
+    0.5%  send (httptools_impl.py)
+    0.3%  _handle_events (_future.py)
+    0.2%  _accumulate_metrics (multiprocess.py)
+    0.2%  read_all_values_from_file (mmap_dict.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  __log_extra_fields__ (protocol.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  record (loggers.py)
+    0.2%  model_dump_json (main.py)
+    0.1%  decode (serial_utils.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=8 rep 1 pyspy-1001769: 171.8199999999887 samples
+  inclusive: asyncio 32.4%, http + sse 1.9%, zmq + msgpack 1.1%, json + pydantic 0.4%, detokenize 0.2%, tokenize 0.1%, chat template 0.0%, engine step 0.0%
+   66.2%  _worker (thread.py)
+   29.3%  run (runners.py)
+    0.8%  send (httptools_impl.py)
+    0.3%  _handle_events (_future.py)
+    0.2%  model_dump_json (main.py)
+    0.2%  _handle_recv (_future.py)
+    0.1%  record (loggers.py)
+    0.1%  _protected_step (detokenizer.py)
+    0.1%  _add_recv_event (_future.py)
+    0.1%  __log_extra_fields__ (protocol.py)
+    0.1%  inc (values.py)
+    0.1%  output_handler (async_llm.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=8 rep 1 pyspy-1001770: 168.3199999999919 samples
+  inclusive: asyncio 30.7%, http + sse 2.3%, zmq + msgpack 1.3%, json + pydantic 0.8%, detokenize 0.4%, tokenize 0.2%, chat template 0.0%, engine step 0.0%
+   66.6%  _worker (thread.py)
+   27.3%  run (runners.py)
+    1.3%  send (httptools_impl.py)
+    0.4%  _handle_events (_future.py)
+    0.3%  model_dump_json (main.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  process_outputs (output_processor.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  stream_response (responses.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=16 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=16 rep 1 pyspy-1001766: 100.14000000001433 samples
+  inclusive: engine step 22.0%, zmq + msgpack 1.4%, tokenize 0.2%
+   49.7%  _report_continuous_usage (usage_lib.py)
+   25.2%  synchronize (streams.py)
+    2.4%  prepare_inputs (model_runner.py)
+    2.0%  async_tensor_h2d (torch_utils.py)
+    2.0%  copy_to_uva (buffer_utils.py)
+    1.4%  send (socket.py)
+    0.9%  schedule (scheduler.py)
+    0.8%  __call__ (sampler.py)
+    0.8%  update_from_output (scheduler.py)
+    0.7%  get_top_k_top_p (states.py)
+    0.7%  sample (model_runner.py)
+    0.6%  apply_sampling_params (sampler.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=16 rep 1 pyspy-1001767: 168.49999999999173 samples
+  inclusive: asyncio 30.3%, http + sse 3.4%, json + pydantic 1.2%, zmq + msgpack 0.9%, tokenize 0.3%, detokenize 0.3%, chat template 0.1%, engine step 0.0%
+   66.0%  _worker (thread.py)
+   26.7%  run (runners.py)
+    1.7%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.4%  __log_extra_fields__ (protocol.py)
+    0.3%  _handle_events (_future.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  __init__ (main.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  stream_response (responses.py)
+    0.2%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=16 rep 1 pyspy-1001768: 168.65999999999158 samples
+  inclusive: asyncio 30.5%, http + sse 3.2%, json + pydantic 0.9%, zmq + msgpack 0.8%, detokenize 0.4%, tokenize 0.2%, chat template 0.1%, engine step 0.0%
+   66.1%  _worker (thread.py)
+   27.1%  run (runners.py)
+    1.7%  send (httptools_impl.py)
+    0.5%  model_dump_json (main.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  process_outputs (output_processor.py)
+    0.1%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=16 rep 1 pyspy-1001769: 168.87999999999138 samples
+  inclusive: asyncio 31.1%, http + sse 2.7%, zmq + msgpack 0.9%, json + pydantic 0.8%, detokenize 0.3%, tokenize 0.2%, chat template 0.0%, engine step 0.0%
+   66.1%  _worker (thread.py)
+   27.8%  run (runners.py)
+    1.4%  send (httptools_impl.py)
+    0.4%  model_dump_json (main.py)
+    0.3%  _handle_events (_future.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  record (loggers.py)
+    0.1%  _accumulate_metrics (multiprocess.py)
+    0.1%  _protected_step (detokenizer.py)
+    0.1%  read_all_values_from_file (mmap_dict.py)
+    0.1%  output_handler (async_llm.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=16 rep 1 pyspy-1001770: 165.13999999999479 samples
+  inclusive: asyncio 29.4%, http + sse 3.2%, json + pydantic 1.3%, zmq + msgpack 0.9%, detokenize 0.4%, tokenize 0.3%, chat template 0.1%, engine step 0.0%
+   66.5%  _worker (thread.py)
+   26.0%  run (runners.py)
+    2.0%  send (httptools_impl.py)
+    0.6%  model_dump_json (main.py)
+    0.4%  __log_extra_fields__ (protocol.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  __init__ (main.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  process_outputs (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=32 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=32 rep 1 pyspy-1001766: 100.38000000001445 samples
+  inclusive: engine step 24.9%, zmq + msgpack 1.0%, tokenize 0.3%
+   50.0%  _report_continuous_usage (usage_lib.py)
+   21.6%  synchronize (streams.py)
+    2.1%  prepare_inputs (model_runner.py)
+    1.7%  copy_to_uva (buffer_utils.py)
+    1.6%  schedule (scheduler.py)
+    1.5%  update_from_output (scheduler.py)
+    1.3%  async_tensor_h2d (torch_utils.py)
+    0.9%  send (socket.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.8%  __call__ (sampler.py)
+    0.7%  allocate_slots (kv_cache_manager.py)
+    0.7%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=32 rep 1 pyspy-1001767: 166.71999999999335 samples
+  inclusive: asyncio 29.6%, http + sse 4.0%, json + pydantic 1.4%, zmq + msgpack 0.9%, detokenize 0.5%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   66.1%  _worker (thread.py)
+   25.5%  run (runners.py)
+    2.1%  send (httptools_impl.py)
+    0.8%  model_dump_json (main.py)
+    0.4%  __log_extra_fields__ (protocol.py)
+    0.3%  _protected_step (detokenizer.py)
+    0.3%  _handle_events (_future.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  chat_completion_stream_generator_raw (serving.py)
+    0.2%  stream_response (responses.py)
+    0.2%  __init__ (main.py)
+    0.2%  chat_completion_stream_generator (serving.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=32 rep 1 pyspy-1001768: 163.39999999999637 samples
+  inclusive: asyncio 28.4%, http + sse 3.8%, json + pydantic 1.6%, zmq + msgpack 0.8%, tokenize 0.4%, detokenize 0.4%, chat template 0.1%, engine step 0.0%
+   66.5%  _worker (thread.py)
+   24.7%  run (runners.py)
+    2.3%  send (httptools_impl.py)
+    0.9%  model_dump_json (main.py)
+    0.4%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  __init__ (main.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.3%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  stream_response (responses.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  _protected_step (detokenizer.py)
+    0.2%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=32 rep 1 pyspy-1001769: 167.9699999999922 samples
+  inclusive: asyncio 29.9%, http + sse 4.9%, json + pydantic 1.3%, zmq + msgpack 0.8%, detokenize 0.4%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   65.6%  _worker (thread.py)
+   25.2%  run (runners.py)
+    2.4%  send (httptools_impl.py)
+    0.7%  model_dump_json (main.py)
+    0.3%  _protected_step (detokenizer.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  __log_extra_fields__ (protocol.py)
+    0.3%  read_all_values_from_file (mmap_dict.py)
+    0.2%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.2%  __init__ (main.py)
+    0.2%  _accumulate_metrics (multiprocess.py)
+    0.2%  stream_response (responses.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=32 rep 1 pyspy-1001770: 162.67999999999702 samples
+  inclusive: asyncio 28.1%, http + sse 3.8%, json + pydantic 1.8%, zmq + msgpack 1.0%, detokenize 0.6%, tokenize 0.3%, chat template 0.0%, engine step 0.0%
+   66.5%  _worker (thread.py)
+   24.2%  run (runners.py)
+    2.4%  send (httptools_impl.py)
+    0.9%  model_dump_json (main.py)
+    0.5%  __log_extra_fields__ (protocol.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.3%  _handle_events (_future.py)
+    0.3%  __init__ (main.py)
+    0.3%  _protected_step (detokenizer.py)
+    0.3%  stream_response (responses.py)
+    0.2%  process_outputs (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=64 rep 1 pyspy-1001765: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=64 rep 1 pyspy-1001767: 163.41999999999635 samples
+  inclusive: asyncio 27.0%, http + sse 6.0%, json + pydantic 2.3%, zmq + msgpack 0.8%, tokenize 0.6%, detokenize 0.6%, chat template 0.1%, engine step 0.0%
+   65.8%  _worker (thread.py)
+   21.9%  run (runners.py)
+    3.4%  send (httptools_impl.py)
+    1.2%  model_dump_json (main.py)
+    0.6%  __log_extra_fields__ (protocol.py)
+    0.5%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.4%  stream_response (responses.py)
+    0.3%  __init__ (main.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+    0.3%  _protected_step (detokenizer.py)
+    0.3%  read_all_values_from_file (mmap_dict.py)
+    0.3%  inc (values.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=64 rep 1 pyspy-1001768: 160.37999999999911 samples
+  inclusive: asyncio 25.6%, http + sse 6.0%, json + pydantic 2.3%, tokenize 0.7%, zmq + msgpack 0.7%, detokenize 0.7%, chat template 0.1%, engine step 0.0%
+   66.1%  _worker (thread.py)
+   21.0%  run (runners.py)
+    3.9%  send (httptools_impl.py)
+    1.3%  model_dump_json (main.py)
+    0.7%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.6%  __log_extra_fields__ (protocol.py)
+    0.5%  chat_completion_stream_generator_raw (serving.py)
+    0.4%  _protected_step (detokenizer.py)
+    0.4%  __init__ (main.py)
+    0.4%  stream_response (responses.py)
+    0.4%  chat_completion_stream_generator (serving.py)
+    0.3%  _new_request_output (output_processor.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=64 rep 1 pyspy-1001769: 162.28999999999738 samples
+  inclusive: asyncio 27.0%, http + sse 6.2%, json + pydantic 2.2%, zmq + msgpack 0.8%, detokenize 0.7%, tokenize 0.6%, chat template 0.1%, engine step 0.0%
+   65.7%  _worker (thread.py)
+   21.5%  run (runners.py)
+    3.7%  send (httptools_impl.py)
+    1.2%  model_dump_json (main.py)
+    0.6%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.5%  __log_extra_fields__ (protocol.py)
+    0.4%  chat_completion_stream_generator (serving.py)
+    0.4%  _protected_step (detokenizer.py)
+    0.4%  __init__ (main.py)
+    0.4%  stream_response (responses.py)
+    0.3%  _new_request_output (output_processor.py)
+    0.3%  chat_completion_stream_generator_raw (serving.py)
+
+Qwen/Qwen3-0.6B vllm-api4 short c=64 rep 1 pyspy-1001770: 159.81999999999962 samples
+  inclusive: asyncio 27.1%, http + sse 6.1%, json + pydantic 2.3%, zmq + msgpack 0.8%, tokenize 0.6%, detokenize 0.6%, chat template 0.1%, engine step 0.0%
+   65.8%  _worker (thread.py)
+   21.4%  run (runners.py)
+    3.4%  send (httptools_impl.py)
+    1.2%  model_dump_json (main.py)
+    0.6%  __log_extra_fields__ (protocol.py)
+    0.5%  _encode_plus (tokenization_utils_tokenizers.py)
+    0.4%  chat_completion_stream_generator_raw (serving.py)
+    0.4%  _protected_step (detokenizer.py)
+    0.4%  __init__ (main.py)
+    0.3%  chat_completion_stream_generator (serving.py)
+    0.3%  process_outputs (output_processor.py)
+    0.3%  stream_response (responses.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=1 rep 1 pyspy-1035894: 59.989999999996634 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=1 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=1 rep 1 pyspy-1036885: 98.17000000001332 samples
+  inclusive: engine step 19.5%, zmq + msgpack 0.9%, tokenize 0.1%
+   49.8%  _report_continuous_usage (usage_lib.py)
+   28.1%  synchronize (streams.py)
+    2.8%  prepare_inputs (model_runner.py)
+    2.1%  async_tensor_h2d (torch_utils.py)
+    2.0%  copy_to_uva (buffer_utils.py)
+    1.0%  get_top_k_top_p (states.py)
+    0.9%  send (socket.py)
+    0.8%  __call__ (sampler.py)
+    0.6%  sample (model_runner.py)
+    0.6%  apply_sampling_params (sampler.py)
+    0.6%  top_k_mask_logits (sampling.py)
+    0.5%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=8 rep 1 pyspy-1035894: 59.99999999999663 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+    0.0%  register (selectors.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=8 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=8 rep 1 pyspy-1036885: 98.51000000001349 samples
+  inclusive: engine step 24.5%, zmq + msgpack 0.6%, tokenize 0.2%
+   49.8%  _report_continuous_usage (usage_lib.py)
+   23.1%  synchronize (streams.py)
+    2.7%  prepare_inputs (model_runner.py)
+    2.1%  async_tensor_h2d (torch_utils.py)
+    1.7%  copy_to_uva (buffer_utils.py)
+    1.0%  run (jit.py)
+    1.0%  schedule (scheduler.py)
+    0.8%  sample (model_runner.py)
+    0.8%  update_from_output (scheduler.py)
+    0.8%  __call__ (sampler.py)
+    0.7%  get_top_k_top_p (states.py)
+    0.7%  async_copy_to_np (async_utils.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=16 rep 1 pyspy-1035894: 59.989999999996634 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=16 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=16 rep 1 pyspy-1036885: 102.07000000001531 samples
+  inclusive: engine step 22.7%, zmq + msgpack 0.5%, tokenize 0.3%
+   49.9%  _report_continuous_usage (usage_lib.py)
+   24.9%  synchronize (streams.py)
+    2.0%  copy_to_uva (buffer_utils.py)
+    1.9%  prepare_inputs (model_runner.py)
+    1.4%  async_tensor_h2d (torch_utils.py)
+    1.2%  update_from_output (scheduler.py)
+    1.1%  schedule (scheduler.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.9%  __call__ (sampler.py)
+    0.6%  sample (model_runner.py)
+    0.6%  allocate_slots (kv_cache_manager.py)
+    0.6%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=32 rep 1 pyspy-1035894: 59.989999999996634 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=32 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=32 rep 1 pyspy-1036885: 105.49000000001706 samples
+  inclusive: engine step 24.0%, zmq + msgpack 0.6%, tokenize 0.3%
+   49.6%  _report_continuous_usage (usage_lib.py)
+   23.4%  synchronize (streams.py)
+    1.8%  prepare_inputs (model_runner.py)
+    1.5%  copy_to_uva (buffer_utils.py)
+    1.4%  async_tensor_h2d (torch_utils.py)
+    1.3%  schedule (scheduler.py)
+    1.0%  update_from_output (scheduler.py)
+    1.0%  allocate_slots (kv_cache_manager.py)
+    0.9%  __call__ (sampler.py)
+    0.7%  get_top_k_top_p (states.py)
+    0.7%  run (jit.py)
+    0.6%  send (socket.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=64 rep 1 pyspy-1035894: 59.989999999996634 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=64 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs chat c=64 rep 1 pyspy-1036885: 108.59000000001865 samples
+  inclusive: engine step 19.0%, zmq + msgpack 0.5%, tokenize 0.2%
+   49.8%  _report_continuous_usage (usage_lib.py)
+   29.1%  synchronize (streams.py)
+    1.6%  update_from_output (scheduler.py)
+    1.4%  copy_to_uva (buffer_utils.py)
+    1.3%  schedule (scheduler.py)
+    0.9%  prepare_inputs (model_runner.py)
+    0.9%  allocate_slots (kv_cache_manager.py)
+    0.8%  async_tensor_h2d (torch_utils.py)
+    0.6%  cache_blocks (single_type_kv_cache_manager.py)
+    0.5%  get_top_k_top_p (states.py)
+    0.5%  run (jit.py)
+    0.5%  __call__ (sampler.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=1 rep 1 pyspy-1035894: 59.989999999996634 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=1 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=1 rep 1 pyspy-1036885: 98.20000000001333 samples
+  inclusive: engine step 18.1%, zmq + msgpack 0.7%, tokenize 0.1%
+   50.0%  _report_continuous_usage (usage_lib.py)
+   29.5%  synchronize (streams.py)
+    2.8%  prepare_inputs (model_runner.py)
+    2.7%  async_tensor_h2d (torch_utils.py)
+    1.6%  copy_to_uva (buffer_utils.py)
+    0.8%  get_top_k_top_p (states.py)
+    0.6%  send (socket.py)
+    0.6%  _process_engine_step (core.py)
+    0.5%  __call__ (sampler.py)
+    0.5%  apply_sampling_params (sampler.py)
+    0.5%  sample (model_runner.py)
+    0.4%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=8 rep 1 pyspy-1035894: 59.99999999999663 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+    0.0%  monitor_engine_liveness (utils.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=8 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=8 rep 1 pyspy-1036885: 97.86000000001316 samples
+  inclusive: engine step 19.1%, zmq + msgpack 0.5%, tokenize 0.2%
+   49.7%  _report_continuous_usage (usage_lib.py)
+   28.7%  synchronize (streams.py)
+    2.1%  prepare_inputs (model_runner.py)
+    1.9%  async_tensor_h2d (torch_utils.py)
+    1.6%  copy_to_uva (buffer_utils.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.8%  __call__ (sampler.py)
+    0.6%  sample (model_runner.py)
+    0.5%  _sample_random (sampler.py)
+    0.5%  update_from_output (scheduler.py)
+    0.5%  send (socket.py)
+    0.5%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=16 rep 1 pyspy-1035894: 59.99999999999663 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+    0.0%  register (selectors.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=16 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=16 rep 1 pyspy-1036885: 98.42000000001345 samples
+  inclusive: engine step 24.1%, zmq + msgpack 0.4%, tokenize 0.2%
+   50.0%  _report_continuous_usage (usage_lib.py)
+   23.6%  synchronize (streams.py)
+    2.8%  copy_to_uva (buffer_utils.py)
+    2.4%  prepare_inputs (model_runner.py)
+    1.7%  async_tensor_h2d (torch_utils.py)
+    1.1%  schedule (scheduler.py)
+    1.0%  update_from_output (scheduler.py)
+    0.9%  get_top_k_top_p (states.py)
+    0.8%  __call__ (sampler.py)
+    0.6%  top_k_mask_logits (sampling.py)
+    0.6%  get_seed_and_offset (sampling.py)
+    0.6%  run (jit.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=32 rep 1 pyspy-1035894: 59.979999999996636 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=32 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=32 rep 1 pyspy-1036885: 100.94000000001473 samples
+  inclusive: engine step 24.1%, zmq + msgpack 0.4%, tokenize 0.3%
+   49.9%  _report_continuous_usage (usage_lib.py)
+   23.2%  synchronize (streams.py)
+    1.9%  prepare_inputs (model_runner.py)
+    1.9%  copy_to_uva (buffer_utils.py)
+    1.7%  update_from_output (scheduler.py)
+    1.5%  schedule (scheduler.py)
+    1.3%  async_tensor_h2d (torch_utils.py)
+    0.8%  __call__ (sampler.py)
+    0.8%  get_top_k_top_p (states.py)
+    0.8%  allocate_slots (kv_cache_manager.py)
+    0.6%  get_seed_and_offset (sampling.py)
+    0.5%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=64 rep 1 pyspy-1035894: 59.99999999999663 samples
+  inclusive: 
+  100.0%  _try_wait (subprocess.py)
+    0.0%  register (selectors.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=64 rep 1 pyspy-1036884: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B vllm-rs short c=64 rep 1 pyspy-1036885: 102.65000000001561 samples
+  inclusive: engine step 24.2%, zmq + msgpack 0.6%, tokenize 0.4%
+   49.8%  _report_continuous_usage (usage_lib.py)
+   22.9%  synchronize (streams.py)
+    1.8%  copy_to_uva (buffer_utils.py)
+    1.7%  prepare_inputs (model_runner.py)
+    1.6%  schedule (scheduler.py)
+    1.6%  update_from_output (scheduler.py)
+    1.3%  async_tensor_h2d (torch_utils.py)
+    1.2%  allocate_slots (kv_cache_manager.py)
+    0.7%  __call__ (sampler.py)
+    0.6%  get_top_k_top_p (states.py)
+    0.5%  send (socket.py)
+    0.5%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=1 rep 1 pyspy-1065423: 114.49000000002167 samples
+  inclusive: asyncio 49.4%, zmq + msgpack 1.4%, detokenize 0.0%, tokenize 0.0%, engine step 0.0%
+   50.0%  _worker (thread.py)
+   47.1%  run (runners.py)
+    0.4%  _handle_events (_future.py)
+    0.3%  record (loggers.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  decode (serial_utils.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  process_outputs (output_processor.py)
+    0.1%  output_handler (async_llm.py)
+    0.1%  __init__ (stats.py)
+    0.1%  record (publisher.py)
+    0.1%  observe (metrics.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=1 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=1 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=1 rep 1 pyspy-1067025: 47.38999999999914 samples
+  inclusive: engine step 42.0%, zmq + msgpack 1.4%, tokenize 0.2%
+   52.6%  synchronize (streams.py)
+    5.3%  prepare_inputs (model_runner.py)
+    4.1%  copy_to_uva (buffer_utils.py)
+    3.7%  async_tensor_h2d (torch_utils.py)
+    2.3%  get_top_k_top_p (states.py)
+    1.9%  __call__ (sampler.py)
+    1.5%  sample (model_runner.py)
+    1.4%  top_k_mask_logits (sampling.py)
+    1.4%  apply_sampling_params (sampler.py)
+    1.4%  get_seed_and_offset (sampling.py)
+    1.4%  send (socket.py)
+    1.1%  _sample_random (sampler.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=8 rep 1 pyspy-1065423: 99.46000000001398 samples
+  inclusive: asyncio 48.8%, zmq + msgpack 1.1%, detokenize 0.0%, engine step 0.0%, tokenize 0.0%
+   50.1%  _worker (thread.py)
+   46.0%  run (runners.py)
+    0.3%  generate_tokens (handlers.py)
+    0.3%  record (loggers.py)
+    0.3%  _handle_events (_future.py)
+    0.2%  _new_completion_output (output_processor.py)
+    0.2%  process_outputs (output_processor.py)
+    0.2%  _new_request_output (output_processor.py)
+    0.2%  decode (serial_utils.py)
+    0.2%  _add_recv_event (_future.py)
+    0.1%  record (publisher.py)
+    0.1%  _generate_with_lora_admission_lock (handlers.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=8 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=8 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=8 rep 1 pyspy-1067025: 49.34999999999875 samples
+  inclusive: engine step 50.3%, zmq + msgpack 0.6%, tokenize 0.3%
+   45.0%  synchronize (streams.py)
+    5.5%  prepare_inputs (model_runner.py)
+    4.3%  copy_to_uva (buffer_utils.py)
+    3.9%  async_tensor_h2d (torch_utils.py)
+    2.2%  get_top_k_top_p (states.py)
+    1.9%  top_k_mask_logits (sampling.py)
+    1.8%  get_seed_and_offset (sampling.py)
+    1.6%  __call__ (sampler.py)
+    1.5%  top_p_sampling_from_probs (sampling.py)
+    1.5%  async_copy_to_np (async_utils.py)
+    1.5%  run (jit.py)
+    1.4%  update_from_output (scheduler.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=16 rep 1 pyspy-1065423: 93.98000000001117 samples
+  inclusive: asyncio 48.6%, zmq + msgpack 1.3%, detokenize 0.1%, engine step 0.1%, tokenize 0.0%
+   50.3%  _worker (thread.py)
+   44.3%  run (runners.py)
+    0.5%  _new_request_output (output_processor.py)
+    0.4%  generate_tokens (handlers.py)
+    0.4%  _handle_events (_future.py)
+    0.4%  record (loggers.py)
+    0.3%  _new_completion_output (output_processor.py)
+    0.3%  decode (serial_utils.py)
+    0.3%  make_request_output (output_processor.py)
+    0.3%  process_outputs (output_processor.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  observe (metrics.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=16 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=16 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=16 rep 1 pyspy-1067025: 51.52999999999832 samples
+  inclusive: engine step 43.1%, zmq + msgpack 1.0%, tokenize 0.5%
+   51.7%  synchronize (streams.py)
+    4.3%  prepare_inputs (model_runner.py)
+    4.0%  async_tensor_h2d (torch_utils.py)
+    3.0%  copy_to_uva (buffer_utils.py)
+    1.7%  get_top_k_top_p (states.py)
+    1.7%  update_from_output (scheduler.py)
+    1.5%  run (jit.py)
+    1.3%  __call__ (sampler.py)
+    1.2%  schedule (scheduler.py)
+    1.2%  sample (model_runner.py)
+    1.2%  async_copy_to_np (async_utils.py)
+    1.0%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=32 rep 1 pyspy-1065423: 81.03000000000455 samples
+  inclusive: asyncio 48.1%, zmq + msgpack 0.9%, detokenize 0.1%, engine step 0.0%, tokenize 0.0%
+   50.4%  _worker (thread.py)
+   44.4%  run (runners.py)
+    0.8%  generate_tokens (handlers.py)
+    0.7%  _new_request_output (output_processor.py)
+    0.4%  make_request_output (output_processor.py)
+    0.4%  decode (serial_utils.py)
+    0.3%  _new_completion_output (output_processor.py)
+    0.3%  process_outputs (output_processor.py)
+    0.3%  inc (values.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  record (loggers.py)
+    0.1%  _add_recv_event (_future.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=32 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=32 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=32 rep 1 pyspy-1067025: 52.1199999999982 samples
+  inclusive: engine step 47.5%, zmq + msgpack 1.1%, tokenize 0.5%
+   47.6%  synchronize (streams.py)
+    3.4%  prepare_inputs (model_runner.py)
+    3.0%  copy_to_uva (buffer_utils.py)
+    2.9%  async_tensor_h2d (torch_utils.py)
+    2.7%  update_from_output (scheduler.py)
+    2.4%  schedule (scheduler.py)
+    1.7%  run (jit.py)
+    1.5%  allocate_slots (kv_cache_manager.py)
+    1.3%  __call__ (sampler.py)
+    1.3%  get_top_k_top_p (states.py)
+    1.1%  get_seed_and_offset (sampling.py)
+    1.0%  prepare_attn (default.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=64 rep 1 pyspy-1065423: 92.40000000001037 samples
+  inclusive: asyncio 48.1%, zmq + msgpack 0.9%, detokenize 0.1%, engine step 0.0%, tokenize 0.0%
+   50.5%  _worker (thread.py)
+   41.2%  run (runners.py)
+    1.4%  cast (typing.py)
+    1.0%  _new_request_output (output_processor.py)
+    0.7%  set (locks.py)
+    0.7%  generate_tokens (handlers.py)
+    0.6%  make_request_output (output_processor.py)
+    0.5%  _new_completion_output (output_processor.py)
+    0.4%  process_outputs (output_processor.py)
+    0.4%  decode (serial_utils.py)
+    0.2%  inc (values.py)
+    0.2%  update_from_output (stats.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=64 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=64 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm chat c=64 rep 1 pyspy-1067025: 53.30999999999796 samples
+  inclusive: engine step 38.9%, tokenize 0.7%, zmq + msgpack 0.7%
+   56.6%  synchronize (streams.py)
+    2.9%  update_from_output (scheduler.py)
+    2.3%  schedule (scheduler.py)
+    2.2%  copy_to_uva (buffer_utils.py)
+    2.1%  async_tensor_h2d (torch_utils.py)
+    2.1%  prepare_inputs (model_runner.py)
+    2.0%  allocate_slots (kv_cache_manager.py)
+    1.1%  run (jit.py)
+    0.9%  cache_blocks (single_type_kv_cache_manager.py)
+    0.8%  get_top_k_top_p (states.py)
+    0.8%  __call__ (sampler.py)
+    0.7%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=1 rep 1 pyspy-1065423: 115.66000000002226 samples
+  inclusive: asyncio 49.3%, zmq + msgpack 1.3%, engine step 0.0%, tokenize 0.0%
+   50.0%  _worker (thread.py)
+   47.4%  run (runners.py)
+    0.4%  _handle_events (_future.py)
+    0.3%  record (loggers.py)
+    0.2%  decode (serial_utils.py)
+    0.2%  _handle_recv (_future.py)
+    0.1%  output_handler (async_llm.py)
+    0.1%  _add_recv_event (_future.py)
+    0.1%  _schedule_remaining_events (_future.py)
+    0.1%  record (publisher.py)
+    0.1%  process_outputs (output_processor.py)
+    0.1%  process_outputs_socket (core_client.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=1 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=1 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=1 rep 1 pyspy-1067025: 47.48999999999912 samples
+  inclusive: engine step 43.6%, zmq + msgpack 1.7%, tokenize 0.3%
+   50.4%  synchronize (streams.py)
+    5.5%  prepare_inputs (model_runner.py)
+    3.7%  async_tensor_h2d (torch_utils.py)
+    3.5%  copy_to_uva (buffer_utils.py)
+    2.1%  __call__ (sampler.py)
+    1.8%  get_top_k_top_p (states.py)
+    1.6%  send (socket.py)
+    1.6%  sample (model_runner.py)
+    1.5%  top_k_mask_logits (sampling.py)
+    1.4%  async_copy_to_np (async_utils.py)
+    1.4%  apply_sampling_params (sampler.py)
+    1.3%  get_seed_and_offset (sampling.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=8 rep 1 pyspy-1065423: 99.52000000001401 samples
+  inclusive: asyncio 48.5%, zmq + msgpack 1.7%, engine step 0.1%, detokenize 0.0%
+   50.2%  _worker (thread.py)
+   44.1%  run (runners.py)
+    0.4%  _handle_events (_future.py)
+    0.4%  generate_tokens (handlers.py)
+    0.4%  _new_request_output (output_processor.py)
+    0.3%  record (loggers.py)
+    0.3%  _new_completion_output (output_processor.py)
+    0.3%  process_outputs (output_processor.py)
+    0.3%  decode (serial_utils.py)
+    0.2%  _add_recv_event (_future.py)
+    0.2%  _handle_recv (_future.py)
+    0.2%  record (publisher.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=8 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=8 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=8 rep 1 pyspy-1067025: 48.39999999999894 samples
+  inclusive: engine step 38.1%, zmq + msgpack 1.8%, tokenize 0.4%
+   56.1%  synchronize (streams.py)
+    3.9%  prepare_inputs (model_runner.py)
+    3.5%  copy_to_uva (buffer_utils.py)
+    3.2%  async_tensor_h2d (torch_utils.py)
+    1.8%  get_top_k_top_p (states.py)
+    1.8%  __call__ (sampler.py)
+    1.7%  send (socket.py)
+    1.3%  update_from_output (scheduler.py)
+    1.3%  schedule (scheduler.py)
+    1.2%  top_k_mask_logits (sampling.py)
+    1.0%  sample (model_runner.py)
+    1.0%  _sample_random (sampler.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=16 rep 1 pyspy-1065423: 92.89000000001062 samples
+  inclusive: asyncio 48.8%, zmq + msgpack 1.0%, detokenize 0.1%, engine step 0.0%, tokenize 0.0%
+   50.1%  _worker (thread.py)
+   45.7%  run (runners.py)
+    0.4%  generate_tokens (handlers.py)
+    0.4%  _new_request_output (output_processor.py)
+    0.4%  _new_completion_output (output_processor.py)
+    0.3%  process_outputs (output_processor.py)
+    0.2%  decode (serial_utils.py)
+    0.2%  make_request_output (output_processor.py)
+    0.2%  _handle_events (_future.py)
+    0.2%  record (loggers.py)
+    0.2%  output_handler (async_llm.py)
+    0.1%  inc (values.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=16 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=16 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=16 rep 1 pyspy-1067025: 49.21999999999878 samples
+  inclusive: engine step 47.6%, zmq + msgpack 1.2%, tokenize 0.5%
+   46.9%  synchronize (streams.py)
+    5.3%  prepare_inputs (model_runner.py)
+    3.9%  async_tensor_h2d (torch_utils.py)
+    3.6%  copy_to_uva (buffer_utils.py)
+    2.0%  schedule (scheduler.py)
+    1.9%  update_from_output (scheduler.py)
+    1.6%  __call__ (sampler.py)
+    1.6%  get_top_k_top_p (states.py)
+    1.4%  get_seed_and_offset (sampling.py)
+    1.4%  async_copy_to_np (async_utils.py)
+    1.3%  sample (model_runner.py)
+    1.3%  top_k_mask_logits (sampling.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=32 rep 1 pyspy-1065423: 73.06000000000047 samples
+  inclusive: asyncio 46.4%, zmq + msgpack 1.4%, detokenize 0.2%, tokenize 0.0%, engine step 0.0%
+   50.9%  _worker (thread.py)
+   39.0%  run (runners.py)
+    1.4%  generate_tokens (handlers.py)
+    1.2%  _new_request_output (output_processor.py)
+    0.8%  process_outputs (output_processor.py)
+    0.7%  make_request_output (output_processor.py)
+    0.6%  _new_completion_output (output_processor.py)
+    0.5%  record (loggers.py)
+    0.4%  decode (serial_utils.py)
+    0.4%  inc (values.py)
+    0.3%  observe (metrics.py)
+    0.2%  record (publisher.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=32 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=32 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=32 rep 1 pyspy-1067025: 48.169999999998986 samples
+  inclusive: engine step 41.8%, zmq + msgpack 1.6%, tokenize 0.6%
+   52.1%  synchronize (streams.py)
+    3.4%  async_tensor_h2d (torch_utils.py)
+    3.2%  prepare_inputs (model_runner.py)
+    2.7%  update_from_output (scheduler.py)
+    2.6%  copy_to_uva (buffer_utils.py)
+    1.9%  schedule (scheduler.py)
+    1.5%  send (socket.py)
+    1.5%  allocate_slots (kv_cache_manager.py)
+    1.3%  get_top_k_top_p (states.py)
+    1.3%  __call__ (sampler.py)
+    1.0%  __call__ (_ops.py)
+    1.0%  sample (model_runner.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=64 rep 1 pyspy-1065423: 71.89999999999988 samples
+  inclusive: asyncio 46.1%, zmq + msgpack 1.1%, detokenize 0.2%, engine step 0.0%, tokenize 0.0%
+   50.9%  _worker (thread.py)
+   35.2%  run (runners.py)
+    2.4%  cast (typing.py)
+    1.7%  generate_tokens (handlers.py)
+    1.6%  _new_request_output (output_processor.py)
+    1.2%  set (locks.py)
+    0.8%  make_request_output (output_processor.py)
+    0.7%  process_outputs (output_processor.py)
+    0.6%  _new_completion_output (output_processor.py)
+    0.5%  observe (metrics.py)
+    0.4%  inc (values.py)
+    0.4%  decode (serial_utils.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=64 rep 1 pyspy-1065917: 59.989999999996634 samples
+  inclusive: asyncio 100.0%
+  100.0%  run (runners.py)
+
+Qwen/Qwen3-0.6B dynamo-vllm short c=64 rep 1 pyspy-1067024: 59.989999999996634 samples
+  inclusive: 
+  100.0%  main (resource_tracker.py)
