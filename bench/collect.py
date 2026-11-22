@@ -1,6 +1,8 @@
 """One benchmark point -> one JSON line.
 
-collect.py DIR REP MODEL STACK WORKLOAD ISL OSL CONC RC START_TEMP_C   reads DIR/**/profile_export_aiperf.json and DIR/gpu.csv
+collect.py DIR REP MODEL STACK WORKLOAD ISL OSL CONC RC START_TEMP_C [GPU_OTHERS]
+                                                           reads DIR/**/profile_export_aiperf.json and DIR/gpu.csv;
+                                                           GPU_OTHERS: pid=name of other processes on the GPU
 collect.py --line                                          reads a result line on stdin, prints a one-line summary"""
 import csv, glob, json, statistics, sys
 
@@ -14,6 +16,8 @@ if sys.argv[1] == "--line":
 dirp, rep, model, stack, wl, isl, osl, conc, rc, t0 = sys.argv[1:11]
 row = {"type": "point", "rep": int(rep), "model": model, "stack": stack, "workload": wl,
        "isl": int(isl), "osl": int(osl), "concurrency": int(conc), "rc": int(rc), "start_temp_c": int(t0)}
+if len(sys.argv) > 11 and sys.argv[11].strip():
+    row["gpu_others"] = sys.argv[11].strip()  # another program used the GPU during the point: not a valid measurement
 
 f = (glob.glob(f"{dirp}/**/profile_export_aiperf.json", recursive=True) or [None])[0]
 d = json.load(open(f)) if f else {}
