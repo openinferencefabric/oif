@@ -115,10 +115,10 @@ part of this test.
 
 ## Where the first-token time goes (B-1b)
 
-> Status: run 1 (timings) done in the lab on 2026-11-20 (W7900, Qwen3-0.6B, 120 points, 0 errors); run 2 (`--trace`)
-> to be repeated after the two fixes below. This section is completed from run 2.
+> Status: done in the lab on the W7900 (Qwen3-0.6B): run 1 (timings) 2026-11-20, 120 points, 0 errors; run 2
+> (`--trace`) 2026-11-21, 40 points, 0 errors, no other process on the GPU. Evidence: `docs/evidence/B-1b/`.
 
-First result, TTFT p50 in ms, median of 3 repeats:
+Run 1, TTFT p50 in ms, median of 3 repeats:
 
 | Point | `vllm` | `vllm-api4` | `vllm-rs` | `dynamo-vllm` |
 | --- | ---: | ---: | ---: | ---: |
@@ -130,8 +130,36 @@ First result, TTFT p50 in ms, median of 3 repeats:
 | short c=64 | 98.4 | 58.5 | 63.7 | 62.7 |
 
 Inter-token latency is equal on all four stacks and throughput within 2 to 5%. vLLM's own switches (more API server
-processes, the Rust frontend) close most of Dynamo's lead, so the gap sits in vLLM's single Python API process, not in
-the engine. Whether CUDA shows the same is B-2.
+processes, the Rust frontend) close most of Dynamo's lead.
+
+Run 2 splits the mean time to first token (ms; vLLM's own histograms, see the columns below):
+
+| Point | Stack | client | core (queue + prefill) | out path | api layer | API process CPU |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| chat c=16 | `vllm` | 79.4 | 27.6 | **38.7** | 13.1 | 41% |
+| | `vllm-api4` | 54.9 | 28.0 | 21.3 | 5.5 | |
+| | `vllm-rs` | 43.2 | 26.0 | 16.5 | 0.7 | |
+| | `dynamo-vllm` | 47.3 | 26.4 | 11.5 | 9.4 | 40% (frontend) |
+| chat c=64 | `vllm` | 104.3 | 39.1 | **50.6** | 14.5 | 54% |
+| | `dynamo-vllm` | 81.4 | 48.2 | 17.2 | 16.0 | 67% (frontend) |
+| short c=64 | `vllm` | 98.3 | 32.2 | **49.9** | 16.2 | 65% |
+| | `dynamo-vllm` | 67.9 | 30.2 | 19.7 | 18.0 | 98% (frontend) |
+
+- The engine core is not the difference: queue + prefill is about the same on every stack.
+- The difference is the **output path**: from the engine core's first token to the response, through ZMQ and the
+  output processor in vLLM's API process. Plain vLLM spends 2 to 3 times as long there. Dynamo's HTTP layer is not
+  faster than vLLM's (16 against 14.5 ms at chat c=64); its worker runs the output processing in a process of its own,
+  away from the one serving HTTP.
+- vLLM's API process is not saturated (40 to 65% of one core), so the cost is contention inside that one process, not
+  a lack of CPU; py-spy puts most of its samples in thread-pool workers. Lock contention (the GIL) between those threads
+  and the event loop is the working explanation, not a measured one.
+- `vllm-rs` at chat c=64 is the exception: its engine core time jumps to 77 ms, as if the Rust frontend hands requests
+  over in bursts. Open.
+- `attrib.py` cannot tell the API servers of `vllm-api4` and `vllm-rs` from the engine core (all are `multiprocessing`
+  children with the same command line), so their CPU column stays empty; the time split comes from vLLM's metrics and
+  is complete.
+
+Whether CUDA shows the same gap is B-2.
 
 Two fixes came out of the first `--trace` run:
 

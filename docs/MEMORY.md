@@ -95,3 +95,7 @@ P1.4 (T-130+) is defined and ready to start after P1.3 checkpoint (or in paralle
 - B-1b (2026-11-21): the bench lock only stops a second oif bench; any other program can open the GPU mid-run, so every
   point checks the render node for processes outside the server (proc_sampler.py --others). py-spy 0.4.1 can hang past
   --duration on vLLM's EngineCore (hundreds of threads), so it runs under timeout.
+- B-1b result (2026-11-21, W7900, Qwen3-0.6B): Dynamo's lower TTFT comes from the output path (engine core's first
+  token to the response via ZMQ and the output processor in vLLM's single API process): 39 against 12 ms at chat c=16.
+  Queue + prefill and the HTTP/template layer are equal. vLLM's API process uses 40-65% of one core, so it is contention,
+  not CPU. attrib.py cannot split vllm-api4/vllm-rs processes by role (identical multiprocessing command lines).
