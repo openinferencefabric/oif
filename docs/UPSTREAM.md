@@ -201,6 +201,31 @@ Every thread linked here checked against GitHub on 2026-11-12. Changes since the
   #14861); A6 (gpu-operator#679); A5 (device-metrics-exporter#722, since our answer 2026-11-06); X1 (kwok#1802, our
   docs PR is next).
 
+## Submitted (2026-11-25)
+
+Status on 2026-11-25 (all 31 threads re-read). Run:ai approved R3 (`issue/approved` on #3941) and reviewed #3949; Run:ai
+accepted a narrowed R4 (Cancel button on step 2 only); KAI asked on K1-K4 whether DRA would be the better route.
+Owner approved pushing and posting on 2026-11-25.
+
+**Decision on K1-K4 (owner, 2026-11-25):** move AMD GPU sharing to DRA instead of the NRI and reservation-pod path in
+KAI. Verified first: KAI counts DRA claims as whole devices (`countGPUDevicesFromClaim` ignores capacity); AMD's DRA
+driver v1.0.1 shares MI300 partitions but not a whole GPU by memory (community proposal ROCm/k8s-gpu-dra-driver#127/#128
+withdrawn for rework); consumable capacity (KEP-5075) is accounting only and alpha on Kubernetes 1.35. Next: dmem
+enforcement in AMD's DRA driver, fractional DRA accounting in KAI (design issue if KAI agrees). Until then oif keeps
+its KAI patches 0001-0005 for 1.35 clusters.
+
+| # | Thread | What |
+| --- | --- | --- |
+| R3 | [run-ai#3949 comment](https://github.com/dsx-ai-factory/run-ai/pull/3949#issuecomment-7156530956) | All 4 review notes addressed (fail open, one `findCondition` helper, mixed-case test); rebased on main (47be392b); 64/64 specs, golangci-lint 0 issues |
+| R3 | [run-ai#5996](https://github.com/dsx-ai-factory/run-ai/pull/5996) | New PR: backport to `release-3.0`, same checks |
+| R4 | [run-ai#3942 comment](https://github.com/dsx-ai-factory/run-ai/issues/3942#issuecomment-7156534544) | Accepted the narrowed scope; asked about the landing page and a failed delete. Frontend PR to follow |
+| K1-K4 | [KAI#2556 comment](https://github.com/kai-scheduler/KAI-Scheduler/issues/2556#issuecomment-7156540210) | Answer to "why not DRA?": agree; proposal above |
+| K3b | [KAI#2765](https://github.com/kai-scheduler/KAI-Scheduler/pull/2765), [#2766](https://github.com/kai-scheduler/KAI-Scheduler/pull/2766), [note on #2557](https://github.com/kai-scheduler/KAI-Scheduler/pull/2557#issuecomment-7156534944) | Backports: v0.14 by hand (bot cherry-pick conflicted; new test fails without the fix), v0.16 with tests adapted (bot PR #2698 fails `go vet`) |
+| A2 | [rocm-systems#14860 comment](https://github.com/ROCm/rocm-systems/issues/14860#issuecomment-7156535501) | Thanks for triage, offer to test |
+
+Not done: re-requesting review on kwok#1808 (only collaborators can request reviewers; we already asked on 2026-11-18, so
+no second comment yet).
+
 ## Run:ai
 
 ### R1. cluster-sync: count AMD GPUs in the node inventory (ready)
