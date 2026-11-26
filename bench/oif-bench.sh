@@ -4,7 +4,7 @@
 #   ./oif bench gpus                   list the GPUs on this node (name, PCI address, memory, usable or why not)
 #   sudo ./oif bench [run] [options]   benchmark on this GPU node (plain containers, no Kubernetes in the request path)
 #        --gpu N|PCI                   which GPU (number or PCI address from oif bench gpus); asked when not given
-#        --profile full|quick          bench/profiles/*.env (default full: 4 workloads x 7 concurrencies x 3 repeats)
+#        --profile NAME                bench/profiles/NAME.env: full (default: 4 workloads x 7 concurrencies x 3 repeats), quick, attrib, prefill, decode (B-3a; -8b for Qwen3-8B)
 #        --stacks "vllm dynamo-vllm sglang dynamo-sglang"   default: every stack with an image in versions.env
 #        --models "Qwen/Qwen3-0.6B Qwen/Qwen3-8B"           Hugging Face ids, asked when not given (Enter keeps the
 #                                      default); HF_TOKEN in the environment for gated models
@@ -46,10 +46,7 @@ if [ $cmd = report ]; then [ -d "${1:-}" ] || die "report needs a result directo
 GPU_SEL=""; MODELS=""; TRACE=0; DEFAULT_MODELS="Qwen/Qwen3-0.6B Qwen/Qwen3-8B"; STACKS="vllm dynamo-vllm sglang dynamo-sglang"; PROFILE=full; REPEATS=""
 OUT=/var/tmp/oif-bench/$(date +%Y%m%d-%H%M)
 HF_HOME_HOST=${HF_HOME_HOST:-/var/tmp/oif-bench/hf}
-PORT=8000; CTX=8192; MAXT=${BENCH_MAX_START_TEMP_C:-60}
-VLLM_ARGS="--max-model-len $CTX --gpu-memory-utilization 0.90 --max-num-seqs 256 --seed 0"
-# SGLang on gfx1100: no aiter (Instinct-only), Triton attention (S-5 settles the exact flags).
-SGLANG_ARGS="--context-length $CTX --mem-fraction-static 0.85 --max-running-requests 256 --random-seed 0 --attention-backend triton --sampling-backend pytorch"
+PORT=8000; MAXT=${BENCH_MAX_START_TEMP_C:-60}
 
 while [ $# -gt 0 ]; do case $1 in
   --profile) PROFILE=$2; shift 2 ;; --models) MODELS=$2; shift 2 ;; --stacks) STACKS=$2; shift 2 ;;
@@ -59,6 +56,10 @@ while [ $# -gt 0 ]; do case $1 in
 # shellcheck source=/dev/null
 . "$HERE/profiles/$PROFILE.env"
 WORKLOADS=$BENCH_WORKLOADS; CONCS=$BENCH_CONCURRENCY; DUR=$BENCH_DURATION_S; REPEATS=${REPEATS:-$BENCH_REPEATS}
+CTX=${BENCH_CTX:-8192}  # server context; a profile with longer prompts raises it (B-3a prefill)
+VLLM_ARGS="--max-model-len $CTX --gpu-memory-utilization 0.90 --max-num-seqs 256 --seed 0"
+# SGLang on gfx1100: no aiter (Instinct-only), Triton attention (S-5 settles the exact flags).
+SGLANG_ARGS="--context-length $CTX --mem-fraction-static 0.85 --max-running-requests 256 --random-seed 0 --attention-backend triton --sampling-backend pytorch"
 # B-1a: one oif bench per node (ADR-009: one GPU under load at a time; the server has one fixed port). The lock file
 # holds the PID of the run that has it; containers never inherit it (ct closes fd 8), so it ends with this script.
 LOCK=${BENCH_LOCK:-/run/lock/oif-bench.lock}
