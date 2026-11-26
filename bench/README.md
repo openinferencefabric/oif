@@ -17,6 +17,7 @@ sudo ./oif bench --stacks "vllm dynamo-vllm" --models "Qwen/Qwen3-8B"
 | `gpu_sampler.py` | GPU busy, VRAM, power, temperatures and clock from amdgpu sysfs every 0.5 s |
 | `collect.py` | one point: AIPerf export + GPU samples into one line of `results.jsonl` |
 | `report.py` | medians over repeats, Dynamo-vs-engine difference with a noise verdict, `report.html`, `summary.csv` |
+| `ttft_hist.py` | per-request TTFT of each point from AIPerf's `profile_export.jsonl`: histogram, two peaks or one, closed-loop waves (B-3a) |
 
 Images come from `versions.env` (`BENCH_*`, `DYNAMO_*ROCM_IMAGE`); a stack without an image is skipped. Before a run,
 stop anything that holds the GPU on that node (`systemctl stop kubelet` on a cluster node). The OIF images on ghcr.io
