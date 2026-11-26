@@ -8,9 +8,9 @@ import csv, glob, json, statistics, sys
 
 if sys.argv[1] == "--line":
     d = json.loads(sys.stdin.read())
-    print("rc=%s  %s tok/s  TTFT p50 %s ms  TPOT p50 %s ms  errors %s  OSL %s  GPU %s%% %s W" % (
+    print("rc=%s  %s tok/s  TTFT p50 %s ms  TPOT p50 %s ms  errors %s  OSL %s  GPU %s%% %s W  cache hit %s%%" % (
         d.get("rc"), d.get("out_tok_s"), d.get("ttft_p50_ms"), d.get("itl_p50_ms"), d.get("errors"),
-        d.get("osl_avg"), d.get("gpu_busy_avg"), d.get("power_avg_w")))
+        d.get("osl_avg"), d.get("gpu_busy_avg"), d.get("power_avg_w"), d.get("prefix_hit_pct")))
     sys.exit(0)
 
 dirp, rep, model, stack, wl, isl, osl, conc, rc, t0 = sys.argv[1:11]
@@ -44,6 +44,16 @@ row["osl_avg"] = round(m("output_sequence_length") or 0, 1) or None
 row["isl_avg"] = round(m("input_sequence_length") or 0, 1) or None
 row["prefill_tok_s"] = round(row["isl_avg"] * row["req_s"], 1) if row["isl_avg"] and row["req_s"] else None  # prompt processing rate
 row["export"] = bool(d)
+
+# share of prompt tokens the engine's prefix cache served (B-3a: AIPerf recycles 100 prompts, so a warm cache skips
+# prefill); vLLM counters over the profiling phase. Dynamo's timing runs scrape only its frontend: no share there.
+sm = (glob.glob(f"{dirp}/**/server_metrics_export.csv", recursive=True) or [None])[0]
+row["prefix_hit_pct"] = None
+if sm:
+    cnt = {r["Metric"]: float(r["avg"] or 0) for r in csv.DictReader(l for l in open(sm) if not l.startswith("#"))}
+    q = cnt.get("vllm:prefix_cache_queries")
+    if q:
+        row["prefix_hit_pct"] = round(100 * cnt.get("vllm:prefix_cache_hits", 0) / q, 1)
 
 try:  # GPU telemetry: keep the samples while the GPU is working (the window AIPerf measured)
     rows = [r for r in csv.DictReader(open(f"{dirp}/gpu.csv"))]

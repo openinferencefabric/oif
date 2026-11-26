@@ -36,3 +36,35 @@ Findings:
   the gap without the closed loop's bursts.
 - Request counts per point are whole multiples of the user count (for example 1280 = 20 x 64 on the A6000, 1088 =
   17 x 64 on the W7900): with equal request lengths every user completes the same number of requests in the 60 s.
+
+## 01: calibration, vllm only, 1 repeat (2026-11-26)
+
+`oif bench --profile prefill|decode|prefill-8b|decode-8b --stacks vllm --repeats 1` on each GPU, to fix the point
+durations before the full runs. Three findings changed the profiles before any result is used:
+
+- **The prefill points measured the prefix cache.** AIPerf builds 100 prompts per point and reuses them
+  (`--num-dataset-entries` defaults to 100 in 0.13.0); vLLM keeps its prefix cache on by default. Share of prompt
+  tokens served from the cache (`vllm:prefix_cache_hits` / `vllm:prefix_cache_queries` over the profiling phase):
+
+  | W7900 points | Cache hits |
+  | --- | --- |
+  | prefill p1k, Qwen3-0.6B, 8-64 users; Qwen3-8B, 2-8 users | 99.2% |
+  | prefill p1k, 1 user (about 100 requests: the first pass) | 4.9% (8B), 83.2% (0.6B, 595 requests) |
+  | prefill p4k and p8k (100 prompts no longer fit the cache) | 0-24% |
+  | decode (128-token prompts) | 0-94% |
+
+  So the 8B p1k TTFT fell from 244 ms at 1 user to 69 ms at 2 users. The B-3a profiles now turn the cache off
+  (`BENCH_PREFIX_CACHE=off`), every point records `prefix_hit_pct`, and the report lists points above 1%.
+- **The published chat points ran on a warm cache too.** In B-1b (W7900) and B-2 (A6000), 512/256, about 98% of the
+  prompt tokens at 8 users or more came from the cache (1 user: 0%), on plain vLLM and on Dynamo's vLLM worker alike
+  (worker counters before and after the B-1b trace point at 64 users: 98.5% and 98.4%). The comparison is fair, but
+  the TTFT measured there holds almost no prefill: it is frontend, queue and scheduling time.
+- **4096-token answers do not end inside a point.** At 25-40 ms per token they take 100-165 s; AIPerf cancels what is
+  not done 60 s after the 60 s point, and every request of d4k at 0.6B and 64 users and at 8B and 8, 16 and 32 users
+  was cancelled (0 records). The decode profiles now use 256, 1K and 2K answers in 120 s points.
+
+All W7900 points that produced records had 0 errors. The A6000 started no server: the CDI spec in `/var/run/cdi`
+(dated 2026-11-21, ahead of `/etc/cdi`) mounted the socket of `nvidia-persistenced`, which had not run since the GPU
+came back from the VM; the container failed to start and its error went nowhere, so the server log was empty. The
+owner started `nvidia-persistenced` and refreshed the spec; the bench now writes a failed container start into the
+server log.

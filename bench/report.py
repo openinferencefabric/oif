@@ -23,7 +23,7 @@ STACK_ORDER = ["vllm", "dynamo-vllm", "sglang", "dynamo-sglang"]
 PAIRS = [("vllm", "dynamo-vllm"), ("sglang", "dynamo-sglang")]
 METRICS = ["out_tok_s", "prefill_tok_s", "req_s", "tok_s_per_user", "ttft_p50_ms", "ttft_p99_ms", "itl_p50_ms", "itl_p99_ms",
            "e2e_p50_ms", "e2e_p99_ms", "gpu_busy_avg", "power_avg_w", "tok_per_joule", "vram_max_mib",
-           "junction_max_c", "sclk_avg_mhz", "osl_avg", "errors", "requests"]
+           "junction_max_c", "sclk_avg_mhz", "osl_avg", "prefix_hit_pct", "errors", "requests"]
 
 # ---------------------------------------------------------------- aggregate repeats (median), keep spread
 groups = defaultdict(list)
@@ -109,6 +109,7 @@ for model in models:
                            med(rt), round(sum(rt), 1) if rt else None])
 failed = [a for a in agg if a["failed"] or (a["errors"] or 0) > 0]
 osl_bad = [a for a in agg if not a["osl_ok"]]
+cached = [a for a in agg if (a["prefix_hit_pct"] or 0) > 1]  # prefill partly skipped: TTFT is not prompt processing
 few_req = [a for a in agg if a["requests"] is not None and a["requests"] < MIN_REQUESTS]
 short_rep = [a for a in agg if a["repeats"] < (env.get("repeats") or 1)]
 
@@ -233,6 +234,7 @@ and at least {PRACTICAL_PCT:g}%.</p>
 <h2>Run quality</h2>
 <ul><li>Points with failed runs or request errors: <b>{len(failed)}</b>{(" — " + "; ".join(f"{a['model']} {a['stack']} {a['workload']} c={a['concurrency']} ({a['errors']} errors)" for a in failed[:12])) if failed else ""}</li>
 <li>Points where the mean output length missed the requested length by more than 2%: <b>{len(osl_bad)}</b>{" (ignore_eos not honoured there; throughput is not comparable)" if osl_bad else " (every request produced the requested tokens)"}</li>
+<li>Points where the prefix cache served more than 1% of the prompt tokens: <b>{len(cached)}</b>{(" — " + pts(cached) + " (AIPerf reuses its prompts: TTFT there is partly cache hits, not prefill)") if cached else ""}</li>
 <li>Points where a stack completed fewer than {MIN_REQUESTS} requests: <b>{len(few_req)}</b>{(" — " + pts(few_req) + " (their p99 latencies rest on a few requests)") if few_req else ""}</li>
 <li>Points with fewer repeats than the profile's {env.get("repeats")}: <b>{len(short_rep)}</b>{(" — " + pts(short_rep)) if short_rep else ""}</li>
 <li>Run-to-run spread of output throughput: {("median CV " + str(med([a["cv_pct"] for a in agg])) + "%") if env.get("repeats", 1) > 1 else "one repeat only: no spread, so no noise verdict (the full profile runs 3)"}</li></ul>

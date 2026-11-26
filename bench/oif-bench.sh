@@ -60,6 +60,9 @@ CTX=${BENCH_CTX:-8192}  # server context; a profile with longer prompts raises i
 VLLM_ARGS="--max-model-len $CTX --gpu-memory-utilization 0.90 --max-num-seqs 256 --seed 0"
 # SGLang on gfx1100: no aiter (Instinct-only), Triton attention (S-5 settles the exact flags).
 SGLANG_ARGS="--context-length $CTX --mem-fraction-static 0.85 --max-running-requests 256 --random-seed 0 --attention-backend triton --sampling-backend pytorch"
+# B-3a: AIPerf reuses 100 prompts, so a warm prefix cache skips most of prefill; the prefill and decode profiles turn
+# it off (Dynamo's vLLM worker honours --no-enable-prefix-caching too). The other profiles keep the engines' default.
+if [ "${BENCH_PREFIX_CACHE:-on}" = off ]; then VLLM_ARGS+=" --no-enable-prefix-caching"; SGLANG_ARGS+=" --disable-radix-cache"; fi
 # B-1a: one oif bench per node (ADR-009: one GPU under load at a time; the server has one fixed port). The lock file
 # holds the PID of the run that has it; containers never inherit it (ct closes fd 8), so it ends with this script.
 LOCK=${BENCH_LOCK:-/run/lock/oif-bench.lock}
@@ -283,9 +286,9 @@ for rep in $(seq "$REPEATS"); do
       say "repeat $rep  $model  $stack"
       log="$OUT/logs/server-$rep-$tag-$stack.log"
       t_case=$(date +%s)
-      start_server "$stack" "$model"
+      start_server "$stack" "$model" 2> "$log"  # a container that does not start leaves its error here
       if ! ready=$(wait_ready "$model"); then
-        ct logs oifb-srv > "$log" 2>&1; echo "   not ready; last lines of $log:"; tail -15 "$log" | sed 's/^/     /'
+        ct logs oifb-srv >> "$log" 2>&1; echo "   not ready; last lines of $log:"; tail -15 "$log" | sed 's/^/     /'
         echo "{\"type\":\"startup\",\"rep\":$rep,\"model\":\"$model\",\"stack\":\"$stack\",\"ready_s\":null}" >> "$OUT/results.jsonl"
         stop_server; continue
       fi
