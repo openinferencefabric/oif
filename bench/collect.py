@@ -49,11 +49,20 @@ row["export"] = bool(d)
 # prefill); vLLM counters over the profiling phase. Dynamo's timing runs scrape only its frontend: no share there.
 sm = (glob.glob(f"{dirp}/**/server_metrics_export.csv", recursive=True) or [None])[0]
 row["prefix_hit_pct"] = None
-if sm:
-    cnt = {r["Metric"]: float(r["avg"] or 0) for r in csv.DictReader(l for l in open(sm) if not l.startswith("#"))}
-    q = cnt.get("vllm:prefix_cache_queries")
-    if q:
-        row["prefix_hit_pct"] = round(100 * cnt.get("vllm:prefix_cache_hits", 0) / q, 1)
+try:  # one section per metric type, each with its own header line; counters carry their delta in "total"
+    cnt, head = {}, None
+    for r in csv.reader(l for l in open(sm) if not l.startswith("#")) if sm else []:
+        if not r:
+            continue
+        if r[0] == "Endpoint":
+            head = r
+        elif head and "total" in head and r[head.index("Type")] == "counter":
+            cnt[r[head.index("Metric")]] = float(r[head.index("total")] or 0)
+    if "vllm:prefix_cache_queries" in cnt:  # cache off: vLLM counts no queries, so 0%
+        q = cnt["vllm:prefix_cache_queries"]
+        row["prefix_hit_pct"] = round(100 * cnt.get("vllm:prefix_cache_hits", 0) / q, 1) if q else 0.0
+except Exception as e:  # the cache share must never cost the point its line
+    row["metrics_error"] = str(e)[:120]
 
 try:  # GPU telemetry: keep the samples while the GPU is working (the window AIPerf measured)
     rows = [r for r in csv.DictReader(open(f"{dirp}/gpu.csv"))]

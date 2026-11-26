@@ -9,19 +9,35 @@
 
 # collect.py: prefix_hit_pct from the profiling-phase counters in AIPerf's server_metrics_export.csv
 P=$SANDBOX/point; mkdir -p "$P"
-cat > "$P/server_metrics_export.csv" <<'EOF'
+# the real layout (AIPerf 0.13.0): one section per metric type, each with its own header; counters in "total"
+metrics() {  # hits queries
+  cat > "$P/server_metrics_export.csv" <<EOF
 # AIPerf Server Metrics Export (CSV)
 # aiperf_version: 0.13.0
 #
 Endpoint,Type,Metric,Unit,avg,min,max,std,p1,p5,p10,p25,p50,p75,p90,p95,p99,engine,model_name,reason,sleep_state,Description
+127.0.0.1:8000,gauge,vllm:kv_cache_usage_perc,,0.5000,0.1000,0.9000,,,,,,,,,,,,m/x,,,"KV cache usage."
+
+Endpoint,Type,Metric,Unit,total,rate,rate_avg,rate_min,rate_max,rate_std,engine,finished_reason,model_name,reason,source,generation,handler,method,status,Description
 127.0.0.1:8000,counter,vllm:external_prefix_cache_hits,,0.0000,0.0000,,,,,0,,m/x,,,,,,,"External hits"
-127.0.0.1:8000,counter,vllm:prefix_cache_hits,,278528.0000,4483.8938,,,,,0,,m/x,,,,,,,"Prefix cache hits, in tokens."
-127.0.0.1:8000,counter,vllm:prefix_cache_queries,,280704.0000,4518.9242,,,,,0,,m/x,,,,,,,"Prefix cache queries, in tokens."
+127.0.0.1:8000,counter,vllm:prefix_cache_hits,,$1,4483.8938,,,,,0,,m/x,,,,,,,"Prefix cache hits, in tokens."
+127.0.0.1:8000,counter,vllm:prefix_cache_queries,,$2,4518.9242,,,,,0,,m/x,,,,,,,"Prefix cache queries, in tokens."
+
+Endpoint,Type,Metric,Unit,count,count_rate,sum,sum_rate,avg,p1_estimate,p5_estimate,p10_estimate,p25_estimate,p50_estimate,p75_estimate,p90_estimate,p95_estimate,p99_estimate,engine,model_name,handler,Description
+127.0.0.1:8000,histogram,vllm:time_to_first_token_seconds,,300,5.0,15.0,0.25,0.05,,,,,,,,,,,m/x,,"TTFT."
+
+Endpoint,Metric,Key,Value,Description
+127.0.0.1:8000,vllm:cache_config_info,enable_prefix_caching,False,Information of the LLMEngine CacheConfig
 EOF
+}
+metrics 278528.0000 280704.0000
 hit() { python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("prefix_hit_pct"))' "$1"; }
 row=$(python3 "$ROOT/bench/collect.py" "$P" 1 m/x vllm p1k 1024 16 8 0 40)
 eq "$(hit "$row")" "99.2" "share of prompt tokens served by the prefix cache:"
 grep -q "cache hit 99.2%" <<< "$(python3 "$ROOT/bench/collect.py" --line <<< "$row")" || fail "the console line shows the cache hit share"
+metrics 0.0000 0.0000
+row=$(python3 "$ROOT/bench/collect.py" "$P" 1 m/x vllm p1k 1024 16 8 0 40)
+eq "$(hit "$row")" "0.0" "cache off (vLLM counts no queries): 0%, not unknown:"
 rm "$P/server_metrics_export.csv"
 row=$(python3 "$ROOT/bench/collect.py" "$P" 1 m/x vllm p1k 1024 16 8 0 40)
 eq "$(hit "$row")" "None" "no server metrics (Dynamo's frontend only): no share:"
