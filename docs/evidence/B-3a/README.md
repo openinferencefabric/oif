@@ -87,24 +87,29 @@ decode-8b 3312 / 3075; together about 5.5 h per stack and repeat on both GPUs.
 
 ## 03: timing run, vllm against dynamo-vllm, prefix cache off, one repeat (2026-11-27)
 
-Profiles prefill, decode, prefill-8b, decode-8b on the A6000 and the W7900: 192 points, 0 errors, no other process on
-the GPU, cache 0.0% on every vLLM point; Dynamo's worker logged `prefix caching is disabled` in all 8 runs.
+Profiles prefill, decode, prefill-8b, decode-8b on the A6000 and the W7900: 192 points (96 pairs), 0 errors, no other
+process on the GPU, cache 0.0% on every vLLM point; Dynamo's worker logged `prefix caching is disabled` in all 8 runs.
+One repeat (owner decision): no run-to-run spread, so the per-request distribution (`ttft_hist.py`) stands in for it.
 
-- **Decode is the same on both stacks.** Inter-token latency within 1% at every decode point (for example W7900 8B
-  d2k at 32 users 47.64 / 47.50 ms; A6000 0.6B d2k at 64 users 17.76 / 17.71 ms), output throughput within 1.2%.
-- **With real prefill, the first token is mostly the same too.** 63 of the 96 pairs are within 5% on TTFT p50, and
-  every 8B prefill pair beyond 1 user is within 1%: where prefill takes hundreds of milliseconds, the frontend's few
-  milliseconds do not show.
-- **The large differences are two-peak distributions, in both directions.** The pairs that differ by more than 10%
-  (Dynamo from -31% to +56%) all have a bimodal per-request TTFT on at least one stack (`ttft_hist.py`, bimodality
-  0.62-0.97). The p50 falls on one side of the gap or the other; the p99 hardly moves: A6000 0.6B d256 at 32 users
-  p50 26.8 / 41.5 ms (+55%) but p99 70.1 / 70.1; A6000 p1k at 8 users p50 92.6 / 62.7 (-32%), p99 115.3 / 111.6;
-  W7900 8B d2k at 16 users p50 422.9 / 504.3, p99 521.6 / 520.1. With one repeat these p50 differences are not
-  results.
-- **Where Dynamo's TTFT is lower in prefill, its ITL is higher**: A6000 p1k at 8 users TTFT -29 ms, ITL 6.50 to 8.19
-  ms; W7900 p1k at 4 users TTFT -39 ms, ITL 6.03 to 8.69 ms. The same scheduler gives earlier first tokens and more
-  prefill between later tokens: the arrival pattern into the engine differs, not the engine work (B-4a).
+- **Decode is the same on both stacks.** Inter-token latency within 2.5% at every decode point (Dynamo never more than
+  1% slower; W7900 8B d2k at 32 users 47.64 / 47.50 ms, A6000 0.6B d2k at 64 users 17.76 / 17.71 ms); output
+  throughput within 1.2%.
+- **TTFT p50 is mostly the same and its outliers go both ways.** 73 of 96 pairs within 5%; 15 differ by more than 10%,
+  from -31% to +56% for Dynamo. 11 of those 15 have a two-peak per-request TTFT on at least one stack (bimodality above
+  0.555), including all four where Dynamo's p50 is higher (+56%, +55%, +32%, +19%): the p50 lands on one side of the
+  gap or the other. Example: A6000 0.6B d256 at 32 users, p50 26.8 / 41.5 ms (+55%), p99 70.1 / 70.1 ms.
+- **TTFT p99 is where Dynamo is steadily lower.** Lower by more than 5% at 40 pairs, within 5% at 50, higher at 6. The
+  saving is a median of 15 ms (2 to 111 ms); it shows where the first token is short (0.6B, 128-token prompts: -8% to
+  -32%) or a queue is building (W7900 p4k at 4 users 826 to 715 ms), and vanishes where prefill is long (every 8B
+  prefill pair within 1% except W7900 p1k at 8 users). Higher at: A6000 0.6B decode at 8 users at all three lengths
+  (27-37 to about 42 ms each), W7900 0.6B d256 at 64 users (181 to 270 ms), A6000 8B d256 at 16 users (+18 ms), W7900
+  8B p1k at 8 users (1629 to 1827 ms).
+- **Where Dynamo's TTFT is lower in prefill, its ITL is higher**: A6000 p1k at 8 users TTFT p50 -29 ms, ITL 6.50 to
+  8.19 ms; W7900 p1k at 4 users TTFT p50 -39 ms, ITL 6.03 to 8.69 ms. Same engine, a different arrival pattern into
+  it: earlier first tokens, more prefill between later tokens (B-4a).
 
-Consequence for the published B-1b/B-2 claim: its TTFT gap was measured with about 98% of the prompt served from the
-cache (01), and it does not reappear here as a steady difference. The comparison to publish is p99 and the per-request
-distribution, not p50, and B-4a (Poisson arrivals, no waves) decides whether any frontend gap remains.
+Consequence for the published B-1b/B-2 claim: its p50 TTFT gap was measured with about 98% of the prompt served from
+the cache (01) and does not reappear as a steady p50 difference here. What holds with real prefill is a tail effect: a
+p99 lower by about 15 ms where the first token is short, gone where prefill dominates. B-4a (Poisson arrivals, no
+waves) checks it without closed-loop bursts; the A6000 0.6B decode at 8 users (Dynamo p99 about 42 ms at three lengths)
+needs the trace pass.
