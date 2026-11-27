@@ -68,3 +68,19 @@ All W7900 points that produced records had 0 errors. The A6000 started no server
 came back from the VM; the container failed to start and its error went nowhere, so the server log was empty. The
 owner started `nvidia-persistenced` and refreshed the spec; the bench now writes a failed container start into the
 server log.
+
+## 02: second calibration, prefix cache off (2026-11-27)
+
+Same command as 01 with the fixed profiles, both GPUs: 96 points, 0 errors, prefix cache 0.0% on every point, every
+2K-token answer ended (OSL 2005-2037 of 2048: the tokenizer round trip, not cut answers). Run time per profile at one
+repeat of one stack, seconds (A6000 / W7900): prefill 2966 / 1661, decode 3022 / 2439, prefill-8b 1841 / 1615,
+decode-8b 3312 / 3075; together about 5.5 h per stack and repeat on both GPUs.
+
+- **Prefill saturates early.** Qwen3-0.6B reaches its prompt rate by 8 users at 4K and 8K prompts (W7900 about 15-18K and
+  12.5K tokens/s, A6000 about 43K and 34K) and by 32 users at 1K; above that TTFT is queue: 5.3 s (p4k) and 38 s (p8k)
+  at 64 users on the W7900. Qwen3-8B saturates at 2 users for 4K and 8K prompts.
+- **With the cache off the first token is real prefill.** W7900 p1k at 1 user: 36 ms (0.6B), 244 ms (8B), against 22 ms
+  and 69 ms (2 users) with the warm cache in 01.
+- **Qwen3-8B decode: TTFT grows with the users at about one decode step per user** (W7900 d256: 53, 269, 504, 703 ms at
+  1, 8, 16, 32 users for a 128-token prompt). Closed-loop waves make every user's next request arrive together; the
+  trace pass (queue against prefill) shows where the time goes.
