@@ -8,7 +8,7 @@ D=$SANDBOX/attrib
 V=$D/raw/1/m_x/vllm/chat/c64; Y=$D/raw/1/m_x/dynamo-vllm/chat/c64; mkdir -p "$V" "$Y"
 cat > "$D/results.jsonl" <<'EOF'
 {"type": "startup", "rep": 1, "model": "m/x", "stack": "vllm", "ready_s": 100}
-{"type": "point", "rep": 1, "model": "m/x", "stack": "vllm", "workload": "chat", "concurrency": 64, "out_tok_s": 4383.0, "ttft_avg_ms": 136.0, "ttft_p50_ms": 136.4}
+{"type": "point", "rep": 1, "model": "m/x", "stack": "vllm", "workload": "chat", "concurrency": 64, "out_tok_s": 4383.0, "ttft_avg_ms": 136.0, "ttft_p50_ms": 136.4, "itl_avg_ms": 6.5}
 {"type": "point", "rep": 1, "model": "m/x", "stack": "dynamo-vllm", "workload": "chat", "concurrency": 64, "out_tok_s": 4400.0, "ttft_avg_ms": 82.0, "ttft_p50_ms": 81.5}
 {"type": "point", "rep": 1, "model": "m/x", "stack": "vllm", "workload": "chat", "concurrency": 1, "out_tok_s": 234.0, "ttft_avg_ms": 33.0}
 EOF
@@ -21,6 +21,8 @@ vllm:request_queue_time_seconds_sum{engine="0",model_name="m/x"} 1.0
 vllm:request_queue_time_seconds_count{engine="0",model_name="m/x"} 100
 vllm:request_prefill_time_seconds_sum{engine="0",model_name="m/x"} 2.0
 vllm:request_prefill_time_seconds_count{engine="0",model_name="m/x"} 100
+vllm:inter_token_latency_seconds_sum{engine="0",model_name="m/x"} 1.0
+vllm:inter_token_latency_seconds_count{engine="0",model_name="m/x"} 200
 EOF
 cat > "$V/metrics-8000-after.txt" <<'EOF'
 vllm:time_to_first_token_seconds_sum{engine="0",model_name="m/x"} 35.0
@@ -32,12 +34,17 @@ vllm:request_queue_time_seconds_sum{engine="0",model_name="m/x"} 6.0
 vllm:request_queue_time_seconds_count{engine="0",model_name="m/x"} 600
 vllm:request_prefill_time_seconds_sum{engine="0",model_name="m/x"} 12.0
 vllm:request_prefill_time_seconds_count{engine="0",model_name="m/x"} 600
+vllm:inter_token_latency_seconds_sum{engine="0",model_name="m/x"} 6.0
+vllm:inter_token_latency_seconds_count{engine="0",model_name="m/x"} 1200
 EOF
 # Dynamo: the engine's metrics come from the worker (8081), the frontend's from 8000
 printf 'vllm:time_to_first_token_seconds_sum 0\nvllm:time_to_first_token_seconds_count 0\n' > "$Y/metrics-8081-before.txt"
 printf 'vllm:time_to_first_token_seconds_sum 40\nvllm:time_to_first_token_seconds_count 500\n' > "$Y/metrics-8081-after.txt"
 printf 'dynamo_frontend_time_to_first_token_seconds_sum 0\ndynamo_frontend_time_to_first_token_seconds_count 0\n' > "$Y/metrics-8000-before.txt"
 printf 'dynamo_frontend_time_to_first_token_seconds_sum 41\ndynamo_frontend_time_to_first_token_seconds_count 500\n' > "$Y/metrics-8000-after.txt"
+# B-3a: the frontend's own tokenize time and inter-token latency (histograms)
+printf 'dynamo_frontend_tokenize_seconds_sum 0.5\ndynamo_frontend_tokenize_seconds_count 500\n' >> "$Y/metrics-8000-after.txt"
+printf 'dynamo_frontend_inter_token_latency_seconds_sum 30\ndynamo_frontend_inter_token_latency_seconds_count 6000\n' >> "$Y/metrics-8000-after.txt"
 # CPU: the idle sample (t=0) is outside the busy window; the API server holds one core
 cat > "$V/procs.csv" <<'EOF'
 t,pid,name,cpu_pct,threads,rss_mib
@@ -68,6 +75,12 @@ eq "$(col vllm "cpu api server")" "100.0" "API server CPU over the busy window o
 eq "$(col vllm "cpu engine core")" "80.0" "engine core CPU:"
 eq "$(col dynamo-vllm engine_ttft_ms)" "80.0" "Dynamo: engine TTFT from the worker's metrics:"
 eq "$(col dynamo-vllm frontend_ttft_ms)" "82.0" "Dynamo: frontend TTFT:"
+# B-3a per token: engine ITL 5 ms (1000 intervals in 5 s; vLLM takes it from the engine core's timestamps, so it is
+# also the core's time per token); the client saw 6.5 ms, so 1.5 ms per token came after the core
+eq "$(col vllm engine_itl_ms)" "5.0" "engine ITL = inter-token latency sum delta / count delta:"
+eq "$(col vllm after_core_itl_ms)" "1.5" "after the core per token = client ITL 6.5 - engine ITL 5:"
+eq "$(col dynamo-vllm tokenize_ms)" "1.0" "Dynamo: frontend tokenize time per request:"
+eq "$(col dynamo-vllm frontend_itl_ms)" "5.0" "Dynamo: frontend ITL:"
 P=$(cat "$D/attrib-profiles.txt")
 grep -q "inclusive: asyncio 100.0%, tokenize 50.0%, detokenize 25.0%, http + sse 25.0%" <<< "$P" || fail "profile buckets: $P"
 grep -q "50.0%  encode (tokenization_utils_fast.py)" <<< "$P" || fail "self time by function: $P"

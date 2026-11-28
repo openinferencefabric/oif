@@ -16,12 +16,23 @@ Derived, per point:
   core            queue + prefill: the engine core alone
   output path     engine TTFT - core: ZMQ from the engine core and the output processor in the API process, which
                   shares that process's event loop with everything else the API layer does
-  api layer       client TTFT - engine TTFT: HTTP, chat template, tokenizing, the first SSE chunk, loopback network"""
+  api layer       client TTFT - engine TTFT: HTTP, chat template, tokenizing, the first SSE chunk, loopback network
+  tokenize        dynamo_frontend_tokenize_seconds: the Dynamo frontend's tokenizing per request (vLLM has no metric:
+                  its tokenizing is inside the api layer)
+Per output token (B-3a):
+  engine ITL      vllm:inter_token_latency_seconds. vLLM 0.33.0 takes it from the engine core's timestamps, the same
+                  ones as its decode time (v1/metrics/stats.py), so it is the core's time per token: there is no
+                  separate output-path figure per token
+  after the core  client ITL - engine ITL: output path, API layer and network per token. A delay that is the same
+                  for every token does not change the gaps between tokens, so this shows added jitter, not delay
+  frontend ITL    dynamo_frontend_inter_token_latency_seconds (Dynamo stacks only)"""
 import csv, glob, json, os, re, statistics, sys
 from collections import Counter, defaultdict
 
 HIST = {"engine_ttft_ms": "vllm:time_to_first_token_seconds", "queue_ms": "vllm:request_queue_time_seconds",
-        "prefill_ms": "vllm:request_prefill_time_seconds", "frontend_ttft_ms": "dynamo_frontend_time_to_first_token_seconds"}
+        "prefill_ms": "vllm:request_prefill_time_seconds", "frontend_ttft_ms": "dynamo_frontend_time_to_first_token_seconds",
+        "tokenize_ms": "dynamo_frontend_tokenize_seconds", "engine_itl_ms": "vllm:inter_token_latency_seconds",
+        "frontend_itl_ms": "dynamo_frontend_inter_token_latency_seconds"}
 # Inclusive buckets: a sample counts in every bucket one of its frames matches (first match on detokenize before tokenize)
 BUCKETS = [("detokenize", r"detokeniz|DecodeStream|convert_ids_to|incremental"),
            ("chat template", r"apply_chat_template|render_chat|jinja"),
@@ -125,7 +136,7 @@ for p in points:
     d = f'{out}/raw/{p["rep"]}/{p["model"].replace("/", "_")}/{p["stack"]}/{p["workload"]}/c{p["concurrency"]}'
     if not glob.glob(f"{d}/metrics-*") and not os.path.exists(f"{d}/procs.csv"):
         continue  # not traced
-    row = {k: p.get(k) for k in ("rep", "model", "stack", "workload", "concurrency", "out_tok_s", "ttft_avg_ms", "ttft_p50_ms")}
+    row = {k: p.get(k) for k in ("rep", "model", "stack", "workload", "concurrency", "out_tok_s", "ttft_avg_ms", "ttft_p50_ms", "itl_avg_ms")}
     row.update(hist_means(d))
     if row["ttft_avg_ms"] is not None and row["engine_ttft_ms"] is not None:
         row["api_layer_ms"] = round(row["ttft_avg_ms"] - row["engine_ttft_ms"], 2)
@@ -133,6 +144,8 @@ for p in points:
         row["core_ms"] = round(row["queue_ms"] + row["prefill_ms"], 2)
         if row["engine_ttft_ms"] is not None:
             row["output_path_ms"] = round(row["engine_ttft_ms"] - row["core_ms"], 2)
+    if row["engine_itl_ms"] is not None and row["itl_avg_ms"] is not None:
+        row["after_core_itl_ms"] = round(row["itl_avg_ms"] - row["engine_itl_ms"], 2)
     row.update(cpu(d))
     rows.append(row)
     for f in sorted(glob.glob(f"{d}/pyspy-*.json")):
