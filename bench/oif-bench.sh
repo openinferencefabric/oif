@@ -4,7 +4,7 @@
 #   ./oif bench gpus                   list the GPUs on this node (name, PCI address, memory, usable or why not)
 #   sudo ./oif bench [run] [options]   benchmark on this GPU node (plain containers, no Kubernetes in the request path)
 #        --gpu N|PCI                   which GPU (number or PCI address from oif bench gpus); asked when not given
-#        --profile NAME                bench/profiles/NAME.env: full (default: 4 workloads x 7 concurrencies x 3 repeats), quick, attrib, prefill, decode (B-3a; -8b for Qwen3-8B)
+#        --profile NAME                bench/profiles/NAME.env: full (default: 4 workloads x 7 concurrencies x 3 repeats), quick, attrib, prefill, decode (B-3a; -8b for Qwen3-8B), poisson (B-4a, open loop)
 #        --stacks "vllm dynamo-vllm sglang dynamo-sglang"   default: every stack with an image in versions.env
 #        --models "Qwen/Qwen3-0.6B Qwen/Qwen3-8B"           Hugging Face ids, asked when not given (Enter keeps the
 #                                      default); HF_TOKEN in the environment for gated models
@@ -56,6 +56,10 @@ while [ $# -gt 0 ]; do case $1 in
 # shellcheck source=/dev/null
 . "$HERE/profiles/$PROFILE.env"
 WORKLOADS=$BENCH_WORKLOADS; CONCS=$BENCH_CONCURRENCY; DUR=$BENCH_DURATION_S; REPEATS=${REPEATS:-$BENCH_REPEATS}
+# B-4a: closed loop (the levels are users, a new request when one ends) or open loop (the levels are requests per
+# second, Poisson arrivals): the closed loop phase-locks the requests into waves.
+ARRIVAL=${BENCH_ARRIVAL:-closed}
+case $ARRIVAL in closed|poisson) ;; *) die "profile $PROFILE: BENCH_ARRIVAL must be closed or poisson, not $ARRIVAL" ;; esac
 CTX=${BENCH_CTX:-8192}  # server context; a profile with longer prompts raises it (B-3a prefill)
 VLLM_ARGS="--max-model-len $CTX --gpu-memory-utilization 0.90 --max-num-seqs 256 --seed 0"
 # SGLang on gfx1100: no aiter (Instinct-only), Triton attention (S-5 settles the exact flags).
@@ -174,7 +178,7 @@ env = {"oif_version": "${OIF_VERSION:-}", "kernel": platform.release(), "cpus": 
        "driver": "$drv", "gpu": "$GPU_NAME", "gpu_vendor": "$VENDOR", "gpu_pci": "$(field "$G" pci)",
        "vram_total_bytes": int("${vram_total:-0}" or 0),
        "power_cap_w": int("${power_cap:-0}" or 0), "max_start_temp_c": $MAXT,
-       "profile": "$PROFILE", "repeats": $REPEATS, "duration_s": $DUR, "aiperf": "$AIPERF_VERSION",
+       "profile": "$PROFILE", "arrival": "$ARRIVAL", "repeats": $REPEATS, "duration_s": $DUR, "aiperf": "$AIPERF_VERSION",
        "workloads": "$WORKLOADS".split(), "concurrency": [int(c) for c in "$CONCS".split()], "models": "$MODELS".split(),
        "vllm_args": "$VLLM_ARGS", "sglang_args": "$SGLANG_ARGS", "trace": $TRACE, "stacks": "$STACKS".split(),
        "images": [json.loads(l) for l in open("$OUT/images.jsonl")]}
@@ -303,9 +307,10 @@ for rep in $(seq "$REPEATS"); do
           others=$(gpu_others)
           python3 "$HERE/gpu_sampler.py" "$([ "$VENDOR" = NVIDIA ] && echo "nvidia:$UUID" || echo "$gpu")" "$OUT/$dir/gpu.csv" & sp=$!
           [ "$TRACE" = 1 ] && trace_start "$dir"
+          if [ "$ARRIVAL" = poisson ]; then load=(--request-rate "$c" --arrival-pattern poisson); else load=(--concurrency "$c"); fi
           ct run --rm --network host -v "$OUT:/out" --entrypoint /out/aiperf-venv/bin/aiperf "$first" profile \
             --model "$model" --url "http://127.0.0.1:$PORT" --endpoint-type chat --streaming \
-            --concurrency "$c" --benchmark-duration "$DUR" --benchmark-grace-period 60 \
+            "${load[@]}" --benchmark-duration "$DUR" --benchmark-grace-period 60 \
             --warmup-request-count $(( c > 4 ? c : 4 )) \
             --isl "$isl" --isl-stddev 0 --osl "$osl" --osl-stddev 0 --extra-inputs ignore_eos:true \
             --random-seed 42 --artifact-dir "/out/$dir" > "$OUT/$dir/console.txt" 2>&1

@@ -243,7 +243,7 @@ and at least {PRACTICAL_PCT:g}%.</p>
 <div class="card">{table(["stack", "image", "digest", "inside"], img_rows)}
 <p>GPU {html.escape(env.get("gpu", ""))}, {round(env.get("vram_total_bytes", 0) / 2**30)} GiB, power cap {env.get("power_cap_w")} W · {html.escape(str(env.get("driver") or "amdgpu " + str(env.get("amdgpu"))))} · kernel {html.escape(env.get("kernel", ""))} · {env.get("cpus")} CPUs</p>
 <p>vLLM arguments: <code>{html.escape(env.get("vllm_args", ""))}</code><br>SGLang arguments: <code>{html.escape(env.get("sglang_args", ""))}</code><br>
-Workloads (name:input:output tokens): <code>{html.escape(" ".join(env.get("workloads", [])))}</code> · concurrency {html.escape(" ".join(map(str, env.get("concurrency", []))))} · {env.get("duration_s")} s per point, warm-up max(c, 4) requests</p>
+Workloads (name:input:output tokens): <code>{html.escape(" ".join(env.get("workloads", [])))}</code> · {"requests per second (Poisson arrivals)" if env.get("arrival") == "poisson" else "concurrency"} {html.escape(" ".join(map(str, env.get("concurrency", []))))} · {env.get("duration_s")} s per point, warm-up max(c, 4) requests</p>
 <p class="muted">Raw AIPerf exports, GPU samples (0.5 s) and server logs are in the result directory; <code>summary.csv</code> has every median shown here.</p></div>
 </main>
 <script>
