@@ -113,3 +113,36 @@ the cache (01) and does not reappear as a steady p50 difference here. What holds
 p99 lower by about 15 ms where the first token is short, gone where prefill dominates. B-4a (Poisson arrivals, no
 waves) checks it without closed-loop bursts; the A6000 0.6B decode at 8 users (Dynamo p99 about 42 ms at three lengths)
 needs the trace pass.
+
+## 04: B-4a, open loop with Poisson arrivals (2026-11-28)
+
+Profile `poisson`: Qwen3-0.6B, chat 512/256, d256 128/256 and p1k 1024/16 at 4, 8 and 12 requests/s, Poisson
+arrivals (AIPerf `--request-rate`, no concurrency cap), 120 s per point, prefix cache off, one repeat, vllm and
+dynamo-vllm on the A6000 and the W7900: 36 points. Both stacks received the same seeded schedule (463, 953 and 1395
+requests per point on both); 1 error in 18,000 requests (A6000 vllm p1k at 8/s, ServerDisconnectedError). No request
+started in a wave at any point (largest group of starts less than 2 ms apart: 2); where a TTFT distribution has two
+peaks, it has them on both stacks.
+
+Dynamo minus plain vLLM, milliseconds, at 4 / 8 / 12 requests/s:
+
+| GPU | Workload (input tokens) | TTFT p50 | TTFT p99 | ITL p50 |
+| --- | --- | --- | --- | --- |
+| A6000 | d256 (128) | -0.9 / -0.5 / -0.5 | -2.1 / -0.7 / +0.8 | 0.0 |
+| A6000 | chat (512) | -1.6 / -1.4 / -1.3 | -2.4 / -1.3 / +0.6 | +0.02 to +0.05 |
+| A6000 | p1k (1024) | -2.2 / -2.1 / -2.2 | -3.6 / -2.5 / -2.8 | +0.03 to +0.04 |
+| W7900 | d256 (128) | -0.7 / -0.8 / -1.0 | -1.0 / -0.3 / -1.7 | -0.01 to +0.04 |
+| W7900 | chat (512) | -1.1 / -1.3 / -1.5 | -3.3 / -3.3 / -1.2 | -0.01 to +0.05 |
+| W7900 | p1k (1024) | -2.6 / -3.1 / -2.4 | -3.7 / -2.1 / -1.1 | -0.06 to +0.05 |
+
+- **Without waves Dynamo's first token is earlier at every one of the 18 pairs, by a small and steady amount:** 0.5 to
+  3.1 ms at p50 (3-9%), the same on both GPUs. The closed loop's -31% to +56% swings (03) are gone.
+- **The gap grows with the prompt, not with the load or the GPU:** about 0.5-1 ms at 128 input tokens, 1.1-1.6 ms at
+  512, 2.1-3.1 ms at 1024, flat across 4 to 12 requests/s. Both GPUs share one host CPU, so the saving is CPU work per
+  prompt token before the engine; Dynamo's frontend preprocesses (tokenizes) the prompt in Rust, vLLM's API server in
+  Python. To confirm with the trace pass (tokenize time per request against prompt length).
+- **p99 follows at the same size** (lower at 16 of 18 pairs, -0.3 to -3.7 ms; +0.6 and +0.8 ms on the A6000 at
+  12/s); ITL equal within 0.06 ms.
+
+Consequence for the document: the steady, explainable difference is a TTFT saving of about 2 ms per 1K prompt tokens
+in the frontend, invisible next to prefill of long prompts on a large model (03: 8B prefill within 1%). The B-1b/B-2
+headline (35 ms at 16 users, -40% at 64) came from the warm cache (01) and the closed loop's waves (00, 03).
