@@ -135,7 +135,7 @@ Dynamo minus plain vLLM, milliseconds, at 4 / 8 / 12 requests/s:
 | W7900 | p1k (1024) | -2.6 / -3.1 / -2.4 | -3.7 / -2.1 / -1.1 | -0.06 to +0.05 |
 
 - **Without waves Dynamo's first token is earlier at every one of the 18 pairs, by a small and steady amount:** 0.5 to
-  3.1 ms at p50 (3-9%), the same on both GPUs. The closed loop's -31% to +56% swings (03) are gone.
+  3.1 ms at p50 (2.7-9.1%), the same on both GPUs. The closed loop's -31% to +56% swings (03) are gone.
 - **The gap grows with the prompt, not with the load or the GPU:** about 0.5-1 ms at 128 input tokens, 1.1-1.6 ms at
   512, 2.1-3.1 ms at 1024, flat across 4 to 12 requests/s. Both GPUs share one host CPU, so the saving is CPU work per
   prompt token before the engine; Dynamo's frontend preprocesses (tokenizes) the prompt in Rust, vLLM's API server in
