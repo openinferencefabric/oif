@@ -119,7 +119,7 @@ needs the trace pass.
 Profile `poisson`: Qwen3-0.6B, chat 512/256, d256 128/256 and p1k 1024/16 at 4, 8 and 12 requests/s, Poisson
 arrivals (AIPerf `--request-rate`, no concurrency cap), 120 s per point, prefix cache off, one repeat, vllm and
 dynamo-vllm on the A6000 and the W7900: 36 points. Both stacks received the same seeded schedule (463, 953 and 1395
-requests per point on both); 1 error in 18,000 requests (A6000 vllm p1k at 8/s, ServerDisconnectedError). No request
+requests per point on both); 1 error in 33,732 requests (A6000 vllm p1k at 8/s, ServerDisconnectedError). No request
 started in a wave at any point (largest group of starts less than 2 ms apart: 2); where a TTFT distribution has two
 peaks, it has them on both stacks.
 
